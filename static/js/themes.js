@@ -15,7 +15,7 @@ let activeCustomSlot = null;
 
 async function loadThemes() {
     try {
-        const response = await fetch("../templates/themes.json");
+        const response = await fetch("https://brown-dj.github.io/LadyLinux_test/static/themes.json");
         if (!response.ok) throw new Error("Failed to load themes.json");
 
         const data = await response.json();
@@ -167,7 +167,7 @@ function loadCustomPreview(slotKey) {
    ===================================================== */
 
 function loadCSS() {
-    return fetch("../static/css/style.css")
+    return fetch(" https://brown-dj.github.io/LadyLinux_test/static/css/style.css")
         .then(res => res.text())
         .then(css => {
             const style = document.createElement("style");

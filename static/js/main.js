@@ -25,7 +25,7 @@ document.addEventListener("DOMContentLoaded", async () => {
    ===================================================== */
 
 async function loadNavigation() {
-    const response = await fetch("../templates/nav.html");
+    const response = await fetch("https://brown-dj.github.io/LadyLinux_test/templates/nav.html");
     const navMarkup = await response.text();
 
     const container = document.querySelector("[data-nav-target]");
