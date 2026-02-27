@@ -3,6 +3,9 @@
    THEME ENGINE (CLEAN PRODUCTION VERSION)
    ===================================================== */
 
+/* Global flow: structural styles here consume runtime-injected theme variables
+   (for example: --bg-main, --bg-surface, --border-soft, --text-main). */
+
 /* =====================================================
    GLOBAL RESET
    ===================================================== */
@@ -11,16 +14,20 @@
     box-sizing: border-box;
 }
 
+/* Keeps full-height layout available for app shell centering. */
 html, body {
   height: 100%;
 }
 
 body {
   margin: 0;
+  /* Important variable: --bg-main provides page background from theme engine. */
   background: var(--bg-main);
+  /* Important variable: --text-main provides base text color from theme engine. */
   color: var(--text-main);
   font-family: 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
+  /* Smooth visual transition when JS switches theme variables. */
   transition: background var(--transition-speed), color var(--transition-speed);
 }
 
@@ -39,6 +46,7 @@ a {
    APP SHELL
    ===================================================== */
 
+/* Main viewport-centered layout container. */
 .app-shell {
     min-height: 100vh;
     display: flex;
@@ -47,6 +55,7 @@ a {
     padding: 40px 20px;
 }
 
+/* Core application panel surface fed by theme variables. */
 .app-surface {
   background: var(--bg-surface);
   border: 1px solid var(--border-soft);
@@ -57,6 +66,7 @@ a {
    HERO
    ===================================================== */
 
+/* Header presentation block at top of app content. */
 .hero {
     text-align: center;
     margin-bottom: 40px;
@@ -78,6 +88,7 @@ a {
    BUILD TAG
    ===================================================== */
 
+/* Small inline badge next to heading/build metadata. */
 .build-tag {
     background: transparent;
     color: inherit;
@@ -93,6 +104,7 @@ a {
    AI PANEL
    ===================================================== */
 
+/* Wrapper for prompt form and status text. */
 .ai-panel {
     margin: 50px auto 40px auto;
     padding: 30px;
@@ -101,6 +113,7 @@ a {
     border: 1px solid transparent;
 }
 
+/* Horizontal input/button alignment for chat submission. */
 .ai-form {
     display: flex;
     gap: 14px;
@@ -116,6 +129,7 @@ a {
     transition: all var(--transition-speed);
 }
 
+/* Execution flow: focus state provides input emphasis. */
 .ai-input:focus {
     border-color: currentColor;
     box-shadow: 0 0 0 3px transparent;
@@ -132,6 +146,7 @@ a {
     transition: all var(--transition-speed);
 }
 
+/* Execution flow: hover gives subtle lift feedback before submit action. */
 .ai-button:hover {
     background: transparent;
     transform: translateY(-2px);
@@ -149,6 +164,7 @@ a {
    NAVIGATION
    ===================================================== */
 
+/* Top navigation pill container; backdrop-filter blurs content behind it. */
 .nav-pill {
     display: flex;
     justify-content: center;
@@ -171,6 +187,7 @@ a {
     background: transparent;
 }
 
+/* Applied by JS/UI to indicate current section selection. */
 .nav-item.active {
     background: transparent;
     color: inherit;
@@ -181,6 +198,7 @@ a {
    PANELS
    ===================================================== */
 
+/* Reusable content card block used in panel grid. */
 .panel {
     padding: 24px;
     border-radius: var(--radius-medium);
@@ -199,6 +217,7 @@ a {
    PANEL GRID
    ===================================================== */
 
+/* Responsive two-or-more column grid depending on available width. */
 .panel-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -211,6 +230,7 @@ a {
    RESPONSE BOX
    ===================================================== */
 
+/* Scrollable container for generated/system response text. */
 .response-box {
     padding: 20px;
     border-radius: var(--radius-medium);
@@ -222,6 +242,7 @@ a {
     overflow-y: auto;
 }
 
+/* Execution flow: JS can toggle this class to hide response UI entirely. */
 .response-box.hidden {
     display: none;
 }
@@ -231,6 +252,7 @@ a {
    ACTION BUTTONS
    ===================================================== */
 
+/* Full-width utility action button style for panel controls. */
 .action-btn {
     display: block;
     width: 100%;
@@ -250,6 +272,7 @@ a {
     background: transparent;
 }
 
+/* Modifier variant for destructive-style actions. */
 .action-btn.danger {
     border-color: currentColor;
     color: inherit;
@@ -264,12 +287,14 @@ a {
    USER LIST
    ===================================================== */
 
+/* Removes native list styling and spacing for custom row rendering. */
 .user-list {
     list-style: none;
     padding: 0;
     margin: 0;
 }
 
+/* Row layout: left content + right actions/metadata. */
 .user-list li {
     padding: 12px;
     border-radius: var(--radius-small);
@@ -285,6 +310,7 @@ a {
    ROLE BADGE
    ===================================================== */
 
+/* Compact badge token used for user role labels. */
 .role-badge {
     display: inline-block;
     padding: 4px 10px;
@@ -309,6 +335,7 @@ a {
    THEME PREVIEW
    ===================================================== */
 
+/* Theme preview tile base used by theme cards/custom slots. */
 .theme-preview {
     width: 100%;
     height: 60px;
@@ -343,6 +370,7 @@ a {
    SUGGEST LABEL
    ===================================================== */
 
+/* Centered helper text above suggested actions/elements. */
 .suggest-label {
     text-align: center;
     color: inherit;
@@ -355,6 +383,7 @@ a {
    CODE BLOCK
    ===================================================== */
 
+/* Monospace scroll area for logs/snippets/diagnostics output. */
 .code-block {
     background: transparent;
     padding: 12px;
@@ -369,10 +398,12 @@ a {
 }
 
 
+/* Preview surface for custom theme slot visuals. */
 .custom-preview {
   background: transparent;
 }
 
+/* Clickable theme slot card with hover-scale feedback. */
 .custom-slot {
   cursor: pointer;
   transition: transform 0.2s ease;
@@ -385,6 +416,7 @@ a {
    LADY LINUX COLOR CLASSES
    ===================================================== */
 
+/* Reusable card component shell for themed content blocks. */
 .ll-card {
     background: transparent;
     color: inherit;
@@ -398,6 +430,7 @@ a {
     border-color: currentColor;
 }
 
+/* Reusable button pattern used across Lady Linux modules. */
 .ll-btn {
     padding: 12px 20px;
     border-radius: var(--radius-medium);
@@ -418,6 +451,7 @@ a {
     transform: translateY(0);
 }
 
+/* Horizontal link group container for local nav links. */
 .ll-nav {
     display: flex;
     flex-wrap: wrap;
@@ -435,11 +469,13 @@ a {
     background: transparent;
 }
 
+/* Active nav-link state expected to be toggled by JS/routing logic. */
 .ll-nav .nav-link.active {
     background: transparent;
     color: inherit;
 }
 
+/* Modal section shells for content and separators. */
 .modal-content {
     background: transparent;
     color: inherit;
@@ -454,6 +490,7 @@ a {
     border-top-color: transparent;
 }
 
+/* Side effect: inverts close icon to maintain visibility on dark/light themes. */
 .btn-close {
     filter: brightness(0) invert(1);
 }
