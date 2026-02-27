@@ -15,7 +15,7 @@ let activeCustomSlot = null;
 
 async function loadThemes() {
     try {
-        const response = await fetch("https://brown-dj.github.io/LadyLinux_test/static/themes.json");
+        const response = await fetch("/static/themes.json");
         if (!response.ok) throw new Error("Failed to load themes.json");
 
         const data = await response.json();
@@ -42,6 +42,9 @@ function applyTheme(themeKey) {
     if (!THEMES[themeKey]) return;
 
     const theme = THEMES[themeKey];
+
+
+    document.documentElement.setAttribute("data-theme", themeKey);
 
     Object.entries(theme).forEach(([key, value]) => {
         document.documentElement.style.setProperty(`--${key}`, value);
@@ -162,27 +165,14 @@ function loadCustomPreview(slotKey) {
         `linear-gradient(135deg, ${data["bg-main"]}, ${data["accent"]})`;
 }
 
-/* =====================================================
-   REMOTE CSS LOADER (TEMP FIX)
-   ===================================================== */
 
-function loadCSS() {
-    return fetch(" https://brown-dj.github.io/LadyLinux_test/static/css/style.css")
-        .then(res => res.text())
-        .then(css => {
-            const style = document.createElement("style");
-            style.innerHTML = css;
-            document.head.appendChild(style);
-        })
-        .catch(err => console.error("CSS load failed:", err));
-}
 
 /* =====================================================
    INITIALIZATION (THEMES ONLY)
    ===================================================== */
 
 async function initThemes() {
-    await loadCSS();      // load styling system
+
     await loadThemes();   // load theme JSON
 
     restoreTheme();       // apply saved/default theme

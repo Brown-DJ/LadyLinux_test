@@ -9,7 +9,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         await initThemes();
 
         // 2. Load navigation
-        await loadNavigation();
+       await loadNavigation();
 
         // 3. Initialize AI / Chat system
         initChat();
@@ -24,23 +24,14 @@ document.addEventListener("DOMContentLoaded", async () => {
    NAVIGATION LOADER
    ===================================================== */
 
+
+
 async function loadNavigation() {
-    const response = await fetch("https://brown-dj.github.io/LadyLinux_test/templates/nav.html");
+    const response = await fetch("/static/nav.html"); // ✅ LOCAL
     const navMarkup = await response.text();
 
     const container = document.querySelector("[data-nav-target]");
     if (!container) return;
 
     container.innerHTML = navMarkup;
-
-    // Get current page filename
-    const currentPage = window.location.pathname.split("/").pop() || "index.html";
-
-    // Highlight matching link
-    container.querySelectorAll(".nav-link").forEach(link => {
-        const href = link.getAttribute("href");
-        if (href === currentPage || (currentPage === "" && href === "index.html")) {
-            link.classList.add("active");
-        }
-    });
 }

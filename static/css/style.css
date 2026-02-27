@@ -3,119 +3,6 @@
    THEME ENGINE (CLEAN PRODUCTION VERSION)
    ===================================================== */
 
-
-/* =====================================================
-   BASE THEME (SOFT CORE DEFAULT)
-   ===================================================== */
-
-:root {
-    --bg-main: #1C1F26;
-    --bg-surface: #242833;
-    --bg-elevated: #2B3040;
-    --bg-input: #2E3340;
-
-    --text-main: #EAEAF0;
-    --text-heading: #FFFFFF;
-    --text-muted: rgba(234,234,240,0.6);
-
-    --accent: #C4B5FD;
-    --accent-hover: #D6CBFF;
-
-    --border-soft: #3A3F4F;
-
-    --radius-large: 28px;
-    --radius-medium: 20px;
-    --radius-small: 12px;
-
-    --shadow-main: 0 30px 80px rgba(0,0,0,0.5);
-    --transition-speed: 0.2s;
-}
-
-
-/* =====================================================
-   THEME: CRIMSON CORE
-   ===================================================== */
-
-[data-theme="crimson"] {
-    --bg-main: #0D0D0F;
-    --bg-surface: #141416;
-    --bg-elevated: #1A1A1D;
-    --bg-input: #202024;
-
-    --text-main: #F2F2F2;
-    --text-heading: #FFFFFF;
-    --text-muted: rgba(255,255,255,0.6);
-
-    --accent: #FF3B3B;
-    --accent-hover: #FF5C5C;
-
-    --border-soft: #2A2A2E;
-
-    --radius-large: 18px;
-    --radius-medium: 12px;
-    --radius-small: 8px;
-
-    --shadow-main: 0 0 40px rgba(255, 59, 59, 0.15);
-    --transition-speed: 0.15s;
-}
-
-
-/* =====================================================
-   THEME: GLASS
-   ===================================================== */
-
-[data-theme="glass"] {
-    --bg-main: #0F1115;
-    --bg-surface: rgba(255,255,255,0.06);
-    --bg-elevated: rgba(255,255,255,0.08);
-    --bg-input: rgba(255,255,255,0.10);
-
-    --text-main: #EAEAF0;
-    --text-heading: #FFFFFF;
-    --text-muted: rgba(255,255,255,0.6);
-
-    --accent: #8AB4F8;
-    --accent-hover: #A5C6FF;
-
-    --border-soft: rgba(255,255,255,0.12);
-
-    --radius-large: 28px;
-    --radius-medium: 20px;
-    --radius-small: 14px;
-
-    --shadow-main: 0 20px 60px rgba(0,0,0,0.4);
-    --transition-speed: 0.25s;
-}
-
-
-/* =====================================================
-   THEME: TERMINAL
-   ===================================================== */
-
-[data-theme="terminal"] {
-    --bg-main: #000000;
-    --bg-surface: #050505;
-    --bg-elevated: #080808;
-    --bg-input: #0A0A0A;
-
-    --text-main: #E5FFE5;
-    --text-heading: #FFFFFF;
-    --text-muted: rgba(200,255,200,0.6);
-
-    --accent: #00FF9C;
-    --accent-hover: #33FFB5;
-
-    --border-soft: #111;
-
-    --radius-large: 6px;
-    --radius-medium: 4px;
-    --radius-small: 2px;
-
-    --shadow-main: none;
-    --transition-speed: 0s;
-}
-
-
 /* =====================================================
    GLOBAL RESET
    ===================================================== */
@@ -124,18 +11,22 @@
     box-sizing: border-box;
 }
 
+html, body {
+  height: 100%;
+}
+
 body {
-    margin: 0;
-    background: var(--bg-main);
-    color: var(--text-main);
-    font-family: 'Segoe UI', Roboto, sans-serif;
-    -webkit-font-smoothing: antialiased;
-    transition: background var(--transition-speed), color var(--transition-speed);
+  margin: 0;
+  background: var(--bg-main);
+  color: var(--text-main);
+  font-family: 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  transition: background var(--transition-speed), color var(--transition-speed);
 }
 
 h1, h2, h3 {
     margin: 0;
-    color: var(--text-heading);
+    color: inherit;
 }
 
 a {
@@ -157,13 +48,8 @@ a {
 }
 
 .app-surface {
-    width: 100%;
-    max-width: 900px;
-    padding: 40px 50px;
-    border-radius: var(--radius-large);
-    background: var(--bg-surface);
-    box-shadow: var(--shadow-main);
-    transition: all var(--transition-speed);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
 }
 
 
@@ -184,7 +70,7 @@ a {
 .subtitle {
     margin-top: 12px;
     font-size: 1rem;
-    color: var(--text-muted);
+    color: inherit;
 }
 
 
@@ -193,8 +79,8 @@ a {
    ===================================================== */
 
 .build-tag {
-    background: var(--accent);
-    color: #111;
+    background: transparent;
+    color: inherit;
     font-size: 0.65rem;
     padding: 3px 8px;
     border-radius: var(--radius-small);
@@ -211,12 +97,8 @@ a {
     margin: 50px auto 40px auto;
     padding: 30px;
     border-radius: var(--radius-medium);
-    background: linear-gradient(
-        135deg,
-        rgba(196,181,253,0.05),
-        rgba(196,181,253,0.02)
-    );
-    border: 1px solid var(--border-soft);
+    background: transparent;
+    border: 1px solid transparent;
 }
 
 .ai-form {
@@ -228,30 +110,30 @@ a {
     flex: 1;
     padding: 16px 22px;
     border-radius: var(--radius-medium);
-    border: 1px solid var(--border-soft);
-    background: var(--bg-input);
-    color: var(--text-main);
+    border: 1px solid transparent;
+    background: transparent;
+    color: inherit;
     transition: all var(--transition-speed);
 }
 
 .ai-input:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(196,181,253,0.25);
+    border-color: currentColor;
+    box-shadow: 0 0 0 3px transparent;
 }
 
 .ai-button {
     padding: 14px 24px;
     border-radius: var(--radius-medium);
     border: none;
-    background: var(--accent);
-    color: #111;
+    background: transparent;
+    color: inherit;
     font-weight: 600;
     cursor: pointer;
     transition: all var(--transition-speed);
 }
 
 .ai-button:hover {
-    background: var(--accent-hover);
+    background: transparent;
     transform: translateY(-2px);
 }
 
@@ -259,7 +141,7 @@ a {
     display: block;
     margin-top: 12px;
     font-size: 0.8rem;
-    color: var(--text-muted);
+    color: inherit;
 }
 
 
@@ -273,7 +155,7 @@ a {
     gap: 10px;
     padding: 14px;
     border-radius: var(--radius-large);
-    background: rgba(255,255,255,0.05);
+    background: transparent;
     backdrop-filter: blur(8px);
     max-width: 720px;
     margin: 10px auto 30px auto;
@@ -286,12 +168,12 @@ a {
 }
 
 .nav-item:hover {
-    background: rgba(255,255,255,0.08);
+    background: transparent;
 }
 
 .nav-item.active {
-    background: var(--accent);
-    color: #111;
+    background: transparent;
+    color: inherit;
 }
 
 
@@ -302,14 +184,14 @@ a {
 .panel {
     padding: 24px;
     border-radius: var(--radius-medium);
-    background: var(--bg-elevated);
-    border: 1px solid var(--border-soft);
+    background: transparent;
+    border: 1px solid transparent;
     transition: all var(--transition-speed);
 }
 
 .panel:hover {
     transform: translateY(-4px);
-    border-color: var(--accent);
+    border-color: currentColor;
 }
 
 
@@ -332,8 +214,8 @@ a {
 .response-box {
     padding: 20px;
     border-radius: var(--radius-medium);
-    background: var(--bg-elevated);
-    border: 1px solid var(--border-soft);
+    background: transparent;
+    border: 1px solid transparent;
     line-height: 1.6;
     margin-top: 20px;
     max-height: 400px;
@@ -355,26 +237,26 @@ a {
     padding: 12px 18px;
     margin-top: 10px;
     border-radius: var(--radius-medium);
-    border: 1px solid var(--border-soft);
-    background: var(--bg-input);
-    color: var(--text-main);
+    border: 1px solid transparent;
+    background: transparent;
+    color: inherit;
     cursor: pointer;
     transition: all var(--transition-speed);
     font-weight: 500;
 }
 
 .action-btn:hover {
-    border-color: var(--accent);
-    background: rgba(196, 181, 253, 0.1);
+    border-color: currentColor;
+    background: transparent;
 }
 
 .action-btn.danger {
-    border-color: #FF3B3B;
-    color: #FF3B3B;
+    border-color: currentColor;
+    color: inherit;
 }
 
 .action-btn.danger:hover {
-    background: rgba(255, 59, 59, 0.1);
+    background: transparent;
 }
 
 
@@ -391,7 +273,7 @@ a {
 .user-list li {
     padding: 12px;
     border-radius: var(--radius-small);
-    background: var(--bg-input);
+    background: transparent;
     margin-bottom: 8px;
     display: flex;
     justify-content: space-between;
@@ -413,13 +295,13 @@ a {
 }
 
 .role-badge.admin {
-    background: rgba(255, 59, 59, 0.2);
-    color: #FF5C5C;
+    background: transparent;
+    color: inherit;
 }
 
 .role-badge.standard {
-    background: rgba(196, 181, 253, 0.2);
-    color: var(--accent);
+    background: transparent;
+    color: inherit;
 }
 
 
@@ -437,23 +319,23 @@ a {
     justify-content: center;
     font-size: 0.7rem;
     font-weight: 600;
-    color: #fff;
+    color: inherit;
 }
 
 .theme-preview.soft {
-    background: linear-gradient(135deg, #1C1F26, #C4B5FD);
+    background: transparent;
 }
 
 .theme-preview.crimson {
-    background: linear-gradient(135deg, #0D0D0F, #FF3B3B);
+    background: transparent;
 }
 
 .theme-preview.glass {
-    background: linear-gradient(135deg, #0F1115, #8AB4F8);
+    background: transparent;
 }
 
 .theme-preview.terminal {
-    background: linear-gradient(135deg, #000000, #00FF9C);
+    background: transparent;
 }
 
 
@@ -463,7 +345,7 @@ a {
 
 .suggest-label {
     text-align: center;
-    color: var(--text-muted);
+    color: inherit;
     font-size: 0.85rem;
     margin: 20px 0 10px 0;
 }
@@ -474,7 +356,7 @@ a {
    ===================================================== */
 
 .code-block {
-    background: var(--bg-input);
+    background: transparent;
     padding: 12px;
     border-radius: var(--radius-small);
     font-family: "Courier New", monospace;
@@ -482,42 +364,13 @@ a {
     overflow-x: auto;
     max-height: 300px;
     overflow-y: auto;
-    border: 1px solid var(--border-soft);
-    color: var(--text-main);
+    border: 1px solid transparent;
+    color: inherit;
 }
-
-/* =====================================================
-   GLASS OVERRIDES
-   ===================================================== */
-
-[data-theme="glass"] .app-surface,
-[data-theme="glass"] .panel,
-[data-theme="glass"] .ai-panel {
-    backdrop-filter: blur(20px);
-}
-
-
-/* =====================================================
-   TERMINAL OVERRIDES
-   ===================================================== */
-
-[data-theme="terminal"] * {
-    font-family: "Courier New", monospace;
-}
-
-[data-theme="terminal"] .panel,
-[data-theme="terminal"] .app-surface {
-    box-shadow: none !important;
-}
-
 
 
 .custom-preview {
-  background: linear-gradient(
-    135deg,
-    var(--bg-main),
-    var(--accent)
-  );
+  background: transparent;
 }
 
 .custom-slot {
@@ -533,31 +386,31 @@ a {
    ===================================================== */
 
 .ll-card {
-    background: var(--bg-surface);
-    color: var(--text-main);
-    border: 1px solid var(--border-soft);
+    background: transparent;
+    color: inherit;
+    border: 1px solid transparent;
     border-radius: var(--radius-medium);
     box-shadow: var(--shadow-main);
     transition: all var(--transition-speed);
 }
 
 .ll-card:hover {
-    border-color: var(--accent);
+    border-color: currentColor;
 }
 
 .ll-btn {
     padding: 12px 20px;
     border-radius: var(--radius-medium);
     border: none;
-    background: var(--accent);
-    color: #111;
+    background: transparent;
+    color: inherit;
     font-weight: 600;
     cursor: pointer;
     transition: all var(--transition-speed);
 }
 
 .ll-btn:hover {
-    background: var(--accent-hover);
+    background: transparent;
     transform: translateY(-2px);
 }
 
@@ -572,33 +425,33 @@ a {
 }
 
 .ll-nav .nav-link {
-    color: var(--text-main);
+    color: inherit;
     border-radius: var(--radius-medium);
     padding: 10px 16px;
     transition: all var(--transition-speed);
 }
 
 .ll-nav .nav-link:hover {
-    background: rgba(196, 181, 253, 0.1);
+    background: transparent;
 }
 
 .ll-nav .nav-link.active {
-    background: var(--accent);
-    color: #111;
+    background: transparent;
+    color: inherit;
 }
 
 .modal-content {
-    background: var(--bg-surface);
-    color: var(--text-main);
-    border: 1px solid var(--border-soft);
+    background: transparent;
+    color: inherit;
+    border: 1px solid transparent;
 }
 
 .modal-header {
-    border-bottom-color: var(--border-soft);
+    border-bottom-color: transparent;
 }
 
 .modal-footer {
-    border-top-color: var(--border-soft);
+    border-top-color: transparent;
 }
 
 .btn-close {
