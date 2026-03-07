@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#===============================================================================
+# ==============================================================================
 # LadyLinux VM Refresh Script
 # File: scripts/refresh_vm.sh
 # Author: Sean Connelly
@@ -35,22 +35,25 @@
 #   0  success
 #   1  generic failure
 #   2  missing prerequisite (git, python, system paths)
-#===============================================================================
+# ==============================================================================
 
 set -Eeuo pipefail
 
 #----------------------------- Configuration -----------------------------------
 
-BRANCH="${1:-main}"
+BRANCH="${1:-darrius}"
 
-APP_DIR="/opt/ladylinux/app"
+APP_DIR="/opt/ladylinux"
 VENV_DIR="/opt/ladylinux/venv"
 ENV_FILE="/etc/ladylinux/ladylinux.env"
 
+GIT_REMOTE_URL="https://github.com/theCodingProfessor/LadyLinux.git"
 SERVICE_NAME="ladylinux-api.service"
 SERVICE_USER="ladylinux"
+API_PORT="8000"
+FALLBACK_LOG_FILE="/var/lib/ladylinux/logs/uvicorn-refresh.log"
 
-PYTHON_BIN="python3"
+PYTHON_BIN="python3.12"
 PIP_BIN="$VENV_DIR/bin/pip"
 
 # If true: always rebuild the venv each run (most deterministic).
@@ -82,31 +85,59 @@ assert_paths() {
   [[ -d "$APP_DIR/.git" ]] || die "APP_DIR is not a git repo: $APP_DIR" 2
 }
 
+service_loaded() {
+  systemctl show -p LoadState "$SERVICE_NAME" 2>/dev/null | grep -q "LoadState=loaded"
+}
+
+stop_fallback_process() {
+  local pids=""
+  pids="$(pgrep -f "/opt/ladylinux/venv/bin/python -m uvicorn api_layer:app --host 0.0.0.0 --port $API_PORT" 2>/dev/null || true)"
+  if [[ -n "$pids" ]]; then
+    log "Stopping existing fallback uvicorn process on port $API_PORT"
+    while read -r pid; do
+      [[ -n "$pid" ]] || continue
+      kill "$pid" 2>/dev/null || true
+    done <<< "$pids"
+  fi
+}
+
 service_stop() {
   # Skip stop if the unit is not loaded (e.g., first install, unit removed).
-  if ! systemctl list-unit-files "$SERVICE_NAME" >/dev/null 2>&1 \
-     || systemctl show -p LoadState "$SERVICE_NAME" 2>/dev/null | grep -q "LoadState=not-found"; then
-    warn "Service $SERVICE_NAME is not loaded. Skipping stop."
+  if ! service_loaded; then
+    warn "Service $SERVICE_NAME is not loaded. Using fallback cleanup instead."
+    stop_fallback_process
     return 0
   fi
 
   log "Stopping service: $SERVICE_NAME"
   systemctl stop "$SERVICE_NAME" || die "Failed to stop $SERVICE_NAME"
+  stop_fallback_process
+}
+
+start_fallback_api() {
+  log "Service $SERVICE_NAME is not loaded. Using fallback uvicorn startup."
+  mkdir -p "$(dirname "$FALLBACK_LOG_FILE")"
+  touch "$FALLBACK_LOG_FILE"
+  chown "$SERVICE_USER":"$SERVICE_USER" "$FALLBACK_LOG_FILE" 2>/dev/null || true
+
+  run_as_service bash -lc "cd '$APP_DIR' && nohup '$VENV_DIR/bin/python' -m uvicorn api_layer:app --host 0.0.0.0 --port $API_PORT >> '$FALLBACK_LOG_FILE' 2>&1 < /dev/null &"
 }
 
 service_start() {
-  if systemctl show -p LoadState "$SERVICE_NAME" 2>/dev/null | grep -q "LoadState=not-found"; then
-    warn "Service $SERVICE_NAME is not loaded. Skipping start."
+  if ! service_loaded; then
+    start_fallback_api
     return 0
   fi
 
   log "Starting service: $SERVICE_NAME"
   systemctl start "$SERVICE_NAME" || die "Failed to start $SERVICE_NAME"
+  log "Startup mode: systemd service"
 }
 
 service_status() {
-  if systemctl show -p LoadState "$SERVICE_NAME" 2>/dev/null | grep -q "LoadState=not-found"; then
-    warn "Service $SERVICE_NAME is not loaded. No status to report."
+  if ! service_loaded; then
+    warn "Service $SERVICE_NAME is not loaded. Reporting fallback uvicorn status instead."
+    pgrep -af "/opt/ladylinux/venv/bin/python -m uvicorn api_layer:app --host 0.0.0.0 --port $API_PORT" || true
     return 0
   fi
 
@@ -123,8 +154,34 @@ git_sync() {
   log "Syncing repo in $APP_DIR to origin/$BRANCH (as $SERVICE_USER)"
   pushd "$APP_DIR" >/dev/null
 
+  log "Configuring Git safe.directory for $APP_DIR"
+  run_as_service bash -lc "git config --global --get-all safe.directory | grep -Fxq '$APP_DIR' || git config --global --add safe.directory '$APP_DIR'"
+
+  local current_origin_url
+  current_origin_url="$(run_as_service git remote get-url origin 2>/dev/null || true)"
+  if [[ "$current_origin_url" != "$GIT_REMOTE_URL" ]]; then
+    log "Setting origin to $GIT_REMOTE_URL"
+    if run_as_service git remote | grep -Fxq origin; then
+      run_as_service git remote set-url origin "$GIT_REMOTE_URL"
+    else
+      run_as_service git remote add origin "$GIT_REMOTE_URL"
+    fi
+    current_origin_url="$GIT_REMOTE_URL"
+  fi
+
   # Fetch and hard-align. This intentionally removes local drift.
   run_as_service git fetch --prune origin
+
+  if ! run_as_service git show-ref --verify --quiet "refs/remotes/origin/$BRANCH"; then
+    printf "[refresh][ERROR] Requested branch not found on origin. Aborting before reset/clean.\n" >&2
+    printf "[refresh][ERROR] Requested branch: %s\n" "$BRANCH" >&2
+    printf "[refresh][ERROR] Origin URL: %s\n" "$current_origin_url" >&2
+    printf "[refresh][ERROR] Remote branches:\n" >&2
+    run_as_service git branch -r >&2 || true
+    popd >/dev/null
+    exit 1
+  fi
+
   run_as_service git checkout -f "$BRANCH" 2>/dev/null || true
 
   # Use remote-tracking branch as source of truth:
@@ -198,18 +255,16 @@ build_venv() {
   if [[ -f "requirements.txt" ]]; then
     log "Installing dependencies from requirements.txt"
     run_as_service "$PIP_BIN" install -r requirements.txt
-  elif [[ -f "pyproject.toml" ]]; then
-    warn "pyproject.toml found but no installer configured in this script yet."
-    warn "If you adopt Poetry/UV/PDM, update this section accordingly."
-    die "Dependency install not configured for pyproject.toml yet." 1
   else
-    warn "No requirements.txt or pyproject.toml found. Skipping dependency install."
+    install_fallback_runtime_deps
   fi
 
   local fp
   fp="$(fingerprint_deps)"
   if [[ -n "$fp" ]]; then
     run_as_service bash -c "echo '$fp' > '$FINGERPRINT_FILE'"
+  else
+    run_as_service bash -c "echo 'default-runtime-stack' > '$FINGERPRINT_FILE'"
   fi
 
   popd >/dev/null
@@ -226,7 +281,7 @@ prep_application() {
 print_summary() {
   pushd "$APP_DIR" >/dev/null
   local commit
-  commit="$(git rev-parse --short HEAD)"
+  commit="$(run_as_service git rev-parse --short HEAD)"
   popd >/dev/null
 
   log "Summary:"
@@ -237,14 +292,75 @@ print_summary() {
   log "  Service: $SERVICE_NAME"
 }
 
+validate_runtime() {
+  local attempts=10
+  local api_ready=0
+
+  while (( attempts > 0 )); do
+    if lsof -i :"$API_PORT" >/dev/null 2>&1; then
+      api_ready=1
+      break
+    fi
+    sleep 1
+    ((attempts--))
+  done
+
+  if [[ "$api_ready" -ne 1 ]]; then
+    printf "[refresh][ERROR] API failed to start; port %s is not listening.\n" "$API_PORT" >&2
+    if service_loaded; then
+      printf "[refresh][ERROR] Inspect: journalctl -u %s -n 100 --no-pager\n" "$SERVICE_NAME" >&2
+    else
+      printf "[refresh][ERROR] Inspect fallback log: %s\n" "$FALLBACK_LOG_FILE" >&2
+    fi
+    exit 1
+  fi
+
+  log "Runtime validation: port $API_PORT is listening."
+  lsof -i :"$API_PORT" || true
+
+  if command -v curl >/dev/null 2>&1; then
+    if curl --silent --fail --max-time 5 "http://127.0.0.1:$API_PORT/" >/dev/null 2>&1; then
+      log "HTTP validation: localhost:$API_PORT responded successfully."
+    else
+      warn "HTTP validation failed for http://127.0.0.1:$API_PORT/ (process is listening, but no successful HTTP response)."
+    fi
+  else
+    warn "curl not installed; skipping HTTP validation."
+  fi
+}
+
+install_fallback_runtime_deps() {
+  # Keep refresh resilient when a dependency manifest is missing.
+  log "Dependency manifest not found or unsupported; installing fallback runtime stack."
+  run_as_service "$PIP_BIN" install fastapi uvicorn requests jinja2 python-multipart
+}
+
+open_browser_if_gui() {
+  # Open the local UI only when a desktop session is available.
+  if [[ -n "${DISPLAY:-}" ]] || [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
+    local url="http://127.0.0.1:$API_PORT/"
+    log "Opening Web App: $url"
+
+    if [[ -n "${SUDO_USER:-}" ]]; then
+      sudo -u "$SUDO_USER" DISPLAY="${DISPLAY:-}" firefox --ssb "$url" --class LadyLinuxApp &
+    else
+      firefox --ssb "$url" --class LadyLinuxApp &
+    fi
+  else
+    log "No GUI detected. Not launching browser."
+  fi
+}
+
 #-------------------------------- Main -----------------------------------------
 
 main() {
   require_root
   require_cmd git
+  require_cmd sudo
   require_cmd "$PYTHON_BIN"
   require_cmd systemctl
   require_cmd sha256sum
+  require_cmd lsof
 
   assert_paths
 
@@ -269,9 +385,13 @@ main() {
 
   prep_application
   service_start
+  validate_runtime
   print_summary
   service_status
 
+  open_browser_if_gui
+
+  log "Final API status: running"
   log "Refresh complete."
 }
 

@@ -2,264 +2,310 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Lady Linux – System</title>
-
-  <!-- Bootstrap 5.3 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lady Linux - System</title>
+  <script>
+    document.documentElement.setAttribute("data-ui-ready", "false");
+  </script>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-
-  <!-- Your theme overrides -->
-  <link rel="stylesheet" href="/static/css/style.css">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="/static/css/style.css" rel="stylesheet">
 </head>
-
-<body>
-
-<main class="container-fluid py-4">
-
-  <!-- Hero -->
-  <header class="mb-4">
-    <h1 class="display-5">System</h1>
-    <p>Configuration and diagnostics.</p>
-  </header>
-
-  <!-- Navigation Container -->
-  <nav data-nav-target=""></nav>
-
-  <!-- System Panels -->
-  <div class="row g-4 mb-4">
-
-    <div class="col-12 col-md-4">
-      <div class="card ll-card h-100">
-        <div class="card-body">
-          <h5 class="card-title">CPU</h5>
-          <p class="card-text">Status and usage information.</p>
-        </div>
+<body data-page="system">
+  <!-- Shared top navigation shell for all active pages -->
+  <nav class="navbar navbar-expand-lg ll-topbar mb-4">
+    <div class="container">
+      <a class="navbar-brand d-flex align-items-center gap-2" href="/">
+        <span class="ll-logo" aria-hidden="true">LL</span>
+        <span class="fw-semibold">Lady Linux</span>
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#llMainNav" aria-controls="llMainNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="llMainNav">
+        <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-2">
+          <li class="nav-item"><a class="nav-link" href="/os"><i class="bi bi-cpu me-1"></i>System</a></li>
+          <li class="nav-item"><a class="nav-link" href="/users"><i class="bi bi-people me-1"></i>Users</a></li>
+          <li class="nav-item"><a class="nav-link" href="/firewall"><i class="bi bi-shield-lock me-1"></i>Firewall</a></li>
+          <li class="nav-item">
+            <button class="btn btn-link nav-link" type="button" aria-label="Notifications"><i class="bi bi-bell"></i></button>
+          </li>
+          <li class="nav-item">
+            <button class="btn btn-link nav-link" type="button" aria-label="Settings"><i class="bi bi-gear"></i></button>
+          </li>
+        </ul>
       </div>
     </div>
+  </nav>
 
-    <div class="col-12 col-md-4">
-      <div class="card ll-card h-100">
-        <div class="card-body">
-          <h5 class="card-title">Memory</h5>
-          <p class="card-text">RAM allocation and availability.</p>
+  <!-- Hidden nav loader target kept for script compatibility -->
+  <nav id="nav-container" class="d-none" aria-hidden="true"></nav>
+
+  <main class="container pb-4">
+    <section class="card ll-dashboard-card">
+      <div class="card-body">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+          <div>
+            <h1 class="h3 mb-1">System Control Center</h1>
+            <p class="text-muted mb-0">Metrics, services, storage, and appearance controls.</p>
+          </div>
+          <span class="badge text-bg-secondary">Theme engine active</span>
         </div>
-      </div>
-    </div>
 
-    <div class="col-12 col-md-4">
-      <div class="card ll-card h-100">
-        <div class="card-body">
-          <h5 class="card-title">Storage</h5>
-          <p class="card-text">Disk usage and mounted volumes.</p>
-        </div>
-      </div>
-    </div>
+        <!-- System page section tabs -->
+        <ul class="nav nav-tabs flex-nowrap overflow-auto" id="systemTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="metrics-tab" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#metrics-pane" aria-controls="metrics-pane" aria-selected="true">System Metrics</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="services-tab" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#services-pane" aria-controls="services-pane" aria-selected="false">Services</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="storage-tab" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#storage-pane" aria-controls="storage-pane" aria-selected="false">Storage</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="appearance-tab" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#appearance-pane" aria-controls="appearance-pane" aria-selected="false">Appearance</button>
+          </li>
+        </ul>
 
-  </div>
-
-  <!-- Appearance Panel -->
-  <div class="row g-4 mb-4">
-    <div class="col-12">
-      <div class="card ll-card">
-        <div class="card-body">
-
-          <h5 class="card-title">Appearance</h5>
-          <p class="small">Select a system theme.</p>
-
-          <div class="row g-3 mt-2">
-
-            <div class="col-6 col-md-3">
-              <div class="card ll-card text-center" role="button" data-theme-select="soft">
-                <div class="card-body">
-                  <div class="mb-2 theme-preview soft rounded" style="height:40px;"></div>
-                  <span>Soft Core</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="col-6 col-md-3">
-              <div class="card ll-card text-center" role="button" data-theme-select="crimson">
-                <div class="card-body">
-                  <div class="mb-2 theme-preview crimson rounded" style="height:40px;"></div>
-                  <span>Crimson Core</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="col-6 col-md-3">
-              <div class="card ll-card text-center" role="button" data-theme-select="glass">
-                <div class="card-body">
-                  <div class="mb-2 theme-preview glass rounded" style="height:40px;"></div>
-                  <span>Glass</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="col-6 col-md-3">
-              <div class="card ll-card text-center" role="button" data-theme-select="terminal">
-                <div class="card-body">
-                  <div class="mb-2 theme-preview terminal rounded" style="height:40px;"></div>
-                  <span>Terminal</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Custom Themes -->
-            <hr class="my-4">
-
-            <h6 class="mb-3">Custom Themes</h6>
-
+        <div class="tab-content pt-4" id="systemTabContent">
+          <div class="tab-pane fade show active" id="metrics-pane" role="tabpanel" aria-labelledby="metrics-tab" tabindex="0">
+            <!-- Metric cards reused by existing action scripts -->
             <div class="row g-3">
-
-              <div class="col-6 col-md-3">
-                <div class="card ll-card text-center custom-slot"
-                     role="button"
-                     data-custom-slot="custom-1">
+              <div class="col-12 col-md-4">
+                <div class="card ll-dashboard-card ll-metric-card h-100" id="cpuPanel">
                   <div class="card-body">
-                    <div class="mb-2 theme-preview rounded custom-preview"
-                         id="preview-custom-1"
-                         style="height:40px;"></div>
-                    <span>Custom 1</span>
+                    <h2 class="h6" data-panel-title>CPU</h2>
+                    <p class="mb-2 text-muted" data-panel-value>CPU load is waiting for refresh.</p>
+                    <small class="text-muted" data-panel-meta>Awaiting refresh.</small>
                   </div>
                 </div>
               </div>
-
-              <div class="col-6 col-md-3">
-                <div class="card ll-card text-center custom-slot"
-                     role="button"
-                     data-custom-slot="custom-2">
+              <div class="col-12 col-md-4">
+                <div class="card ll-dashboard-card ll-metric-card h-100" id="memoryPanel">
                   <div class="card-body">
-                    <div class="mb-2 theme-preview rounded custom-preview"
-                         id="preview-custom-2"
-                         style="height:40px;"></div>
-                    <span>Custom 2</span>
+                    <h2 class="h6" data-panel-title>Memory</h2>
+                    <p class="mb-2 text-muted" data-panel-value>RAM allocation details are waiting for refresh.</p>
+                    <small class="text-muted" data-panel-meta>Awaiting refresh.</small>
                   </div>
                 </div>
               </div>
-
-              <div class="col-6 col-md-3">
-                <div class="card ll-card text-center custom-slot"
-                     role="button"
-                     data-custom-slot="custom-3">
+              <div class="col-12 col-md-4">
+                <div class="card ll-dashboard-card ll-metric-card h-100" id="storagePanel">
                   <div class="card-body">
-                    <div class="mb-2 theme-preview rounded custom-preview"
-                         id="preview-custom-3"
-                         style="height:40px;"></div>
-                    <span>Custom 3</span>
+                    <h2 class="h6" data-panel-title>Storage</h2>
+                    <p class="mb-2 text-muted" data-panel-value>Disk volume details are waiting for refresh.</p>
+                    <small class="text-muted" data-panel-meta>Awaiting refresh.</small>
                   </div>
                 </div>
               </div>
-
-              <div class="col-6 col-md-3">
-                <div class="card ll-card text-center custom-slot"
-                     role="button"
-                     data-custom-slot="custom-4">
-                  <div class="card-body">
-                    <div class="mb-2 theme-preview rounded custom-preview"
-                         id="preview-custom-4"
-                         style="height:40px;"></div>
-                    <span>Custom 4</span>
-                  </div>
-                </div>
-              </div>
-
             </div>
-
           </div>
 
+          <div class="tab-pane fade" id="services-pane" role="tabpanel" aria-labelledby="services-tab" tabindex="0">
+            <div class="card ll-dashboard-card">
+              <div class="card-body">
+                <h2 class="h5 mb-3">Services</h2>
+                <div class="table-responsive">
+                  <table class="table table-dark table-hover align-middle mb-0">
+                    <thead>
+                      <tr>
+                        <th>Service</th>
+                        <th>Status</th>
+                        <th>Uptime</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <!-- Dynamic service rows are populated by static/js/main.js -->
+                    <tbody id="services-table-body"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tab-pane fade" id="storage-pane" role="tabpanel" aria-labelledby="storage-tab" tabindex="0">
+            <div class="card ll-dashboard-card">
+              <div class="card-body">
+                <h2 class="h5 mb-3">Storage</h2>
+                <div class="row g-3">
+                  <div class="col-12 col-md-6">
+                    <div class="p-3 rounded-3 ll-console-prompt">
+                      <div class="fw-semibold">Root Partition</div>
+                      <div class="text-muted small">72% used</div>
+                    </div>
+                  </div>
+                  <div class="col-12 col-md-6">
+                    <div class="p-3 rounded-3 ll-console-prompt">
+                      <div class="fw-semibold">Logs Volume</div>
+                      <div class="text-muted small">41% used</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tab-pane fade" id="appearance-pane" role="tabpanel" aria-labelledby="appearance-tab" tabindex="0">
+            <div class="card ll-dashboard-card">
+              <div class="card-body">
+                <h2 class="h5 mb-3">Appearance</h2>
+                <p class="text-muted mb-4">Theme selection and UI customization are managed here.</p>
+
+                <!-- Theme presets -->
+                <div class="row g-3 mb-4">
+                  <div class="col-6 col-md-3">
+                    <div class="card h-100 theme-option" role="button" tabindex="0" data-theme-select="soft">
+                      <div class="card-body text-center">
+                        <div class="theme-preview soft rounded mb-3"></div>
+                        <div class="fw-semibold">Soft Core</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-6 col-md-3">
+                    <div class="card h-100 theme-option" role="button" tabindex="0" data-theme-select="crimson">
+                      <div class="card-body text-center">
+                        <div class="theme-preview crimson rounded mb-3"></div>
+                        <div class="fw-semibold">Crimson Core</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-6 col-md-3">
+                    <div class="card h-100 theme-option" role="button" tabindex="0" data-theme-select="glass">
+                      <div class="card-body text-center">
+                        <div class="theme-preview glass rounded mb-3"></div>
+                        <div class="fw-semibold">Glass</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-6 col-md-3">
+                    <div class="card h-100 theme-option" role="button" tabindex="0" data-theme-select="terminal">
+                      <div class="card-body text-center">
+                        <div class="theme-preview terminal rounded mb-3"></div>
+                        <div class="fw-semibold">Terminal</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Accent/Text/Scale options -->
+                <div class="row g-3 mb-4">
+                  <div class="col-12 col-md-3">
+                    <label for="customAccent" class="form-label">Accent color</label>
+                    <input type="color" id="customAccent" class="form-control form-control-color w-100">
+                  </div>
+                  <div class="col-12 col-md-3">
+                    <label for="customTextColor" class="form-label">Text color</label>
+                    <input type="color" id="customTextColor" class="form-control form-control-color w-100">
+                  </div>
+                  <div class="col-12 col-md-3">
+                    <label for="customFontSize" class="form-label">UI scale</label>
+                    <select id="customFontSize" class="form-select">
+                      <option value="small">Small</option>
+                      <option value="normal" selected>Normal</option>
+                      <option value="large">Large</option>
+                      <option value="extra-large">Extra Large</option>
+                    </select>
+                  </div>
+                  <div class="col-12 col-md-3">
+                    <label for="customFontFamily" class="form-label">Typography</label>
+                    <select id="customFontFamily" class="form-select">
+                      <option value="system">System</option>
+                      <option value="sans">Sans</option>
+                      <option value="serif">Serif</option>
+                      <option value="monospace">Monospace</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="d-flex flex-wrap gap-2 mb-4">
+                  <button type="button" class="btn btn-outline-secondary" id="saveCustomTheme">Apply Appearance</button>
+                </div>
+
+                <div class="form-check form-switch mb-4">
+                  <input class="form-check-input" type="checkbox" id="themeBuilderToggle">
+                  <label class="form-check-label" for="themeBuilderToggle">Advanced Controls</label>
+                </div>
+
+                <div id="themeBuilderPanel" class="d-none">
+                  <div class="advanced-section">
+                    <div class="row g-3">
+                      <div class="col-12 col-md-4">
+                        <label for="customBackground" class="form-label">Background Color</label>
+                        <input type="color" id="customBackground" class="form-control form-control-color w-100">
+                      </div>
+                      <div class="col-12 col-md-4">
+                        <label for="customSurface" class="form-label">Surface Color</label>
+                        <input type="color" id="customSurface" class="form-control form-control-color w-100">
+                      </div>
+                      <div class="col-12 col-md-4">
+                        <label for="customHeadingColor" class="form-label">Heading Color</label>
+                        <input type="color" id="customHeadingColor" class="form-control form-control-color w-100">
+                      </div>
+                      <div class="col-12 col-md-4">
+                        <label for="customLinkColor" class="form-label">Link Color</label>
+                        <input type="color" id="customLinkColor" class="form-control form-control-color w-100">
+                      </div>
+                      <div class="col-12 col-md-4">
+                        <label for="customBorderColor" class="form-label">Border Color</label>
+                        <input type="color" id="customBorderColor" class="form-control form-control-color w-100">
+                      </div>
+                      <div class="col-12 col-md-4">
+                        <label for="customCornerRadius" class="form-label">Corner Radius</label>
+                        <select id="customCornerRadius" class="form-select">
+                          <option value="small">Small</option>
+                          <option value="medium" selected>Medium</option>
+                          <option value="large">Large</option>
+                        </select>
+                      </div>
+                      <div class="col-12 col-md-4">
+                        <label for="customSpacingScale" class="form-label">Spacing Scale</label>
+                        <select id="customSpacingScale" class="form-select">
+                          <option value="compact">Compact</option>
+                          <option value="normal" selected>Normal</option>
+                          <option value="comfortable">Comfortable</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Hidden custom slots retained for themes.js compatibility -->
+                <div class="d-none">
+                  <div class="theme-option" data-custom-slot="custom-1"><div id="preview-custom-1"></div></div>
+                  <div class="theme-option" data-custom-slot="custom-2"><div id="preview-custom-2"></div></div>
+                  <div class="theme-option" data-custom-slot="custom-3"><div id="preview-custom-3"></div></div>
+                  <div class="theme-option" data-custom-slot="custom-4"><div id="preview-custom-4"></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
+    </section>
+  </main>
+
+  <!-- Modal shell retained for themes.js save flow compatibility -->
+  <div class="modal fade" id="customThemeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog"><div class="modal-content d-none"></div></div>
+  </div>
+
+  <!-- Floating Lady widget (mini console) -->
+  <div id="lady-widget">
+    <button id="lady-launcher" title="Ask Lady">&#129504;</button>
+    <div id="lady-console">
+      <div class="lady-header">Lady <span id="lady-close">&times;</span></div>
+      <div id="lady-response"></div>
+      <input id="lady-input" placeholder="Ask Lady Linux..." autocomplete="off" />
     </div>
   </div>
 
-  <!-- AI PANEL -->
-  <div class="card ll-card mb-3">
-    <div class="card-body">
-
-      <form id="aiForm" class="row g-3 align-items-center">
-        <div class="col-12 col-lg">
-          <input
-            type="text"
-            id="aiInput"
-            placeholder="Try: switch to crimson"
-            class="form-control"
-            autocomplete="off"
-          />
-        </div>
-
-        <div class="col-12 col-lg-auto">
-          <button type="submit" class="ll-btn w-100">
-            Execute
-          </button>
-        </div>
-      </form>
-
-      <div class="mt-3 small" style="color: var(--text-muted);">
-        System control active
-      </div>
-
-    </div>
-  </div>
-
-  <!-- AI Response -->
-  <div id="aiResponse" class="card ll-card d-none">
-    <div class="card-body">
-      <div class="p-3 rounded"></div>
-    </div>
-  </div>
-
-</main>
-
-<!-- Custom Theme Modal -->
-<div class="modal fade" id="customThemeModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-
-      <div class="modal-header">
-        <h5 class="modal-title">Create Custom Theme</h5>
-        <button type="button" class="btn-close"
-                data-bs-dismiss="modal"></button>
-      </div>
-
-      <div class="modal-body">
-
-        <div class="mb-3">
-          <label class="form-label">Primary Accent</label>
-          <input type="color" id="customAccent" class="form-control form-control-color">
-        </div>
-
-        <div class="mb-3">
-          <label class="form-label">Background</label>
-          <input type="color" id="customBackground" class="form-control form-control-color">
-        </div>
-
-        <div class="mb-3">
-          <label class="form-label">Surface</label>
-          <input type="color" id="customSurface" class="form-control form-control-color">
-        </div>
-
-      </div>
-
-      <div class="modal-footer">
-        <button type="button" class="btn" style="background: var(--bg-input); color: var(--text-main);"
-                data-bs-dismiss="modal">
-          Cancel
-        </button>
-
-        <button type="button" class="ll-btn"
-                id="saveCustomTheme">
-          Save Theme
-        </button>
-      </div>
-
-    </div>
-  </div>
-</div>
-
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="/static/js/main.js"></script>
-<script src="/static/js/chat.js"></script>
-<script src="/static/js/themes.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="/static/js/design_engine.js"></script>
+  <script src="/static/js/themes.js"></script>
+  <script src="/static/js/actions.js"></script>
+  <script src="/static/js/main.js"></script>
+  <script src="/static/js/chat.js"></script>
+  <script src="/static/js/ladyWidget.js"></script>
 </body>
 </html>
-

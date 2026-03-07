@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+qdrant-client
+psutil
+jinja2
+requests
+numpy
+watchdog
+grpcio
+grpcio-tools
