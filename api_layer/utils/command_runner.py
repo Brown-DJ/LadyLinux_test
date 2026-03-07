@@ -1,0 +1,62 @@
+from __future__ import annotations
+
+import subprocess
+from typing import Iterable
+
+from api_layer.models.command import CommandResult
+
+ALLOWED_BINARIES = {
+    "systemctl",
+    "ufw",
+    "ip",
+    "ss",
+    "df",
+    "du",
+    "journalctl",
+    "apt-cache",
+    "dpkg-query",
+    "apt-get",
+}
+
+
+def run_command(command: Iterable[str], timeout: int = 15) -> CommandResult:
+    """Execute a fixed command list safely (shell=False always).
+
+    All subprocess behavior is centralized here so routes/services return a
+    consistent JSON contract and security controls are easy to audit.
+    """
+    cmd = [str(part) for part in command]
+    if not cmd:
+        return CommandResult(ok=False, stdout="", stderr="Empty command", returncode=2)
+
+    binary = cmd[0].strip().lower()
+    if binary not in ALLOWED_BINARIES:
+        return CommandResult(
+            ok=False,
+            stdout="",
+            stderr=f"Command not allowed: {binary}",
+            returncode=126,
+        )
+
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout,
+            shell=False,
+        )
+        return CommandResult(
+            ok=result.returncode == 0,
+            stdout=(result.stdout or "").strip(),
+            stderr=(result.stderr or "").strip(),
+            returncode=result.returncode,
+        )
+    except PermissionError as exc:
+        return CommandResult(ok=False, stdout="", stderr=f"Permission denied: {exc}", returncode=126)
+    except FileNotFoundError as exc:
+        return CommandResult(ok=False, stdout="", stderr=f"Command not found: {exc}", returncode=127)
+    except subprocess.TimeoutExpired as exc:
+        stderr = (exc.stderr or "").strip() if isinstance(exc.stderr, str) else "Command timed out"
+        return CommandResult(ok=False, stdout="", stderr=stderr or "Command timed out", returncode=124)
