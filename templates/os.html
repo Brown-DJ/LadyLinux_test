@@ -76,7 +76,7 @@
                 <div class="card ll-dashboard-card ll-metric-card h-100" id="cpuPanel">
                   <div class="card-body">
                     <h2 class="h6" data-panel-title>CPU</h2>
-                    <p class="mb-2 text-muted" data-panel-value>CPU load is waiting for refresh.</p>
+                    <p class="mb-2 text-muted" data-panel-value id="cpu_value">CPU load is waiting for refresh.</p>
                     <small class="text-muted" data-panel-meta>Awaiting refresh.</small>
                   </div>
                 </div>
@@ -85,7 +85,7 @@
                 <div class="card ll-dashboard-card ll-metric-card h-100" id="memoryPanel">
                   <div class="card-body">
                     <h2 class="h6" data-panel-title>Memory</h2>
-                    <p class="mb-2 text-muted" data-panel-value>RAM allocation details are waiting for refresh.</p>
+                    <p class="mb-2 text-muted" data-panel-value id="memory_value">RAM allocation details are waiting for refresh.</p>
                     <small class="text-muted" data-panel-meta>Awaiting refresh.</small>
                   </div>
                 </div>
@@ -94,7 +94,7 @@
                 <div class="card ll-dashboard-card ll-metric-card h-100" id="storagePanel">
                   <div class="card-body">
                     <h2 class="h6" data-panel-title>Storage</h2>
-                    <p class="mb-2 text-muted" data-panel-value>Disk volume details are waiting for refresh.</p>
+                    <p class="mb-2 text-muted" data-panel-value id="disk_value">Disk volume details are waiting for refresh.</p>
                     <small class="text-muted" data-panel-meta>Awaiting refresh.</small>
                   </div>
                 </div>
@@ -305,6 +305,7 @@
   <script src="/static/js/themes.js"></script>
   <script src="/static/js/actions.js"></script>
   <script src="/static/js/main.js"></script>
+  <script src="/static/js/system_metrics.js"></script>
   <script src="/static/js/chat.js"></script>
   <script src="/static/js/ladyWidget.js"></script>
 </body>

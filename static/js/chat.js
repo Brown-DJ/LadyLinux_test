@@ -577,8 +577,32 @@ async function sendPrompt(prompt) {
   return response.text();
 }
 
+function applyProfile(profile) {
+  if (window.DesignEngine && typeof window.DesignEngine.updatePartial === "function") {
+    window.DesignEngine.updatePartial(profile || {});
+    return true;
+  }
+  return executeAction("design.update_profile", { profile: profile || {} });
+}
+
+function handleLLUI(responseText) {
+  const match = String(responseText || "").match(/LL_UI:\s*(\{[\s\S]*?\})/);
+  if (!match) return false;
+
+  try {
+    const command = JSON.parse(match[1]);
+    if (command.action === "update_profile") {
+      return applyProfile(command.profile);
+    }
+    return false;
+  } catch (err) {
+    console.error("Failed to parse LL_UI command:", err);
+    return false;
+  }
+}
+
 /* Shared LL_UI / LL_ACTION / LL_THEME parsing pipeline */
-function processAssistantReply(prompt, rawReply) {
+function processAssistantReply(prompt, rawReply, options = {}) {
   const fullReply = String(rawReply || "");
   const streamResult = {
     payload: extractStructuredPayload(fullReply),
@@ -586,7 +610,12 @@ function processAssistantReply(prompt, rawReply) {
   };
   let actionHandled = false;
 
-  const structuredAction = normalizeActionPayload(streamResult.payload);
+  const structuredAction =
+    options.skipUpdateProfile &&
+    streamResult.payload &&
+    streamResult.payload.action === "update_profile"
+      ? null
+      : normalizeActionPayload(streamResult.payload);
   if (structuredAction) {
     actionHandled = executeAction(structuredAction.action, structuredAction.params);
   }
@@ -637,7 +666,8 @@ async function handlePrompt(prompt) {
       diagnostics: lastRagMeta,
     });
     finalizeAssistantLine();
-    processAssistantReply(prompt, reply);
+    const llUiHandled = handleLLUI(reply);
+    processAssistantReply(prompt, reply, { skipUpdateProfile: llUiHandled });
   } catch (err) {
     finalizeAssistantLine();
     appendChatLine("Lady Linux", `Request failed: ${err.message}`);
