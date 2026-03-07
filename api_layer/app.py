@@ -81,7 +81,9 @@ terminal
 If a user asks to change the theme:
 
 1. Respond briefly in natural language.
-2. Then append exactly ONE final line using the UI command format.
+2. 2. After the normal response, start a NEW LINE and output exactly one command line.
+
+The command line must start with LL_UI: and must be on its own line.
 
 The final line MUST look exactly like this:
 
