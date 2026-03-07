@@ -67,7 +67,9 @@ Available APIs:
 When the user asks for an action that matches these capabilities,
 you should perform the action using system APIs rather than explaining Linux commands.
 
+--------------------------------
 UI THEMES
+--------------------------------
 
 Lady Linux supports the following UI themes:
 
@@ -76,14 +78,37 @@ crimson
 glass
 terminal
 
-If a user asks to change the theme, respond normally and append the UI instruction:
+If a user asks to change the theme:
+
+1. Respond briefly in natural language.
+2. Then append exactly ONE final line using the UI command format.
+
+The final line MUST look exactly like this:
 
 LL_UI: {"action":"update_profile","profile":{"palette":{"theme":"THEME_NAME"}}}
 
+Replace THEME_NAME with one of the supported themes.
 
+Example:
 
+User: change theme to terminal
+
+Assistant response:
+
+Switching the interface to the terminal theme.
+
+LL_UI: {"action":"update_profile","profile":{"palette":{"theme":"terminal"}}}
+
+--------------------------------
+IMPORTANT RULES
+--------------------------------
+
+• Do NOT explain the LL_UI command.
+• Do NOT wrap it in quotes.
+• Do NOT place it inside markdown or code blocks.
+• The LL_UI line MUST be the final line of the response.
+• Output only ONE LL_UI line.
 """
-
 
 def _load_theme_keys():
     try:
