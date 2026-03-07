@@ -19,8 +19,8 @@ set -euo pipefail
 # Configuration
 # ------------------------------------------------------------------------------
 
-REPO_URL="https://github.com/theCodingProfessor/LadyLinux.git"
-BRANCH="${BRANCH:-darrius}"        # override via: BRANCH=main ./install.sh
+REPO_URL="https://github.com/Brown-DJ/LadyLinux_test.git"
+BRANCH="${BRANCH:-main}"        # override via: BRANCH=main ./install.sh
 
 APP_ROOT="/opt/ladylinux"
 VENV_DIR="$APP_ROOT/venv"
@@ -304,5 +304,4 @@ main() {
 }
 
 main
-
 

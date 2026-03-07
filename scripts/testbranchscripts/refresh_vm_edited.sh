@@ -41,13 +41,13 @@ set -Eeuo pipefail
 
 #----------------------------- Configuration -----------------------------------
 
-BRANCH="${1:-darrius}"
+BRANCH="${1:-main}"
 
 APP_DIR="/opt/ladylinux"
 VENV_DIR="/opt/ladylinux/venv"
 ENV_FILE="/etc/ladylinux/ladylinux.env"
 
-GIT_REMOTE_URL="https://github.com/theCodingProfessor/LadyLinux.git"
+GIT_REMOTE_URL="https://github.com/Brown-DJ/LadyLinux_test.git"
 SERVICE_NAME="ladylinux-api.service"
 SERVICE_USER="ladylinux"
 API_PORT="8000"
