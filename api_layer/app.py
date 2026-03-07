@@ -66,6 +66,22 @@ Available APIs:
 
 When the user asks for an action that matches these capabilities,
 you should perform the action using system APIs rather than explaining Linux commands.
+
+UI THEMES
+
+Lady Linux supports the following UI themes:
+
+soft
+crimson
+glass
+terminal
+
+If a user asks to change the theme, respond normally and append the UI instruction:
+
+LL_UI: {"action":"update_profile","profile":{"palette":{"theme":"THEME_NAME"}}}
+
+
+
 """
 
 
