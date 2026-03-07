@@ -43,6 +43,7 @@ Improving response formatting and usability
 Integrating additional services or commands
 
 Build & Architecture: build_instructions.md architecture_overview.md — Guides for compiling, testing, and understanding the OS structure.
+Frontend JavaScript Map: technical/javascript_files.md — Purpose and ownership of `static/js` modules.
 
 Roadmap & Contributions: roadmap.md, contributing.md — How to get involved, submit patches, and participate in community testing.
 

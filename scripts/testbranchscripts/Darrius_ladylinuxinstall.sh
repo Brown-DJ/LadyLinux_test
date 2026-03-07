@@ -8,12 +8,14 @@
 # - Create Python virtual environment
 # - Install Python requirements
 # - Create and enable systemd API service
-# - Optionally install Ollama runtime
+# - Install and configure dedicated Ollama runtime service
 #
 # Idempotent: safe to run multiple times
 # ==============================================================================
 
 set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ------------------------------------------------------------------------------
 # Configuration
@@ -27,9 +29,13 @@ VENV_DIR="$APP_ROOT/venv"
 
 SERVICE_USER="ladylinux"
 SERVICE_NAME="ladylinux-api.service"
+LLM_SERVICE_NAME="ladylinux-llm.service"
+LLM_SERVICE_PATH="/etc/systemd/system/$LLM_SERVICE_NAME"
+LLM_SERVICE_TEMPLATE="$SCRIPT_DIR/ladylinux-llm.service"
 
 API_HOST="0.0.0.0"
 API_PORT="8000"
+OLLAMA_HOST="127.0.0.1:11434"
 
 UVICORN_MODULE="api_layer:app"
 
@@ -224,6 +230,39 @@ EOF
 }
 
 # ------------------------------------------------------------------------------
+# Dedicated LLM Service
+# ------------------------------------------------------------------------------
+
+create_llm_service() {
+
+    log "Creating dedicated LLM service"
+
+    if [[ -f "$LLM_SERVICE_TEMPLATE" ]]; then
+        install -m 0644 "$LLM_SERVICE_TEMPLATE" "$LLM_SERVICE_PATH"
+    else
+        cat > "$LLM_SERVICE_PATH" <<EOF
+[Unit]
+Description=LadyLinux LLM Runtime
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/ollama serve
+Restart=always
+RestartSec=3
+User=root
+Environment="OLLAMA_HOST=$OLLAMA_HOST"
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    fi
+
+    systemctl daemon-reload
+    systemctl enable "$LLM_SERVICE_NAME"
+    systemctl restart "$LLM_SERVICE_NAME"
+}
+
+# ------------------------------------------------------------------------------
 # Start service
 # ------------------------------------------------------------------------------
 
@@ -237,7 +276,7 @@ start_service() {
 }
 
 # ------------------------------------------------------------------------------
-# Install Ollama (optional runtime)
+# Install Ollama runtime and wire dedicated LLM service
 # ------------------------------------------------------------------------------
 
 install_ollama() {
@@ -247,10 +286,16 @@ install_ollama() {
         curl -fsSL https://ollama.com/install.sh | sh
     fi
 
-    systemctl enable --now ollama || true
+    create_llm_service
 
-    log "Waiting for Ollama API to start..."
-    sleep 3
+    log "Waiting for LLM API to start..."
+    sleep 4
+
+    log "Verifying LLM service"
+    systemctl --no-pager --full status "$LLM_SERVICE_NAME" || true
+    curl --silent --show-error --fail "http://127.0.0.1:11434" >/dev/null \
+        && log "LLM health check passed: Ollama is running" \
+        || log "LLM health check warning: endpoint did not respond yet"
 
     log "Ensuring Ollama embedding model is installed..."
 
@@ -290,9 +335,9 @@ main() {
 
     create_service
 
-    start_service
-
     install_ollama
+
+    start_service
 
     log "Installation complete"
 
@@ -304,4 +349,3 @@ main() {
 }
 
 main
-

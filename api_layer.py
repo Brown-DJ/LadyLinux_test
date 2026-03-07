@@ -17,7 +17,17 @@ templates = Jinja2Templates(directory="templates")
 LOG_FILE = "/var/log/ladylinux/actions.log"
 
 # LLM API endpoint
-OLLAMA_URL = "http://localhost:11434/api/generate"
+OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
+
+
+def query_llm(prompt: str, model: str = "mistral") -> str:
+    response = requests.post(
+        OLLAMA_URL,
+        json={"model": model, "prompt": prompt, "stream": False},
+        timeout=120
+    )
+    response.raise_for_status()
+    return response.json().get("response", "")
 
 
 # Endpoint for HTML page
@@ -48,28 +58,18 @@ class PromptRequest(BaseModel):
 
 @app.post("/ask_phi3")
 async def ask_phi3(req: PromptRequest):
-    def stream():
-        resp = requests.post(
-            OLLAMA_URL,
-            json={"model": "mistral:latest", "prompt": req.prompt},
-            stream=True
-        )
-        # this is a comment
-        for line in resp.iter_lines():
-            if line:
-                chunk = json.loads(line)
-                yield chunk.get("response", "")
-    return StreamingResponse(stream(), media_type="text/plain")
+    try:
+        return PlainTextResponse(content=query_llm(req.prompt, model="mistral"))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"LLM request failed: {e}")
 
 
 @app.get("/ask_phi3")
 def ask_phi3(prompt: str):
-    response = requests.post(
-        "http://localhost:11434/api/generate",
-        json={"model": "mistral:latest", "prompt": prompt}
-    )
-    # return raw text
-    return {"output": response.text}
+    try:
+        return {"output": query_llm(prompt, model="mistral")}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"LLM request failed: {e}")
 
 
 @app.post("/ask_firewall")
@@ -92,25 +92,8 @@ Explain this firewall configuration clearly for a Linux user.
 """
 
     try:
-        # Query the model (phi3:mini or other)
-        resp = requests.post(
-            OLLAMA_URL,
-            json={"model": "mistral:latest", "prompt": full_prompt}
-        )
-
-        # Parse model’s streaming response lines safely
-        lines = resp.text.strip().splitlines()
-        output = ""
-        for line in lines:
-            try:
-                chunk = json.loads(line)
-                output += chunk.get("response", "")
-            except json.JSONDecodeError:
-                output += line  # handle non-JSON chunks gracefully
-
-        # ✅ Return just plain text (no JSON at all)
+        output = query_llm(full_prompt, model="mistral")
         return PlainTextResponse(content=f"Lady Linux: {output.strip()}")
-
     except Exception as e:
         return PlainTextResponse(content=f"Lady Linux: Error - {str(e)}")
 
@@ -351,7 +334,4 @@ def disable_service(target: str):
     except Exception as e:
         log_action("disable_service", target, "failed")
         raise HTTPException(status_code=500, detail=str(e))
-
-
-
 

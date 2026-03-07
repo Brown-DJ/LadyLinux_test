@@ -49,6 +49,7 @@ ENV_FILE="/etc/ladylinux/ladylinux.env"
 
 GIT_REMOTE_URL="https://github.com/Brown-DJ/LadyLinux_test.git"
 SERVICE_NAME="ladylinux-api.service"
+LLM_SERVICE_NAME="ladylinux-llm.service"
 SERVICE_USER="ladylinux"
 API_PORT="8000"
 FALLBACK_LOG_FILE="/var/lib/ladylinux/logs/uvicorn-refresh.log"
@@ -143,6 +144,22 @@ service_status() {
 
   log "Service status:"
   systemctl --no-pager --full status "$SERVICE_NAME" || true
+}
+
+ensure_llm_service() {
+  log "Ensuring LLM runtime service is running: $LLM_SERVICE_NAME"
+  systemctl daemon-reload || true
+  systemctl enable "$LLM_SERVICE_NAME" || true
+  systemctl restart "$LLM_SERVICE_NAME" || die "Failed to start $LLM_SERVICE_NAME"
+  systemctl --no-pager --full status "$LLM_SERVICE_NAME" || true
+
+  if command -v curl >/dev/null 2>&1; then
+    if curl --silent --fail --max-time 5 "http://127.0.0.1:11434" >/dev/null 2>&1; then
+      log "LLM health check passed: 127.0.0.1:11434 reachable."
+    else
+      warn "LLM health check warning: 127.0.0.1:11434 did not respond yet."
+    fi
+  fi
 }
 
 run_as_service() {
@@ -384,6 +401,7 @@ main() {
   fi
 
   prep_application
+  ensure_llm_service
   service_start
   validate_runtime
   print_summary
