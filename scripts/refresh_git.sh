@@ -70,6 +70,23 @@ install_dependencies() {
  sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install -r "$APP_DIR/requirements.txt"
 }
 
+ensure_chromium() {
+
+ log "Ensuring Chromium browser is installed (required for LadyLinux UI)"
+
+ if ! command -v chromium >/dev/null 2>&1 && \
+    ! command -v chromium-browser >/dev/null 2>&1; then
+
+     if command -v apt >/dev/null 2>&1; then
+         apt install -y chromium-browser fonts-liberation libgtk-3-0 || true
+     fi
+
+     if command -v snap >/dev/null 2>&1; then
+         snap install chromium || true
+     fi
+ fi
+}
+
 restart_services() {
 
  log "Restarting Ollama runtime"
@@ -103,6 +120,7 @@ main() {
  sync_repo
  repair_venv
  install_dependencies
+ ensure_chromium
  restart_services
  validate_api
  echo hostname -I
