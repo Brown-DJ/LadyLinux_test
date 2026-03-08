@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+﻿#!/usr/bin/env bash
 # ==============================================================================
 # LadyLinux Installer
 #
@@ -50,6 +50,10 @@ log() {
     echo
 }
 
+run_as_service() {
+    sudo -u "$SERVICE_USER" -- "$@"
+}
+
 # ------------------------------------------------------------------------------
 # Root Check
 # ------------------------------------------------------------------------------
@@ -60,7 +64,6 @@ require_root() {
         exit 1
     fi
 }
-
 # ------------------------------------------------------------------------------
 # Detect Python
 # ------------------------------------------------------------------------------
@@ -81,17 +84,17 @@ install_system_packages() {
 
     log "Installing system dependencies"
 
-    apt update -y
-
-    apt install -y \
-        git \
-        curl \
-        ca-certificates \
-        build-essential \
-        python3 \
-        python3-venv \
-        python3-pip \
-        systemd
+    if command -v apt >/dev/null; then
+        apt update -y
+        apt install -y git curl ca-certificates build-essential python3 python3-venv python3-pip
+    elif command -v dnf >/dev/null; then
+        dnf install -y git curl gcc python3 python3-venv python3-pip
+    elif command -v pacman >/dev/null; then
+        pacman -Sy --noconfirm git curl base-devel python python-pip
+    else
+        echo "Unsupported package manager. Install dependencies manually."
+        exit 1
+    fi
 }
 
 # ------------------------------------------------------------------------------
@@ -118,28 +121,21 @@ ensure_service_user() {
 
 setup_repo() {
 
-    log "Preparing repository"
+    log "Preparing application directory"
+
+    mkdir -p "$APP_ROOT"
+    chown "$SERVICE_USER:$SERVICE_USER" "$APP_ROOT"
+
+    log "Ensuring repository"
 
     if [[ ! -d "$APP_ROOT/.git" ]]; then
-
         log "Cloning repository"
-
-        rm -rf "$APP_ROOT"
-
-        git clone "$REPO_URL" "$APP_ROOT"
-
+        run_as_service git clone "$REPO_URL" "$APP_ROOT"
     fi
 
-    # Ensure the service user owns the install tree to avoid venv/pip permission issues.
-    chown -R "$SERVICE_USER:$SERVICE_USER" "$APP_ROOT"
-
-    cd "$APP_ROOT"
-
-    git fetch origin
-
-    git checkout "$BRANCH"
-
-    git reset --hard "origin/$BRANCH"
+    run_as_service git -C "$APP_ROOT" fetch origin
+    run_as_service git -C "$APP_ROOT" checkout "$BRANCH"
+    run_as_service git -C "$APP_ROOT" reset --hard "origin/$BRANCH"
 }
 
 # ------------------------------------------------------------------------------
@@ -148,17 +144,23 @@ setup_repo() {
 
 setup_venv() {
 
-    PYTHON_BIN=$(detect_python)
+    log "Ensuring Python virtual environment"
 
     if [[ ! -d "$VENV_DIR" ]]; then
 
         log "Creating Python virtual environment"
 
-        $PYTHON_BIN -m venv "$VENV_DIR"
+        /usr/bin/python3 -m venv "$VENV_DIR"
+
+        chown -R "$SERVICE_USER:$SERVICE_USER" "$VENV_DIR"
 
     fi
 
-    "$VENV_DIR/bin/python" -m pip install --upgrade pip wheel setuptools
+    if [[ ! -f "$VENV_DIR/bin/python" ]]; then
+        echo "ERROR: Virtual environment creation failed"
+        exit 1
+    fi
+
 }
 
 # ------------------------------------------------------------------------------
@@ -176,15 +178,9 @@ install_requirements() {
         exit 1
     fi
 
-    "$VENV_DIR/bin/pip" install -r "$REQUIREMENTS_FILE"
+    "$VENV_DIR/bin/python" -m pip install --upgrade pip wheel setuptools
 
-    log "Verifying qdrant-client"
-
-    "$VENV_DIR/bin/python" -c "import qdrant_client; print('qdrant_client OK')"
-
-    log "Verifying core runtime imports"
-
-    "$VENV_DIR/bin/python" -c "import fastapi, uvicorn, requests; print('core runtime imports OK')"
+    run_as_service "$VENV_DIR/bin/pip" install -r "$REQUIREMENTS_FILE"
 }
 
 # ------------------------------------------------------------------------------
@@ -193,9 +189,11 @@ install_requirements() {
 
 fix_permissions() {
 
-    log "Setting directory ownership"
+    log "Ensuring consistent permissions"
 
     chown -R "$SERVICE_USER:$SERVICE_USER" "$APP_ROOT"
+    mkdir -p /var/lib/ladylinux/{data,cache,logs}
+    chown -R "$SERVICE_USER:$SERVICE_USER" /var/lib/ladylinux
 }
 
 # ------------------------------------------------------------------------------
@@ -206,17 +204,17 @@ setup_desktop_launchers() {
 
     log "Configuring desktop launcher integration"
 
-    cat > "$APP_ROOT/launch_ladylinux.sh" <<'EOF'
+    run_as_service bash -lc "cat > '$APP_ROOT/launch_ladylinux.sh' <<'EOF'
 #!/bin/bash
 
-APP_DIR="/opt/ladylinux"
-PYTHON="$APP_DIR/venv/bin/python"
-SCRIPT="$APP_DIR/scripts/testbranchscripts/start_ladylinux.py"
+APP_DIR=\"/opt/ladylinux\"
+PYTHON=\"\$APP_DIR/venv/bin/python\"
+SCRIPT=\"\$APP_DIR/scripts/testbranchscripts/start_ladylinux.py\"
 
-exec "$PYTHON" "$SCRIPT"
+exec \"\$PYTHON\" \"\$SCRIPT\"
 EOF
-    chmod +x "$APP_ROOT/launch_ladylinux.sh"
-    chown "$SERVICE_USER:$SERVICE_USER" "$APP_ROOT/launch_ladylinux.sh" || true
+"
+    run_as_service chmod +x "$APP_ROOT/launch_ladylinux.sh"
 
     cat > /usr/share/applications/ladylinux.desktop <<'EOF'
 [Desktop Entry]
@@ -354,6 +352,7 @@ install_ollama() {
 }
 
 
+
 # ------------------------------------------------------------------------------
 # Main
 # ------------------------------------------------------------------------------
@@ -361,6 +360,8 @@ install_ollama() {
 main() {
 
     require_root
+
+    cd /
 
     install_system_packages
 
@@ -370,20 +371,15 @@ main() {
 
     setup_venv
 
-    install_requirements
-
     fix_permissions
+
+    install_requirements
 
     setup_desktop_launchers
 
     create_service
 
     install_ollama
-
-    # Re-assert enable/reload idempotently after unit creation for reliable startup.
-    systemctl daemon-reload
-    systemctl enable "$SERVICE_NAME"
-    systemctl enable "$LLM_SERVICE_NAME"
 
     start_service
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 import json
 import threading
+import time
 
 import requests
 from fastapi import FastAPI, HTTPException, Request
@@ -26,6 +27,7 @@ from api_layer.utils.validators import validate_service_name
 from rag_layer.retriever import build_context_block, retrieve
 from rag_layer.seed import seed
 from rag_layer.vector_store import COLLECTION_NAME, client, ensure_collection
+from llm_runtime import ensure_model
 
 app = FastAPI()
 
@@ -65,8 +67,18 @@ class PromptRequest(BaseModel):
     prompt: str
 
 
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class ChatRequest(BaseModel):
+    messages: list[ChatMessage]
+
+
 def _ollama_generate(prompt: str, model: str = "mistral") -> str:
     """Call Ollama through its HTTP API and normalize output text."""
+    ensure_model()
     response = requests.post(
         OLLAMA_URL,
         json={"model": model, "prompt": prompt, "stream": False},
@@ -109,6 +121,13 @@ def init_rag() -> None:
     ensure_collection()
     if rag_collection_is_empty():
         threading.Thread(target=seed, daemon=True).start()
+
+    # Keep startup fast, then opportunistically warm the model later.
+    def preload() -> None:
+        time.sleep(30)
+        ensure_model()
+
+    threading.Thread(target=preload, daemon=True).start()
 
 
 @app.get("/")
@@ -190,6 +209,22 @@ Rules:
             },
             status_code=500,
         )
+
+
+@app.post("/api/chat")
+async def api_chat(req: ChatRequest):
+    ensure_model()
+    response = requests.post(
+        "http://127.0.0.1:11434/api/chat",
+        json={
+            "model": "mistral",
+            "messages": [message.model_dump() for message in req.messages],
+            "stream": False,
+        },
+        timeout=120,
+    )
+    response.raise_for_status()
+    return response.json()
 
 
 @app.post("/ask_firewall")

@@ -1,11 +1,14 @@
 from fastapi import FastAPI, HTTPException, Request, Form
 import requests, json, subprocess, os, re
 from datetime import datetime
+import threading
+import time
 from fastapi.staticfiles import StaticFiles
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import StreamingResponse, JSONResponse, PlainTextResponse
 from pydantic import BaseModel
+from llm_runtime import ensure_model
 
 app = FastAPI()
 
@@ -21,6 +24,7 @@ OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
 
 
 def query_llm(prompt: str, model: str = "mistral") -> str:
+    ensure_model()
     response = requests.post(
         OLLAMA_URL,
         json={"model": model, "prompt": prompt, "stream": False},
@@ -56,12 +60,47 @@ def os_page(request: Request):
 class PromptRequest(BaseModel):
     prompt: str
 
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class ChatRequest(BaseModel):
+    messages: list[ChatMessage]
+
+
+@app.on_event("startup")
+def warm_model_later():
+    def preload():
+        time.sleep(30)
+        ensure_model()
+
+    threading.Thread(target=preload, daemon=True).start()
+
+
 @app.post("/ask_phi3")
 async def ask_phi3(req: PromptRequest):
     try:
         return PlainTextResponse(content=query_llm(req.prompt, model="mistral"))
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"LLM request failed: {e}")
+
+
+@app.post("/api/chat")
+async def api_chat(req: ChatRequest):
+    ensure_model()
+    response = requests.post(
+        "http://127.0.0.1:11434/api/chat",
+        json={
+            "model": "mistral",
+            "messages": [message.model_dump() for message in req.messages],
+            "stream": False,
+        },
+        timeout=120,
+    )
+    response.raise_for_status()
+    return response.json()
 
 
 @app.get("/ask_phi3")

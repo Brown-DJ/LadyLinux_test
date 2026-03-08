@@ -360,7 +360,8 @@ install_fallback_runtime_deps() {
 open_browser_if_gui() {
   # Open the local UI only when a desktop session is available.
   if [[ -n "${DISPLAY:-}" ]] || [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
-    local url="http://127.0.0.1:$API_PORT/"
+    HOST_IP=$(hostname -I | awk '{print $1}')
+    local url="http://$HOST_IP:$API_PORT/"
     log "Opening Web App: $url"
 
     if [[ -n "${SUDO_USER:-}" ]]; then

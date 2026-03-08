@@ -1,9 +1,12 @@
-#!/usr/bin/env bash
+﻿#!/usr/bin/env bash
 set -euo pipefail
+
+/opt/ladylinux/scripts/ladylinux_doctor.sh
 
 LLM_SERVICE="ladylinux-llm.service"
 API_SERVICE="ladylinux-api.service"
-API_URL="http://127.0.0.1:8000"
+HOST_IP=$(hostname -I | awk '{print $1}')
+API_URL="http://$HOST_IP:8000"
 
 echo "Launching LadyLinux system..."
 
@@ -50,10 +53,15 @@ fi
 
 # --- Open web interface ---
 echo "Opening web interface at $API_URL ..."
-if command -v xdg-open > /dev/null; then
+if command -v chromium >/dev/null 2>&1; then
+    chromium --app="$API_URL" --window-size=1280,900 >/dev/null 2>&1 &
+elif command -v google-chrome >/dev/null 2>&1; then
+    google-chrome --app="$API_URL" --window-size=1280,900 >/dev/null 2>&1 &
+elif command -v xdg-open > /dev/null; then
     xdg-open "$API_URL" >/dev/null 2>&1 &
 else
     echo "Please open your browser and visit: $API_URL"
 fi
 
 echo "LadyLinux system launched successfully."
+
