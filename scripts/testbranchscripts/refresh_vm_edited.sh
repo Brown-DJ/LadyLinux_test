@@ -54,7 +54,8 @@ SERVICE_USER="ladylinux"
 API_PORT="8000"
 FALLBACK_LOG_FILE="/var/lib/ladylinux/logs/uvicorn-refresh.log"
 
-PYTHON_BIN="python3.12"
+BOOTSTRAP_PYTHON="python3.12"
+PYTHON_BIN="$VENV_DIR/bin/python"
 PIP_BIN="$VENV_DIR/bin/pip"
 
 # If true: always rebuild the venv each run (most deterministic).
@@ -264,7 +265,11 @@ build_venv() {
   mkdir -p "$VENV_DIR"
   chown "$SERVICE_USER":"$SERVICE_USER" "$VENV_DIR"
 
-  run_as_service "$PYTHON_BIN" -m venv "$VENV_DIR"
+  if ! command -v "$BOOTSTRAP_PYTHON" >/dev/null 2>&1; then
+    BOOTSTRAP_PYTHON="python3"
+  fi
+
+  run_as_service "$BOOTSTRAP_PYTHON" -m venv "$VENV_DIR"
   run_as_service "$PIP_BIN" install --upgrade pip wheel setuptools
 
   pushd "$APP_DIR" >/dev/null
@@ -374,7 +379,7 @@ main() {
   require_root
   require_cmd git
   require_cmd sudo
-  require_cmd "$PYTHON_BIN"
+  require_cmd "$BOOTSTRAP_PYTHON"
   require_cmd systemctl
   require_cmd sha256sum
   require_cmd lsof
@@ -399,6 +404,9 @@ main() {
   else
     log "Venv rebuild not needed; dependency fingerprint unchanged."
   fi
+
+  [[ -x "$PYTHON_BIN" ]] || die "Venv python missing after setup: $PYTHON_BIN"
+  [[ -x "$PIP_BIN" ]] || die "Venv pip missing after setup: $PIP_BIN"
 
   prep_application
   ensure_llm_service

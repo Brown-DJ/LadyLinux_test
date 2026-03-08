@@ -90,6 +90,9 @@ install_system_packages() {
         python3 \
         python3-venv \
         python3-pip \
+        python3-gi \
+        python3-gi-cairo \
+        gir1.2-gtk-3.0 \
         systemd
 }
 
@@ -128,6 +131,9 @@ setup_repo() {
         git clone "$REPO_URL" "$APP_ROOT"
 
     fi
+
+    # Ensure the service user owns the install tree to avoid venv/pip permission issues.
+    chown -R "$SERVICE_USER:$SERVICE_USER" "$APP_ROOT"
 
     cd "$APP_ROOT"
 
@@ -177,6 +183,10 @@ install_requirements() {
     log "Verifying qdrant-client"
 
     "$VENV_DIR/bin/python" -c "import qdrant_client; print('qdrant_client OK')"
+
+    log "Verifying core runtime imports"
+
+    "$VENV_DIR/bin/python" -c "import fastapi, uvicorn, requests; print('core runtime imports OK')"
 }
 
 # ------------------------------------------------------------------------------
@@ -203,7 +213,8 @@ create_service() {
     cat > "$SERVICE_PATH" <<EOF
 [Unit]
 Description=LadyLinux API
-After=network.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
@@ -212,7 +223,7 @@ Group=$SERVICE_USER
 WorkingDirectory=$APP_ROOT
 Environment=PYTHONUNBUFFERED=1
 
-ExecStart=$VENV_DIR/bin/uvicorn $UVICORN_MODULE --host $API_HOST --port $API_PORT
+ExecStart=$VENV_DIR/bin/python -m uvicorn $UVICORN_MODULE --host $API_HOST --port $API_PORT
 
 Restart=always
 RestartSec=3
@@ -225,7 +236,6 @@ WantedBy=multi-user.target
 EOF
 
     systemctl daemon-reload
-
     systemctl enable "$SERVICE_NAME"
 }
 
@@ -336,6 +346,11 @@ main() {
     create_service
 
     install_ollama
+
+    # Re-assert enable/reload idempotently after unit creation for reliable startup.
+    systemctl daemon-reload
+    systemctl enable "$SERVICE_NAME"
+    systemctl enable "$LLM_SERVICE_NAME"
 
     start_service
 

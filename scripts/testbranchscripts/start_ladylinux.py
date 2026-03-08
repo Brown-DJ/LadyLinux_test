@@ -34,7 +34,7 @@ def ensure_desktop_entry() -> None:
             "Version=1.0",
             "Name=Lady Linux",
             "Comment=AI Linux System Assistant",
-            f"Exec=python3 {script_path}",
+            f'Exec=/opt/ladylinux/venv/bin/python "{script_path}"',
             "Terminal=false",
             "Type=Application",
             "Categories=System;",
@@ -77,12 +77,14 @@ def terminate_backend(process: subprocess.Popen[bytes] | subprocess.Popen[str] |
 def main() -> None:
     ensure_desktop_entry()
 
-    project_root = Path(__file__).resolve().parent.parent.parent
+    project_root = Path("/opt/ladylinux")
 
     # Start the FastAPI backend with uvicorn in a child process so the launcher
     # controls backend lifetime and can shut it down when the desktop window closes.
     backend_process = subprocess.Popen(
         [
+            sys.executable,
+            "-m",
             "uvicorn",
             "api_layer.app:app",
             "--host",
