@@ -7,6 +7,7 @@
 # - Clone or update LadyLinux repository
 # - Create Python virtual environment
 # - Install Python requirements
+# - Create desktop launcher integration
 # - Create and enable systemd API service
 # - Install and configure dedicated Ollama runtime service
 #
@@ -90,9 +91,6 @@ install_system_packages() {
         python3 \
         python3-venv \
         python3-pip \
-        python3-gi \
-        python3-gi-cairo \
-        gir1.2-gtk-3.0 \
         systemd
 }
 
@@ -198,6 +196,39 @@ fix_permissions() {
     log "Setting directory ownership"
 
     chown -R "$SERVICE_USER:$SERVICE_USER" "$APP_ROOT"
+}
+
+# ------------------------------------------------------------------------------
+# Desktop Launcher Integration
+# ------------------------------------------------------------------------------
+
+setup_desktop_launchers() {
+
+    log "Configuring desktop launcher integration"
+
+    cat > "$APP_ROOT/launch_ladylinux.sh" <<'EOF'
+#!/bin/bash
+
+APP_DIR="/opt/ladylinux"
+PYTHON="$APP_DIR/venv/bin/python"
+SCRIPT="$APP_DIR/scripts/testbranchscripts/start_ladylinux.py"
+
+exec "$PYTHON" "$SCRIPT"
+EOF
+    chmod +x "$APP_ROOT/launch_ladylinux.sh"
+    chown "$SERVICE_USER:$SERVICE_USER" "$APP_ROOT/launch_ladylinux.sh" || true
+
+    cat > /usr/share/applications/ladylinux.desktop <<'EOF'
+[Desktop Entry]
+Name=Lady Linux
+Comment=LadyLinux System Control Interface
+Exec=/opt/ladylinux/launch_ladylinux.sh
+Icon=utilities-terminal
+Terminal=false
+Type=Application
+Categories=System;Utility;
+StartupNotify=true
+EOF
 }
 
 # ------------------------------------------------------------------------------
@@ -342,6 +373,8 @@ main() {
     install_requirements
 
     fix_permissions
+
+    setup_desktop_launchers
 
     create_service
 

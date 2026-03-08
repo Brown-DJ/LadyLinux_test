@@ -4,8 +4,8 @@ qdrant-client
 psutil
 jinja2
 requests
+python-multipart
 numpy
 watchdog
 grpcio
 grpcio-tools
-pywebview
