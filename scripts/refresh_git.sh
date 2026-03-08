@@ -11,7 +11,7 @@ API_PORT="8000"
 BRANCH="${1:-main}"
 
 log() { echo "[refresh] $*"; }
-
+chown -R "$SERVICE_USER:$SERVICE_USER" "$APP_DIR" || true
 require_root() {
  if [[ "$EUID" -ne 0 ]]; then
   echo "Run with sudo"
@@ -48,11 +48,16 @@ repair_venv() {
  if [[ ! -f "$VENV_DIR/bin/python" ]]; then
   log "Broken or missing venv — rebuilding"
 
+  # remove broken environment
   rm -rf "$VENV_DIR"
 
-  python3 -m venv "$VENV_DIR"
-
+  # recreate directory with correct ownership
+  mkdir -p "$VENV_DIR"
   chown -R "$SERVICE_USER:$SERVICE_USER" "$VENV_DIR"
+
+  # create venv as service user
+  sudo -u "$SERVICE_USER" python3 -m venv "$VENV_DIR"
+
  fi
 }
 
@@ -100,7 +105,7 @@ main() {
  install_dependencies
  restart_services
  validate_api
-
+ echo hostname -I
  log "Refresh complete"
 }
 

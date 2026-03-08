@@ -95,8 +95,21 @@ install_system_packages() {
         echo "Unsupported package manager. Install dependencies manually."
         exit 1
     fi
-}
 
+    log "Ensuring Chromium browser is installed (required for LadyLinux UI)"
+
+    if ! command -v chromium >/dev/null 2>&1 && \
+       ! command -v chromium-browser >/dev/null 2>&1; then
+
+        if command -v apt >/dev/null 2>&1; then
+            apt install -y chromium-browser fonts-liberation libgtk-3-0 || true
+        fi
+
+        if command -v snap >/dev/null 2>&1; then
+            snap install chromium || true
+        fi
+    fi
+}
 # ------------------------------------------------------------------------------
 # Ensure service user
 # ------------------------------------------------------------------------------

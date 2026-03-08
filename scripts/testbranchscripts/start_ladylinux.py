@@ -9,7 +9,6 @@ if os.path.exists(VENV_PYTHON) and sys.executable != VENV_PYTHON:
     os.execv(VENV_PYTHON, [VENV_PYTHON] + sys.argv)
 
 import shutil
-import socket
 import subprocess
 import time
 from pathlib import Path
@@ -19,24 +18,8 @@ import requests
 PORT = 8000
 
 
-def get_local_ip() -> str:
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        sock.connect(("8.8.8.8", 80))
-        return sock.getsockname()[0]
-    finally:
-        sock.close()
-
-
 def find_browser() -> str | None:
-    browsers = [
-        "chromium",
-        "chromium-browser",
-        "google-chrome",
-        "google-chrome-stable",
-        "brave-browser",
-        "vivaldi",
-    ]
+    browsers = ["chromium", "chromium-browser"]
     for browser in browsers:
         if shutil.which(browser):
             return browser
@@ -45,20 +28,24 @@ def find_browser() -> str | None:
 
 def launch_browser(url: str) -> bool:
     browser = find_browser()
-    if browser:
-        subprocess.Popen(
-            [
-                browser,
-                f"--app={url}",
-                "--disable-infobars",
-                "--disable-session-crashed-bubble",
-                "--window-size=1280,900",
-            ]
-        )
-        return True
+    if not browser:
+        print("Chromium not installed. Please install chromium or chromium-browser.")
+        return False
 
-    subprocess.Popen(["xdg-open", url])
-    return False
+    # Chromium app-mode removes browser UI (tabs/address bar) for desktop app UX.
+    subprocess.Popen(
+        [
+            browser,
+            f"--app={url}",
+            "--disable-infobars",
+            "--disable-session-crashed-bubble",
+            "--start-maximized",
+            "--no-default-browser-check",
+            "--disable-extensions",
+        ]
+    )
+
+    return True
 
 
 def wait_for_server(url: str, timeout: int = 30) -> bool:
@@ -95,10 +82,13 @@ def ensure_user_desktop_entry() -> None:
 
 def main() -> None:
     ensure_user_desktop_entry()
-    host_ip = get_local_ip()
-    url = f"http://{host_ip}:{PORT}"
-    if wait_for_server(url):
-        launch_browser(url)
+
+    # Use localhost for desktop launch so Chromium does not show a LAN IP.
+    # The API service still binds to 0.0.0.0, so other devices can connect.
+    desktop_url = f"http://127.0.0.1:{PORT}"
+
+    if wait_for_server(desktop_url):
+        launch_browser(desktop_url)
     else:
         print("LadyLinux backend did not start.")
 
