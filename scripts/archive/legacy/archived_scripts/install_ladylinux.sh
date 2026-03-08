@@ -1,19 +1,41 @@
 #!/usr/bin/env bash
 #===============================================================================
-# LadyLinux Installer (Filesystem + User Bootstrap) - Refactored
+# LadyLinux Installer (Filesystem + User Bootstrap)
 # File: scripts/install_ladylinux.sh
 #
-# Goals of this refactor:
-#   - Create required runtime directories under /opt, /var, /etc safely
-#   - Create service user/group ("ladylinux") safely
-#   - Avoid nested clone mistakes (/opt/ladylinux/app/LadyLinux)
-#   - Provide a repair mechanism if a nested repo already exists
+# Purpose:
+#   Prepare a host system (VM or physical) for a LadyLinux deployment by:
+#     - Creating required runtime directories under /opt, /var, /etc
+#     - Creating a dedicated service user "ladylinux"
+#     - Setting safe ownership and permissions
+#     - (Optional) Cloning the LadyLinux repo into /opt/ladylinux/app
+#
+# What this script does NOT do:
+#   - Install Linux Mint or change OS settings
+#   - Install/enable a systemd service unit (that can be separate)
+#   - Download LLM model weights
+#   - Delete or overwrite existing models/state/config
 #
 # Usage:
 #   sudo ./scripts/install_ladylinux.sh [options]
 #
-# Common:
-#   sudo ./scripts/install_ladylinux.sh --clone --branch main --repair-layout
+# Options:
+#   --clone                 Clone repo into /opt/ladylinux/app if not present
+#   --repo <url>            Repo URL to clone (default: LadyLinux GitHub)
+#   --branch <name>         Branch to checkout after clone (default: main)
+#   --no-user               Do not create the ladylinux service user
+#   --dry-run               Print what would happen without changing anything
+#   -h, --help              Show help
+#
+# Examples:
+#   sudo ./scripts/install_ladylinux.sh
+#   sudo ./scripts/install_ladylinux.sh --clone --branch main
+#   sudo ./scripts/install_ladylinux.sh --clone --repo https://github.com/theCodingProfessor/LadyLinux
+#
+# Exit codes:
+#   0 success
+#   1 generic failure
+#   2 missing prerequisite / invalid usage
 #===============================================================================
 
 set -Eeuo pipefail
@@ -25,9 +47,6 @@ REPO_URL="https://github.com/theCodingProfessor/LadyLinux"
 BRANCH="main"
 DO_USER="true"
 DRY_RUN="false"
-
-REPAIR_LAYOUT="false"
-FORCE_ADOPT_NESTED="false"
 
 SERVICE_USER="ladylinux"
 SERVICE_GROUP="ladylinux"
@@ -53,6 +72,7 @@ warn() { printf "[install][WARN] %s\n" "$*" >&2; }
 die()  { printf "[install][ERROR] %s\n" "$*" >&2; exit "${2:-1}"; }
 
 run() {
+  # Execute commands, respecting dry-run mode.
   if [[ "$DRY_RUN" == "true" ]]; then
     log "DRY-RUN: $*"
   else
@@ -78,17 +98,16 @@ Usage:
   sudo ./scripts/install_ladylinux.sh [options]
 
 Options:
-  --clone                   Clone repo into /opt/ladylinux/app if not present
-  --repo <url>              Repo URL (default: $REPO_URL)
-  --branch <name>           Branch to checkout after clone (default: $BRANCH)
-  --repair-layout           If a nested repo exists at /opt/ladylinux/app/LadyLinux, fix it
-  --force-adopt-nested      If nested repo exists, keep it nested (NOT recommended)
-  --no-user                 Do not create the ladylinux service user
-  --dry-run                 Print actions without changing anything
-  -h, --help                Show help
+  --clone                 Clone repo into /opt/ladylinux/app if not present
+  --repo <url>            Repo URL (default: $REPO_URL)
+  --branch <name>         Branch to checkout after clone (default: $BRANCH)
+  --no-user               Do not create the ladylinux service user
+  --dry-run               Print actions without changing anything
+  -h, --help              Show help
 
 Examples:
-  sudo ./scripts/install_ladylinux.sh --clone --branch main --repair-layout
+  sudo ./scripts/install_ladylinux.sh
+  sudo ./scripts/install_ladylinux.sh --clone --branch main
 EOF
 }
 
@@ -98,8 +117,6 @@ parse_args() {
       --clone) DO_CLONE="true"; shift ;;
       --repo)  REPO_URL="${2:-}"; [[ -n "$REPO_URL" ]] || die "--repo requires a URL" 2; shift 2 ;;
       --branch) BRANCH="${2:-}"; [[ -n "$BRANCH" ]] || die "--branch requires a name" 2; shift 2 ;;
-      --repair-layout) REPAIR_LAYOUT="true"; shift ;;
-      --force-adopt-nested) FORCE_ADOPT_NESTED="true"; shift ;;
       --no-user) DO_USER="false"; shift ;;
       --dry-run) DRY_RUN="true"; shift ;;
       -h|--help) usage; exit 0 ;;
@@ -125,6 +142,7 @@ ensure_group_user() {
     log "User exists: $SERVICE_USER"
   else
     log "Creating system user: $SERVICE_USER"
+    # --no-create-home keeps it minimal; services can still run fine.
     run useradd \
       --system \
       --gid "$SERVICE_GROUP" \
@@ -144,7 +162,50 @@ mkdir_safe() {
   fi
 }
 
+touch_safe() {
+  local f="$1"
+  if [[ -f "$f" ]]; then
+    log "File exists: $f"
+  else
+    log "Creating file: $f"
+    run install -m 0640 /dev/null "$f"
+  fi
+}
+
+set_ownership_perms() {
+  # /opt/ladylinux should be owned by ladylinux, but we keep parent readable.
+  if id "$SERVICE_USER" >/dev/null 2>&1; then
+    log "Setting ownership to $SERVICE_USER:$SERVICE_GROUP for runtime directories"
+    run chown -R "$SERVICE_USER":"$SERVICE_GROUP" "$BASE_DIR"
+    run chown -R "$SERVICE_USER":"$SERVICE_GROUP" "$VAR_DIR"
+  else
+    warn "Service user not present; skipping chown."
+  fi
+
+  # Permissions:
+  # - /opt/ladylinux: group-readable, executable for traversal
+  # - models/state likely contain sensitive data; keep them not world-writable
+  log "Setting permissions"
+  run chmod 0755 "$BASE_DIR" || true
+  run chmod 0755 "$APP_DIR" "$VENV_DIR" "$CONTAINERS_DIR" || true
+  run chmod 0750 "$MODELS_DIR" || true
+
+  run chmod 0755 "$VAR_DIR" || true
+  run chmod 0750 "$DATA_DIR" "$CACHE_DIR" "$LOGS_DIR" || true
+
+  # /etc/ladylinux should be root-owned, readable by ladylinux (group), not world-readable
+  mkdir_safe "$ETC_DIR"
+  if getent group "$SERVICE_GROUP" >/dev/null 2>&1; then
+    run chown -R root:"$SERVICE_GROUP" "$ETC_DIR"
+    run chmod 0750 "$ETC_DIR"
+  else
+    run chown -R root:root "$ETC_DIR"
+    run chmod 0750 "$ETC_DIR"
+  fi
+}
+
 create_env_file_template() {
+  # Create env file if absent. Do not overwrite.
   if [[ -f "$ENV_FILE" ]]; then
     log "Env file exists (not modified): $ENV_FILE"
     return 0
@@ -157,80 +218,32 @@ create_env_file_template() {
   fi
 
   cat > "$ENV_FILE" <<'EOF'
-# LadyLinux environment configuration (machine-local)
+# LadyLinux environment configuration
+# Location: /etc/ladylinux/ladylinux.env
+#
+# Recommended: keep secrets out of Git. This file is machine-local.
+
+# Example: FastAPI/Uvicorn bind settings
 LADYLINUX_HOST=0.0.0.0
 LADYLINUX_PORT=8000
+
+# Example: model directory (persistent, not in Git)
 LADYLINUX_MODELS_DIR=/opt/ladylinux/models
+
+# Example: state directory (persistent)
 LADYLINUX_STATE_DIR=/var/lib/ladylinux/data
+
+# Example: environment mode
 LADYLINUX_ENV=dev
 EOF
 
+  # secure perms: root:ladylinux (if group exists), 0640
   if getent group "$SERVICE_GROUP" >/dev/null 2>&1; then
     chown root:"$SERVICE_GROUP" "$ENV_FILE"
   else
     chown root:root "$ENV_FILE"
   fi
   chmod 0640 "$ENV_FILE"
-}
-
-set_ownership_perms() {
-  # /opt and /var are service-owned; /etc is root-owned and group-readable
-  if id "$SERVICE_USER" >/dev/null 2>&1; then
-    log "Setting ownership for runtime directories"
-    run chown -R "$SERVICE_USER":"$SERVICE_GROUP" "$BASE_DIR"
-    run chown -R "$SERVICE_USER":"$SERVICE_GROUP" "$VAR_DIR"
-  else
-    warn "Service user not present; skipping chown for /opt and /var."
-  fi
-
-  log "Setting permissions"
-  run chmod 0755 "$BASE_DIR" || true
-  run chmod 0755 "$APP_DIR" "$VENV_DIR" "$CONTAINERS_DIR" || true
-  run chmod 0750 "$MODELS_DIR" || true
-
-  run chmod 0755 "$VAR_DIR" || true
-  run chmod 0750 "$DATA_DIR" "$CACHE_DIR" "$LOGS_DIR" || true
-
-  mkdir_safe "$ETC_DIR"
-  if getent group "$SERVICE_GROUP" >/dev/null 2>&1; then
-    run chown -R root:"$SERVICE_GROUP" "$ETC_DIR"
-  else
-    run chown -R root:root "$ETC_DIR"
-  fi
-  run chmod 0750 "$ETC_DIR" || true
-  [[ -f "$ENV_FILE" ]] && run chmod 0640 "$ENV_FILE" || true
-}
-
-detect_nested_repo() {
-  [[ -d "$APP_DIR/LadyLinux/.git" && ! -d "$APP_DIR/.git" ]]
-}
-
-repair_nested_repo_layout() {
-  # Converts /opt/ladylinux/app/LadyLinux (repo root) into /opt/ladylinux/app (repo root)
-  if ! detect_nested_repo; then
-    return 0
-  fi
-
-  if [[ "$FORCE_ADOPT_NESTED" == "true" ]]; then
-    warn "Nested repo detected at $APP_DIR/LadyLinux, but --force-adopt-nested was set. Keeping as-is."
-    return 0
-  fi
-
-  if [[ "$REPAIR_LAYOUT" != "true" ]]; then
-    warn "Nested repo detected at: $APP_DIR/LadyLinux"
-    warn "Recommended: re-run with --repair-layout to fix it."
-    return 0
-  fi
-
-  log "Repairing nested repo layout: moving $APP_DIR/LadyLinux -> $APP_DIR"
-  if [[ "$DRY_RUN" == "true" ]]; then
-    log "DRY-RUN: would move repo up one level and remove the outer directory"
-    return 0
-  fi
-
-  run mv "$APP_DIR/LadyLinux" "$APP_DIR.__tmp_repo"
-  run rm -rf "$APP_DIR"
-  run mv "$APP_DIR.__tmp_repo" "$APP_DIR"
 }
 
 clone_repo_if_requested() {
@@ -241,28 +254,19 @@ clone_repo_if_requested() {
 
   require_cmd git
 
-  # If correct repo already present, do nothing
   if [[ -d "$APP_DIR/.git" ]]; then
     log "Repo already present: $APP_DIR (not recloned)"
     return 0
   fi
 
-  # If nested repo exists, optionally repair/adopt it
-  if detect_nested_repo; then
-    repair_nested_repo_layout
-    # After repair/adopt, if repo is now present, stop here
-    if [[ -d "$APP_DIR/.git" || "$FORCE_ADOPT_NESTED" == "true" ]]; then
-      return 0
-    fi
-  fi
-
-  # Guard: refuse to overwrite non-empty non-repo directory
   if [[ -d "$APP_DIR" && -n "$(ls -A "$APP_DIR" 2>/dev/null || true)" ]]; then
-    die "$APP_DIR exists and is not empty, but not a git repo. Refusing to overwrite. (Move it aside or use --repair-layout if nested.)" 1
+    die "$APP_DIR exists and is not empty, but not a git repo. Refusing to overwrite." 1
   fi
 
-  log "Cloning repo into $APP_DIR (branch: $BRANCH)"
+  log "Cloning repo into $APP_DIR"
   run mkdir -p "$APP_DIR"
+
+  # Clone as root, then chown to service user if present.
   run git clone --branch "$BRANCH" "$REPO_URL" "$APP_DIR"
 
   if id "$SERVICE_USER" >/dev/null 2>&1; then
@@ -287,10 +291,13 @@ print_summary() {
   log "  Repo clone:   $DO_CLONE (repo: $REPO_URL, branch: $BRANCH)"
 }
 
+#-------------------------------- Main -----------------------------------------
+
 main() {
   parse_args "$@"
   require_root
 
+  # Minimal prerequisites
   require_cmd mkdir
   require_cmd chmod
   require_cmd chown
@@ -300,6 +307,7 @@ main() {
 
   ensure_group_user
 
+  # Create runtime dirs (safe; no deletions)
   mkdir_safe "$BASE_DIR"
   mkdir_safe "$APP_DIR"
   mkdir_safe "$VENV_DIR"
@@ -316,11 +324,6 @@ main() {
 
   set_ownership_perms
   clone_repo_if_requested
-
-  # If nested repo still exists and was adopted, warn loudly so refresh can be configured accordingly
-  if detect_nested_repo && [[ "$FORCE_ADOPT_NESTED" == "true" ]]; then
-    warn "Repo is nested at $APP_DIR/LadyLinux. Some tooling may assume $APP_DIR is repo root."
-  fi
 
   print_summary
   log "Install bootstrap complete."

@@ -1,52 +1,99 @@
-﻿#!/usr/bin/env bash
-set -euo pipefail
-
-APP_ROOT="/opt/ladylinux"
-VENV_DIR="$APP_ROOT/venv"
-SERVICE_USER="ladylinux"
-SERVICE_NAME="ladylinux-api.service"
+#!/usr/bin/env bash
+set -Eeuo pipefail
 
 log() {
-    echo "[LadyLinux Doctor] $1"
+  echo "[LadyLinux] $1"
 }
 
-# ensure application directory
-if [[ ! -d "$APP_ROOT" ]]; then
-    log "Application directory missing. Recreating."
-    mkdir -p "$APP_ROOT"
-    chown "$SERVICE_USER:$SERVICE_USER" "$APP_ROOT"
-fi
+ROOT_DIR="/opt/ladylinux"
+APP_DIR="$ROOT_DIR/app"
+VENV_DIR="$ROOT_DIR/venv"
+SCRIPTS_DIR="$ROOT_DIR/scripts"
+SERVICE_USER="ladylinux"
+API_SERVICE="ladylinux-api.service"
+LLM_SERVICE="ladylinux-llm.service"
 
-# ensure repository exists
-if [[ ! -d "$APP_ROOT/.git" ]]; then
-    log "Repository missing. Recloning."
-    sudo -u "$SERVICE_USER" git clone https://github.com/Brown-DJ/LadyLinux_test.git "$APP_ROOT"
-fi
+require_root() {
+  if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
+    log "Run as root."
+    exit 1
+  fi
+}
 
-# ensure venv exists
-if [[ ! -d "$VENV_DIR" ]]; then
-    log "Virtual environment missing. Rebuilding."
+run_fix_bom() {
+  if [[ -x "$SCRIPTS_DIR/fix_bom.sh" ]]; then
+    "$SCRIPTS_DIR/fix_bom.sh"
+  fi
+}
+
+check_repo() {
+  if [[ ! -d "$APP_DIR/.git" ]]; then
+    log "Repository missing at $APP_DIR"
+    exit 1
+  fi
+  log "Repository exists."
+}
+
+check_venv() {
+  if [[ ! -x "$VENV_DIR/bin/python" ]]; then
+    log "Venv missing; rebuilding."
     sudo -u "$SERVICE_USER" python3 -m venv "$VENV_DIR"
-fi
+  fi
+}
 
-# ensure dependencies
-log "Checking Python dependencies"
-sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install -r "$APP_ROOT/requirements.txt"
+check_dependencies() {
+  if [[ ! -f "$APP_DIR/requirements.txt" ]]; then
+    log "requirements.txt missing."
+    exit 1
+  fi
 
-# ensure permissions
-log "Fixing ownership"
-chown -R "$SERVICE_USER:$SERVICE_USER" "$APP_ROOT"
+  log "Installing dependencies."
+  sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install --upgrade pip wheel setuptools
+  sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install -r "$APP_DIR/requirements.txt"
+}
 
-# ensure services exist
-if ! systemctl list-unit-files | grep -q "$SERVICE_NAME"; then
-    log "API service missing."
-fi
+check_permissions() {
+  log "Fixing ownership under $ROOT_DIR"
+  chown -R "$SERVICE_USER:$SERVICE_USER" "$ROOT_DIR"
+}
 
-log "Checking service status"
+check_services() {
+  if ! command -v systemctl >/dev/null 2>&1; then
+    log "systemd unavailable; service checks skipped."
+    return
+  fi
 
-if ! systemctl is-active "$SERVICE_NAME" >/dev/null; then
-    log "API service not running. Restarting."
-    systemctl restart "$SERVICE_NAME"
-fi
+  for service_name in "$API_SERVICE" "$LLM_SERVICE"; do
+    if ! systemctl list-unit-files | grep -q "^$service_name"; then
+      log "Service unit $service_name is missing."
+      exit 1
+    fi
+  done
 
-log "Environment verified."
+  systemctl daemon-reload
+  systemctl enable "$API_SERVICE"
+  systemctl restart "$LLM_SERVICE"
+  systemctl restart "$API_SERVICE"
+
+  for service_name in "$API_SERVICE" "$LLM_SERVICE"; do
+    if ! systemctl is-active "$service_name" >/dev/null 2>&1; then
+      log "$service_name is not running."
+      exit 1
+    fi
+  done
+
+  log "Service checks passed."
+}
+
+main() {
+  require_root
+  run_fix_bom
+  check_repo
+  check_venv
+  check_dependencies
+  check_permissions
+  check_services
+  log "Doctor checks complete."
+}
+
+main "$@"
