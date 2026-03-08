@@ -9,6 +9,7 @@ if os.path.exists(VENV_PYTHON) and sys.executable != VENV_PYTHON:
     os.execv(VENV_PYTHON, [VENV_PYTHON] + sys.argv)
 
 import shutil
+import socket
 import subprocess
 import time
 from pathlib import Path
@@ -88,6 +89,15 @@ def main() -> None:
     desktop_url = f"http://127.0.0.1:{PORT}"
 
     if wait_for_server(desktop_url):
+        hostname = socket.gethostname()
+
+        print("\nLadyLinux running\n")
+        print("Desktop:")
+        print("  http://127.0.0.1:8000\n")
+
+        print("Network:")
+        print(f"  http://{hostname}.local:8000\n")
+
         launch_browser(desktop_url)
     else:
         print("LadyLinux backend did not start.")

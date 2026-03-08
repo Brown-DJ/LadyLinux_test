@@ -109,6 +109,14 @@ install_system_packages() {
             snap install chromium || true
         fi
     fi
+
+    log "Installing mDNS service for hostname access (ladylinux.local)"
+
+    if command -v apt >/dev/null 2>&1; then
+        apt install -y avahi-daemon libnss-mdns
+    fi
+
+    systemctl enable --now avahi-daemon
 }
 # ------------------------------------------------------------------------------
 # Ensure service user
@@ -126,6 +134,13 @@ ensure_service_user() {
             --shell /usr/sbin/nologin \
             "$SERVICE_USER"
     fi
+}
+
+set_system_hostname() {
+
+    log "Setting system hostname to ladylinux"
+
+    hostnamectl set-hostname ladylinux
 }
 
 # ------------------------------------------------------------------------------
@@ -379,6 +394,8 @@ main() {
     install_system_packages
 
     ensure_service_user
+
+    set_system_hostname
 
     setup_repo
 
