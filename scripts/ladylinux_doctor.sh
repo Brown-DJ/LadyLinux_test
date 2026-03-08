@@ -42,4 +42,11 @@ if ! systemctl list-unit-files | grep -q "$SERVICE_NAME"; then
     log "API service missing."
 fi
 
+log "Checking service status"
+
+if ! systemctl is-active "$SERVICE_NAME" >/dev/null; then
+    log "API service not running. Restarting."
+    systemctl restart "$SERVICE_NAME"
+fi
+
 log "Environment verified."

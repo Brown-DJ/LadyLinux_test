@@ -1,0 +1,41 @@
+{
+  "tools": [
+    {
+      "name": "system_services",
+      "description": "List systemd services and their status",
+      "method": "GET",
+      "endpoint": "/api/system/services",
+      "parameters": {}
+    },
+    {
+      "name": "system_status",
+      "description": "Get CPU, memory, disk, and system stats",
+      "method": "GET",
+      "endpoint": "/api/system/status",
+      "parameters": {}
+    },
+    {
+      "name": "firewall_status",
+      "description": "Get firewall rules and state",
+      "method": "GET",
+      "endpoint": "/api/firewall/status",
+      "parameters": {}
+    },
+    {
+      "name": "service_restart",
+      "description": "Restart a system service",
+      "method": "POST",
+      "endpoint": "/api/system/service/{name}/restart",
+      "parameters": {
+        "name": "string"
+      }
+    },
+    {
+      "name": "system_users",
+      "description": "List logged-in system users",
+      "method": "GET",
+      "endpoint": "/api/system/users",
+      "parameters": {}
+    }
+  ]
+}

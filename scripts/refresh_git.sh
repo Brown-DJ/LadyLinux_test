@@ -11,7 +11,6 @@ API_PORT="8000"
 BRANCH="${1:-main}"
 
 log() { echo "[refresh] $*"; }
-chown -R "$SERVICE_USER:$SERVICE_USER" "$APP_DIR" || true
 require_root() {
  if [[ "$EUID" -ne 0 ]]; then
   echo "Run with sudo"
@@ -56,7 +55,7 @@ repair_venv() {
   chown -R "$SERVICE_USER:$SERVICE_USER" "$VENV_DIR"
 
   # create venv as service user
-  sudo -u "$SERVICE_USER" python3 -m venv "$VENV_DIR"
+  sudo -u "$SERVICE_USER" python3 -m venv --system-site-packages "$VENV_DIR"
 
  fi
 }
@@ -115,6 +114,7 @@ validate_api() {
 main() {
 
  require_root
+ chown -R "$SERVICE_USER:$SERVICE_USER" "$APP_DIR" || true
 
  stop_services
  sync_repo
@@ -123,7 +123,8 @@ main() {
  ensure_chromium
  restart_services
  validate_api
- echo hostname -I
+ echo "Network access:"
+ echo "http://$(hostname -I | awk '{print $1}'):8000"
  log "Refresh complete"
 }
 

@@ -4,6 +4,7 @@ from datetime import datetime
 import json
 import threading
 import time
+from typing import Any
 
 import requests
 from fastapi import FastAPI, HTTPException, Request
@@ -28,6 +29,7 @@ from rag_layer.retriever import build_context_block, retrieve
 from rag_layer.seed import seed
 from rag_layer.vector_store import COLLECTION_NAME, client, ensure_collection
 from llm_runtime import ensure_model
+from app.tool_router import ToolRouter, ToolRouterError
 
 app = FastAPI()
 
@@ -62,6 +64,10 @@ Primary endpoint groups:
 RAG context should be used for explanation and project knowledge only.
 """
 
+# tools.json is the single source of truth for allowed tool calls.
+# Add new tools there (and implement matching API routes) instead of prompt text.
+TOOL_ROUTER = ToolRouter()
+
 
 class PromptRequest(BaseModel):
     prompt: str
@@ -74,6 +80,65 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: list[ChatMessage]
+
+
+def _extract_json_object(text: str) -> dict[str, Any]:
+    raw = text.strip()
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, dict):
+            return parsed
+    except json.JSONDecodeError:
+        pass
+
+    start = raw.find("{")
+    end = raw.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        candidate = raw[start : end + 1]
+        parsed = json.loads(candidate)
+        if isinstance(parsed, dict):
+            return parsed
+
+    raise ValueError("model response did not contain a JSON object")
+
+
+def _plan_tool_call(prompt: str, context_text: str) -> tuple[str | None, dict[str, Any]]:
+    """
+    Ask the model to choose from the explicit tool contract only.
+
+    This step blocks hallucinated endpoints/commands by forcing selection from tools.json.
+    """
+    tools_manifest = json.dumps({"tools": TOOL_ROUTER.list_tool_names()}, indent=2)
+    planning_prompt = f"""
+You are choosing whether to call a system tool.
+Return strict JSON only, no markdown, no prose.
+
+Allowed tools:
+{tools_manifest}
+
+Response schema:
+{{
+  "tool": "<tool_name_or_null>",
+  "parameters": {{}}
+}}
+
+User question:
+{prompt}
+
+Relevant project context:
+{context_text or "No relevant context."}
+"""
+    selection = _ollama_generate(planning_prompt, model="mistral")
+    payload = _extract_json_object(selection)
+    tool_name = payload.get("tool")
+    parameters = payload.get("parameters", {})
+    if tool_name in (None, "", "null"):
+        return None, {}
+    if not isinstance(tool_name, str):
+        raise ValueError("tool must be a string or null")
+    if not isinstance(parameters, dict):
+        raise ValueError("parameters must be an object")
+    return tool_name, parameters
 
 
 def _ollama_generate(prompt: str, model: str = "mistral") -> str:
@@ -175,7 +240,13 @@ async def ask_rag(req: PromptRequest):
     context_results = retrieve(prompt)
     context_text = build_context_block(context_results)
 
-    system_prompt = f"""
+    try:
+        tool_name, tool_parameters = _plan_tool_call(prompt, context_text)
+        tool_result: dict[str, Any] | None = None
+        if tool_name:
+            tool_result = TOOL_ROUTER.execute(tool_name, tool_parameters)
+
+        system_prompt = f"""
 SYSTEM CAPABILITIES
 {CAPABILITY_BLOCK}
 
@@ -185,13 +256,15 @@ RELEVANT PROJECT FILES
 USER QUESTION
 {prompt}
 
+TOOL RESULT
+{json.dumps(tool_result, indent=2) if tool_result is not None else "No tool was needed."}
+
 Rules:
-- Prefer information found inside RELEVANT PROJECT FILES.
+- Prefer information found inside RELEVANT PROJECT FILES and TOOL RESULT.
 - If not present, respond with "Information not found in system context."
 - Do not invent configuration or runtime state.
+- Do not invent tools, shell commands, or undocumented endpoints.
 """
-
-    try:
         output = _ollama_generate(system_prompt, model="mistral")
         return JSONResponse(
             content={
@@ -199,7 +272,17 @@ Rules:
                 "response": output,
                 "model": "mistral",
                 "retrieved_chunks": len(context_results),
+                "tool_used": tool_name,
+                "tool_result": tool_result,
             }
+        )
+    except (ToolRouterError, ValueError, json.JSONDecodeError) as exc:
+        return JSONResponse(
+            content={
+                "answer": f"Lady Linux: Tool routing error - {str(exc)}",
+                "response": f"Lady Linux: Tool routing error - {str(exc)}",
+            },
+            status_code=400,
         )
     except Exception as exc:  # noqa: BLE001
         return JSONResponse(

@@ -54,6 +54,11 @@ run_as_service() {
     sudo -u "$SERVICE_USER" -- "$@"
 }
 
+while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+echo "Waiting for package manager lock..."
+sleep 2
+done
+
 # ------------------------------------------------------------------------------
 # Root Check
 # ------------------------------------------------------------------------------
@@ -87,6 +92,7 @@ install_system_packages() {
     if command -v apt >/dev/null; then
         apt update -y
         apt install -y git curl ca-certificates build-essential python3 python3-venv python3-pip
+        apt install -y dos2unix || true
     elif command -v dnf >/dev/null; then
         dnf install -y git curl gcc python3 python3-venv python3-pip
     elif command -v pacman >/dev/null; then
@@ -140,7 +146,9 @@ set_system_hostname() {
 
     log "Setting system hostname to ladylinux"
 
-    hostnamectl set-hostname ladylinux
+    if [[ "$(hostname)" == "localhost" ]]; then
+        hostnamectl set-hostname ladylinux
+    fi
 }
 
 # ------------------------------------------------------------------------------
@@ -159,6 +167,8 @@ setup_repo() {
     if [[ ! -d "$APP_ROOT/.git" ]]; then
         log "Cloning repository"
         run_as_service git clone "$REPO_URL" "$APP_ROOT"
+        find "$APP_ROOT" -type f -name "*.sh" -exec dos2unix {} +
+        find "$APP_ROOT" -type f -name "*.py" -exec dos2unix {} +
     fi
 
     run_as_service git -C "$APP_ROOT" fetch origin
@@ -178,7 +188,7 @@ setup_venv() {
 
         log "Creating Python virtual environment"
 
-        /usr/bin/python3 -m venv "$VENV_DIR"
+        /usr/bin/python3 -m venv --system-site-packages "$VENV_DIR"
 
         chown -R "$SERVICE_USER:$SERVICE_USER" "$VENV_DIR"
 
@@ -206,7 +216,7 @@ install_requirements() {
         exit 1
     fi
 
-    "$VENV_DIR/bin/python" -m pip install --upgrade pip wheel setuptools
+    run_as_service "$VENV_DIR/bin/python" -m pip install --upgrade pip wheel setuptools
 
     run_as_service "$VENV_DIR/bin/pip" install -r "$REQUIREMENTS_FILE"
 }
@@ -356,7 +366,9 @@ install_ollama() {
     create_llm_service
 
     log "Waiting for LLM API to start..."
-    sleep 4
+    until curl -s http://127.0.0.1:11434 >/dev/null; do
+        sleep 2
+    done
 
     log "Verifying LLM service"
     systemctl --no-pager --full status "$LLM_SERVICE_NAME" || true
