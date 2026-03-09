@@ -2,28 +2,23 @@
   "tools": [
     {
       "name": "system_services",
-      "description": "List systemd services and their status",
+      "description": "List systemd services and status",
       "method": "GET",
       "endpoint": "/api/system/services",
       "parameters": {}
     },
     {
-      "name": "system_status",
-      "description": "Get CPU, memory, disk, and system stats",
+      "name": "system_service",
+      "description": "Get details for one systemd service",
       "method": "GET",
-      "endpoint": "/api/system/status",
-      "parameters": {}
+      "endpoint": "/api/system/service/{name}",
+      "parameters": {
+        "name": "string"
+      }
     },
     {
-      "name": "firewall_status",
-      "description": "Get firewall rules and state",
-      "method": "GET",
-      "endpoint": "/api/firewall/status",
-      "parameters": {}
-    },
-    {
-      "name": "service_restart",
-      "description": "Restart a system service",
+      "name": "system_service_restart",
+      "description": "Restart one systemd service",
       "method": "POST",
       "endpoint": "/api/system/service/{name}/restart",
       "parameters": {
@@ -31,10 +26,108 @@
       }
     },
     {
+      "name": "firewall_status",
+      "description": "Get firewall status",
+      "method": "GET",
+      "endpoint": "/api/firewall/status",
+      "parameters": {}
+    },
+    {
+      "name": "firewall_rule",
+      "description": "Get one firewall rule by rule id",
+      "method": "GET",
+      "endpoint": "/api/firewall/rule/{rule_id}",
+      "parameters": {
+        "rule_id": "string"
+      }
+    },
+    {
+      "name": "firewall_reload",
+      "description": "Reload firewall rules",
+      "method": "POST",
+      "endpoint": "/api/firewall/reload",
+      "parameters": {}
+    },
+    {
       "name": "system_users",
-      "description": "List logged-in system users",
+      "description": "List system users",
       "method": "GET",
       "endpoint": "/api/system/users",
+      "parameters": {}
+    },
+    {
+      "name": "system_user",
+      "description": "Get one system user",
+      "method": "GET",
+      "endpoint": "/api/system/user/{name}",
+      "parameters": {
+        "name": "string"
+      }
+    },
+    {
+      "name": "system_user_refresh",
+      "description": "Refresh user state",
+      "method": "POST",
+      "endpoint": "/api/system/user/{name}/refresh",
+      "parameters": {
+        "name": "string"
+      }
+    },
+    {
+      "name": "network_interfaces",
+      "description": "List network interfaces",
+      "method": "GET",
+      "endpoint": "/api/network/interfaces",
+      "parameters": {}
+    },
+    {
+      "name": "network_interface",
+      "description": "Get one network interface",
+      "method": "GET",
+      "endpoint": "/api/network/interface/{name}",
+      "parameters": {
+        "name": "string"
+      }
+    },
+    {
+      "name": "network_interface_restart",
+      "description": "Restart network interface",
+      "method": "POST",
+      "endpoint": "/api/network/interface/{name}/restart",
+      "parameters": {
+        "name": "string"
+      }
+    },
+    {
+      "name": "theme_themes",
+      "description": "List available themes",
+      "method": "GET",
+      "endpoint": "/api/theme/themes",
+      "parameters": {}
+    },
+    {
+      "name": "theme_theme",
+      "description": "Get one theme",
+      "method": "GET",
+      "endpoint": "/api/theme/theme/{name}",
+      "parameters": {
+        "name": "string"
+      }
+    },
+    {
+      "name": "theme_apply",
+      "description": "Apply one theme",
+      "method": "POST",
+      "endpoint": "/api/theme/theme/{name}/apply",
+      "parameters": {
+        "name": "string"
+      }
+    },
+    {
+      "name": "system_status",
+      "description": "Get CPU, memory, disk, and uptime",
+      "method": "GET",
+      "endpoint": "/api/system/status",
       "parameters": {}
     }
   ]

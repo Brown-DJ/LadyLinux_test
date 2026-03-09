@@ -4,7 +4,7 @@ from datetime import datetime
 import json
 import threading
 import time
-from typing import Any
+from typing import Any, Literal
 
 import requests
 from fastapi import FastAPI, HTTPException, Request
@@ -22,6 +22,7 @@ from api_layer.routes.packages import router as packages_router
 from api_layer.routes.services import router as services_router
 from api_layer.routes.storage import router as storage_router
 from api_layer.routes.system import router as system_router
+from api_layer.routes.theme import router as theme_router
 from api_layer.services.system_service import get_status
 from api_layer.utils.command_runner import run_command
 from api_layer.utils.validators import validate_service_name
@@ -41,6 +42,7 @@ app.include_router(network_router)
 app.include_router(storage_router)
 app.include_router(logs_router)
 app.include_router(packages_router)
+app.include_router(theme_router)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
@@ -57,6 +59,7 @@ Primary endpoint groups:
 - /api/system/*
 - /api/firewall/*
 - /api/network/*
+- /api/theme/*
 - /api/storage/*
 - /api/logs/*
 - /api/packages/*
@@ -80,6 +83,78 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: list[ChatMessage]
+
+
+def _error_payload(
+    *,
+    error_type: str,
+    message: str,
+    suggestion: str,
+    status_code: int,
+    details: Any | None = None,
+) -> JSONResponse:
+    payload: dict[str, Any] = {
+        "ok": False,
+        "error_type": error_type,
+        "message": message,
+        "suggestion": suggestion,
+    }
+    if details is not None:
+        payload["details"] = details
+    return JSONResponse(content=payload, status_code=status_code)
+
+
+def classify_prompt(message: str) -> Literal["tool", "rag", "hybrid", "chat"]:
+    text = (message or "").strip().lower()
+    if not text:
+        return "chat"
+
+    tool_terms = (
+        "service",
+        "systemctl",
+        "restart",
+        "firewall",
+        "network",
+        "interface",
+        "user",
+        "users",
+        "theme",
+        "status",
+        "api/",
+        "endpoint",
+    )
+    rag_terms = (
+        "explain",
+        "why",
+        "how",
+        "architecture",
+        "design",
+        "documentation",
+        "docs",
+        "codebase",
+        "readme",
+    )
+
+    has_tool = any(term in text for term in tool_terms)
+    has_rag = any(term in text for term in rag_terms)
+
+    if has_tool and has_rag:
+        return "hybrid"
+    if has_tool:
+        return "tool"
+    if has_rag:
+        return "rag"
+    return "chat"
+
+
+def classify_rag_domain(message: str) -> Literal["docs", "code", "system-help"]:
+    text = (message or "").strip().lower()
+
+    if any(term in text for term in ("api", "endpoint", "route", "function", "class", "module", "script", "code")):
+        return "code"
+    if any(term in text for term in ("service", "firewall", "network", "users", "theme", "system", "troubleshoot", "fix")):
+        return "system-help"
+    return "docs"
 
 
 def _extract_json_object(text: str) -> dict[str, Any]:
@@ -108,12 +183,12 @@ def _plan_tool_call(prompt: str, context_text: str) -> tuple[str | None, dict[st
 
     This step blocks hallucinated endpoints/commands by forcing selection from tools.json.
     """
-    tools_manifest = json.dumps({"tools": TOOL_ROUTER.list_tool_names()}, indent=2)
+    tools_manifest = json.dumps(TOOL_ROUTER.get_tools_manifest(), indent=2)
     planning_prompt = f"""
 You are choosing whether to call a system tool.
 Return strict JSON only, no markdown, no prose.
 
-Allowed tools:
+Canonical tool schema (tools.json):
 {tools_manifest}
 
 Response schema:
@@ -139,6 +214,81 @@ Relevant project context:
     if not isinstance(parameters, dict):
         raise ValueError("parameters must be an object")
     return tool_name, parameters
+
+
+def handle_tool_prompt(prompt: str) -> dict[str, Any]:
+    tool_name, tool_parameters = _plan_tool_call(prompt, "")
+    if not tool_name:
+        raise ToolRouterError("No tool selected for tool-routed request")
+    return TOOL_ROUTER.execute(tool_name, tool_parameters)
+
+
+def handle_rag_prompt(prompt: str) -> tuple[str, list[dict], str]:
+    domain = classify_rag_domain(prompt)
+    context_results = retrieve(prompt, domain=domain)
+    context_text = build_context_block(context_results)
+    system_prompt = f"""
+SYSTEM CAPABILITIES
+{CAPABILITY_BLOCK}
+
+RELEVANT PROJECT FILES
+{context_text or "No relevant Lady Linux project context was retrieved."}
+
+USER QUESTION
+{prompt}
+
+Rules:
+- Prefer information found inside RELEVANT PROJECT FILES.
+- If not present, respond with "Information not found in system context."
+- Do not invent configuration or runtime state.
+- Do not invent tools, shell commands, or undocumented endpoints.
+"""
+    output = _ollama_generate(system_prompt, model="mistral")
+    return output, context_results, domain
+
+
+def handle_hybrid_prompt(prompt: str) -> tuple[str, dict[str, Any] | None, list[dict], str]:
+    domain = classify_rag_domain(prompt)
+    context_results = retrieve(prompt, domain=domain)
+    context_text = build_context_block(context_results)
+
+    tool_name, tool_parameters = _plan_tool_call(prompt, context_text)
+    tool_result: dict[str, Any] | None = None
+    if tool_name:
+        tool_result = TOOL_ROUTER.execute(tool_name, tool_parameters)
+
+    system_prompt = f"""
+SYSTEM CAPABILITIES
+{CAPABILITY_BLOCK}
+
+RELEVANT PROJECT FILES
+{context_text or "No relevant Lady Linux project context was retrieved."}
+
+USER QUESTION
+{prompt}
+
+TOOL RESULT
+{json.dumps(tool_result, indent=2) if tool_result is not None else "No tool was needed."}
+
+Rules:
+- Prefer information found inside RELEVANT PROJECT FILES and TOOL RESULT.
+- If not present, respond with "Information not found in system context."
+- Do not invent configuration or runtime state.
+- Do not invent tools, shell commands, or undocumented endpoints.
+"""
+    output = _ollama_generate(system_prompt, model="mistral")
+    return output, tool_result, context_results, domain
+
+
+def handle_chat_prompt(prompt: str) -> str:
+    chat_prompt = f"""
+You are Lady Linux, a Linux assistant. Keep responses concise and accurate.
+If a live system action is required, say to use a supported API tool.
+
+User question:
+{prompt}
+"""
+    return _ollama_generate(chat_prompt, model="mistral")
 
 
 def _ollama_generate(prompt: str, model: str = "mistral") -> str:
@@ -178,6 +328,29 @@ def rag_collection_is_empty() -> bool:
         return not points_count or points_count == 0
     except Exception:
         return True
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(_: Request, exc: HTTPException) -> JSONResponse:
+    detail = exc.detail
+    if isinstance(detail, dict) and "ok" in detail and "error_type" in detail:
+        return JSONResponse(content=detail, status_code=exc.status_code)
+    return _error_payload(
+        error_type="request_failed",
+        message=str(detail),
+        suggestion="Check request parameters and endpoint availability.",
+        status_code=exc.status_code,
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(_: Request, exc: Exception) -> JSONResponse:
+    return _error_payload(
+        error_type="internal_error",
+        message=str(exc),
+        suggestion="Retry the request. If it persists, inspect backend logs.",
+        status_code=500,
+    )
 
 
 @app.on_event("startup")
@@ -235,62 +408,87 @@ def ask_phi3_get(prompt: str):
 
 @app.post("/ask_rag")
 async def ask_rag(req: PromptRequest):
-    """Use RAG for explanations/context only (no live telemetry injection)."""
     prompt = req.prompt
-    context_results = retrieve(prompt)
-    context_text = build_context_block(context_results)
+    route = classify_prompt(prompt)
 
     try:
-        tool_name, tool_parameters = _plan_tool_call(prompt, context_text)
-        tool_result: dict[str, Any] | None = None
-        if tool_name:
-            tool_result = TOOL_ROUTER.execute(tool_name, tool_parameters)
-
-        system_prompt = f"""
-SYSTEM CAPABILITIES
-{CAPABILITY_BLOCK}
-
-RELEVANT PROJECT FILES
-{context_text or "No relevant Lady Linux project context was retrieved."}
-
-USER QUESTION
-{prompt}
-
-TOOL RESULT
-{json.dumps(tool_result, indent=2) if tool_result is not None else "No tool was needed."}
-
-Rules:
-- Prefer information found inside RELEVANT PROJECT FILES and TOOL RESULT.
-- If not present, respond with "Information not found in system context."
-- Do not invent configuration or runtime state.
-- Do not invent tools, shell commands, or undocumented endpoints.
-"""
-        output = _ollama_generate(system_prompt, model="mistral")
-        return JSONResponse(
-            content={
-                "answer": output,
-                "response": output,
-                "model": "mistral",
-                "retrieved_chunks": len(context_results),
-                "tool_used": tool_name,
-                "tool_result": tool_result,
-            }
-        )
-    except (ToolRouterError, ValueError, json.JSONDecodeError) as exc:
-        return JSONResponse(
-            content={
-                "answer": f"Lady Linux: Tool routing error - {str(exc)}",
-                "response": f"Lady Linux: Tool routing error - {str(exc)}",
-            },
+        if route == "tool":
+            tool_result = handle_tool_prompt(prompt)
+            answer = json.dumps(tool_result, indent=2)
+            return JSONResponse(
+                content={
+                    "answer": answer,
+                    "response": answer,
+                    "model": "mistral",
+                    "route": route,
+                    "retrieved_chunks": 0,
+                    "tool_result": tool_result,
+                }
+            )
+        if route == "rag":
+            output, context_results, domain = handle_rag_prompt(prompt)
+            return JSONResponse(
+                content={
+                    "answer": output,
+                    "response": output,
+                    "model": "mistral",
+                    "route": route,
+                    "rag_domain": domain,
+                    "retrieved_chunks": len(context_results),
+                    "tool_result": None,
+                }
+            )
+        if route == "hybrid":
+            output, tool_result, context_results, domain = handle_hybrid_prompt(prompt)
+            return JSONResponse(
+                content={
+                    "answer": output,
+                    "response": output,
+                    "model": "mistral",
+                    "route": route,
+                    "rag_domain": domain,
+                    "retrieved_chunks": len(context_results),
+                    "tool_result": tool_result,
+                }
+            )
+        if route == "chat":
+            output = handle_chat_prompt(prompt)
+            return JSONResponse(
+                content={
+                    "answer": output,
+                    "response": output,
+                    "model": "mistral",
+                    "route": route,
+                    "retrieved_chunks": 0,
+                    "tool_result": None,
+                }
+            )
+        return _error_payload(
+            error_type="route_resolution_failed",
+            message="Prompt route could not be resolved.",
+            suggestion="Use a clearer request or verify classify_prompt routing.",
             status_code=400,
         )
-    except Exception as exc:  # noqa: BLE001
-        return JSONResponse(
-            content={
-                "answer": f"Lady Linux: Error - {str(exc)}",
-                "response": f"Lady Linux: Error - {str(exc)}",
-            },
-            status_code=500,
+    except ToolRouterError as exc:
+        return _error_payload(
+            error_type="tool_execution_failed",
+            message=str(exc),
+            suggestion="Add missing endpoint to API and tools.json or adjust tool parameters.",
+            status_code=400,
+        )
+    except (ValueError, json.JSONDecodeError) as exc:
+        return _error_payload(
+            error_type="invalid_tool_payload",
+            message=str(exc),
+            suggestion="Ensure tool planner returns valid JSON with allowed parameters.",
+            status_code=400,
+        )
+    except requests.RequestException as exc:
+        return _error_payload(
+            error_type="llm_backend_unavailable",
+            message=f"LLM request failed: {exc}",
+            suggestion="Verify Ollama runtime availability at http://127.0.0.1:11434.",
+            status_code=502,
         )
 
 

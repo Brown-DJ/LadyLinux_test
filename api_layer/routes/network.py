@@ -20,3 +20,13 @@ def get_network_interfaces() -> dict:
 @router.get("/connections")
 def get_network_connections() -> dict:
     return network_service.network_connections()
+
+
+@router.get("/interface/{name}")
+def get_network_interface(name: str) -> dict:
+    return network_service.network_interface(name)
+
+
+@router.post("/interface/{name}/restart")
+def restart_network_interface(name: str) -> dict:
+    return network_service.restart_interface(name)

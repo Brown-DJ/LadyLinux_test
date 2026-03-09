@@ -15,3 +15,13 @@ def get_firewall_status() -> dict:
 @router.get("/rules")
 def get_firewall_rules() -> dict:
     return firewall_service.firewall_rules()
+
+
+@router.get("/rule/{rule_id}")
+def get_firewall_rule(rule_id: str) -> dict:
+    return firewall_service.firewall_rule(rule_id)
+
+
+@router.post("/reload")
+def reload_firewall() -> dict:
+    return firewall_service.firewall_reload()

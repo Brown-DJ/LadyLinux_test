@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from api_layer import os_core
 from api_layer.services import system_service
+from api_layer.services import users_service
 
 router = APIRouter(prefix="/api/system", tags=["system"])
 
@@ -50,10 +50,14 @@ def get_uptime() -> dict:
 
 @router.get("/users")
 def get_system_users():
-    return os_core.handle_intent(
-        {
-            "intent": "users.list",
-            "args": {},
-            "meta": {"dry_run": False},
-        }
-    )
+    return users_service.list_users()
+
+
+@router.get("/user/{name}")
+def get_system_user(name: str):
+    return users_service.get_user(name)
+
+
+@router.post("/user/{name}/refresh")
+def refresh_system_user(name: str):
+    return users_service.refresh_user(name)

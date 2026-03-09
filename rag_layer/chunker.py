@@ -11,14 +11,7 @@ import logging
 import os
 from datetime import datetime, timezone
 
-from rag_layer.config import (
-    CHUNK_OVERLAP,
-    CHUNK_SIZE,
-    MAX_FILE_SIZE,
-    RAG_DOMAIN,
-    domain_for_path,
-    is_path_allowed,
-)
+from rag_layer.config import CHUNK_OVERLAP, CHUNK_SIZE, MAX_FILE_SIZE, domain_for_path, is_path_allowed
 
 log = logging.getLogger("rag_layer.chunker")
 
@@ -96,9 +89,7 @@ def chunk_file(path: str) -> list[dict]:
     filename = os.path.basename(abs_path)
     directory = os.path.dirname(abs_path)
     filetype = os.path.splitext(filename)[1].lstrip(".").lower() or "text"
-    # Use a fixed project domain tag so retrieval can reliably filter to
-    # Lady Linux-only chunks regardless of keyword routing.
-    domain = RAG_DOMAIN if is_path_allowed(path) else domain_for_path(path)
+    domain = domain_for_path(path)
 
     # ── Sliding-window chunking ──
     chunks: list[dict] = []

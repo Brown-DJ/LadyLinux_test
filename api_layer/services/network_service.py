@@ -36,3 +36,39 @@ def network_connections() -> dict:
     payload = result.model_dump()
     payload["connections"] = result.stdout.splitlines()
     return payload
+
+
+def network_interface(name: str) -> dict:
+    result = run_command(["ip", "-brief", "address", "show", name])
+    interfaces = []
+    for line in result.stdout.splitlines():
+        parts = line.split()
+        if len(parts) >= 2:
+            interfaces.append(
+                {
+                    "name": parts[0],
+                    "state": parts[1],
+                    "addresses": parts[2:],
+                }
+            )
+    payload = result.model_dump()
+    payload["interface"] = name
+    payload["details"] = interfaces[0] if interfaces else None
+    if payload["details"] is None and payload["ok"]:
+        payload["ok"] = False
+        payload["stderr"] = f"Interface '{name}' not found"
+    return payload
+
+
+def restart_interface(name: str) -> dict:
+    down = run_command(["ip", "link", "set", "dev", name, "down"])
+    up = run_command(["ip", "link", "set", "dev", name, "up"])
+    payload = up.model_dump()
+    payload["interface"] = name
+    payload["down"] = down.model_dump()
+    payload["up"] = up.model_dump()
+    payload["restarted"] = down.ok and up.ok
+    payload["ok"] = payload["restarted"]
+    if not payload["ok"]:
+        payload["stderr"] = up.stderr or down.stderr or "Failed to restart interface"
+    return payload

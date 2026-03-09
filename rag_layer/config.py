@@ -58,6 +58,7 @@ EXCLUDED_RAG_PATHS: list[str] = [
 ]
 
 RAG_DOMAIN = "lady_linux"
+RAG_DOMAINS = ("docs", "code", "system-help")
 
 
 def _normalize(path: str) -> str:
@@ -105,8 +106,16 @@ def domain_for_path(path: str) -> str:
     1) fixed Lady Linux domain for project-scoped chunks
     2) fallback keyword router when callers explicitly request it
     """
+    normalized = _normalize(path).lower()
     if allowed_for_rag(path):
-        return RAG_DOMAIN
+        if "/docs/" in normalized or normalized.endswith(".md"):
+            return "docs"
+        if any(
+            token in normalized
+            for token in ("/api_layer/", "/rag_layer/", "/app/", "/static/js/", ".py", ".js")
+        ):
+            return "code"
+        return "system-help"
     return detect_domain_from_path(path)
 
 

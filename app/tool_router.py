@@ -49,6 +49,9 @@ class ToolRouter:
     def list_tool_names(self) -> list[str]:
         return sorted(self.tools.keys())
 
+    def get_tools_manifest(self) -> dict[str, Any]:
+        return {"tools": [self.tools[name] for name in self.list_tool_names()]}
+
     def execute(self, tool_name: str, parameters: dict[str, Any] | None = None) -> dict[str, Any]:
         if tool_name not in self.tools:
             raise ToolRouterError(f"unknown tool requested: {tool_name}")
@@ -67,6 +70,14 @@ class ToolRouter:
         unknown = sorted(set(parameters) - set(allowed_parameters))
         if unknown:
             raise ToolRouterError(f"unsupported parameters for {tool_name}: {', '.join(unknown)}")
+
+        missing = sorted(set(allowed_parameters) - set(parameters))
+        path_params = {key for key in allowed_parameters if "{" + key + "}" in endpoint}
+        # Require all path parameters, and any non-path parameter declared in tools.json.
+        required = sorted(path_params.union(set(allowed_parameters) - path_params))
+        missing_required = [item for item in required if item in missing]
+        if missing_required:
+            raise ToolRouterError(f"missing required parameters for {tool_name}: {', '.join(missing_required)}")
 
         resolved_endpoint = endpoint
         for key in allowed_parameters:
@@ -100,6 +111,11 @@ class ToolRouter:
             payload: Any = response.json()
         except ValueError:
             payload = response.text
+
+        if not response.ok:
+            raise ToolRouterError(
+                f"tool '{tool_name}' failed ({response.status_code}): {payload}"
+            )
 
         return {
             "tool": tool_name,
