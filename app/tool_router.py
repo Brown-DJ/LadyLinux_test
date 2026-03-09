@@ -16,10 +16,9 @@ class ToolRouterError(RuntimeError):
 
 class ToolRouter:
     """
-    Route LLM-selected tools through a strict contract.
+    Route tool calls through the strict tools.json contract.
 
-    tools.json is the allow-list contract between the model and the system.
-    The model cannot call arbitrary endpoints because only declared tools are executable.
+    tools.json is the allow-list between parser/LLM and backend endpoints.
     """
 
     def __init__(self, tools_file: Path = TOOLS_FILE, api_base_url: str = API_BASE_URL) -> None:
@@ -53,43 +52,52 @@ class ToolRouter:
         return {"tools": [self.tools[name] for name in self.list_tool_names()]}
 
     def execute(self, tool_name: str, parameters: dict[str, Any] | None = None) -> dict[str, Any]:
+        """
+        Validate tool name + parameters against tools.json, then call endpoint.
+        """
         if tool_name not in self.tools:
-            raise ToolRouterError(f"unknown tool requested: {tool_name}")
+            raise ToolRouterError(f"Unknown tool: {tool_name}")
 
         tool = self.tools[tool_name]
-        method = str(tool.get("method", "GET")).upper()
-        endpoint = str(tool.get("endpoint", ""))
-        allowed_parameters = tool.get("parameters", {})
+        allowed = tool.get("parameters", {})
         parameters = parameters or {}
 
         if not isinstance(parameters, dict):
             raise ToolRouterError("tool parameters must be an object")
-        if not isinstance(allowed_parameters, dict):
+        if not isinstance(allowed, dict):
             raise ToolRouterError(f"invalid parameter contract for tool: {tool_name}")
 
-        unknown = sorted(set(parameters) - set(allowed_parameters))
-        if unknown:
-            raise ToolRouterError(f"unsupported parameters for {tool_name}: {', '.join(unknown)}")
+        # Enforce schema so hallucinated parameters are rejected deterministically.
+        for key in parameters:
+            if key not in allowed:
+                raise ToolRouterError(f"Invalid parameter: {key}")
 
-        missing = sorted(set(allowed_parameters) - set(parameters))
-        path_params = {key for key in allowed_parameters if "{" + key + "}" in endpoint}
-        # Require all path parameters, and any non-path parameter declared in tools.json.
-        required = sorted(path_params.union(set(allowed_parameters) - path_params))
-        missing_required = [item for item in required if item in missing]
+        endpoint = str(tool.get("endpoint", ""))
+        path_params = {key for key in allowed if "{" + key + "}" in endpoint}
+        missing_required = [item for item in sorted(path_params) if item not in parameters]
         if missing_required:
             raise ToolRouterError(f"missing required parameters for {tool_name}: {', '.join(missing_required)}")
+
+        return self._call_endpoint(tool_name, tool, parameters)
+
+    def _call_endpoint(self, tool_name: str, tool: dict[str, Any], parameters: dict[str, Any]) -> dict[str, Any]:
+        """
+        Resolve endpoint path/query/body and perform the HTTP request.
+        """
+        method = str(tool.get("method", "GET")).upper()
+        endpoint = str(tool.get("endpoint", ""))
+        allowed_parameters = tool.get("parameters", {})
 
         resolved_endpoint = endpoint
         for key in allowed_parameters:
             token = "{" + key + "}"
             if token in resolved_endpoint:
-                if key not in parameters:
-                    raise ToolRouterError(f"missing required path parameter '{key}' for {tool_name}")
                 resolved_endpoint = resolved_endpoint.replace(token, str(parameters[key]))
 
         request_url = f"{self.api_base_url}{resolved_endpoint}"
         body: dict[str, Any] = {}
         query: dict[str, Any] = {}
+
         for key, value in parameters.items():
             token = "{" + key + "}"
             if token in endpoint:

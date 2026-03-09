@@ -105,46 +105,34 @@ def _error_payload(
     return JSONResponse(content=payload, status_code=status_code)
 
 
-def classify_prompt(message: str) -> Literal["tool", "rag", "hybrid", "chat"]:
-    text = (message or "").strip().lower()
-    if not text:
-        return "chat"
+def classify_prompt(message: str) -> Literal["tool", "rag", "chat"]:
+    text = message.lower().strip()
 
-    tool_terms = (
+    command_words = (
         "service",
-        "systemctl",
         "restart",
         "firewall",
         "network",
-        "interface",
-        "user",
-        "users",
-        "theme",
         "status",
-        "api/",
-        "endpoint",
+        "user",
+        "theme",
     )
-    rag_terms = (
+
+    knowledge_words = (
         "explain",
         "why",
         "how",
         "architecture",
-        "design",
         "documentation",
         "docs",
-        "codebase",
-        "readme",
     )
 
-    has_tool = any(term in text for term in tool_terms)
-    has_rag = any(term in text for term in rag_terms)
-
-    if has_tool and has_rag:
-        return "hybrid"
-    if has_tool:
+    if any(x in text for x in command_words):
         return "tool"
-    if has_rag:
+
+    if any(x in text for x in knowledge_words):
         return "rag"
+
     return "chat"
 
 
@@ -409,47 +397,24 @@ def ask_phi3_get(prompt: str):
 
 @app.post("/ask_rag")
 async def ask_rag(req: PromptRequest):
+    # Pipeline architecture:
+    # 1) command parser + tool router fast path
+    # 2) RAG for documentation/explanations
+    # 3) LLM chat fallback
     prompt = req.prompt
     gateway_result = gateway_handle_prompt(prompt)
 
-    # Deterministic gateway executes system commands before any RAG/LLM path.
+    # COMMAND EXECUTION
     if isinstance(gateway_result, dict) and gateway_result.get("type") == "tool":
-        return JSONResponse(content=gateway_result)
-
-    # Knowledge requests can bypass additional retrieval and use gateway context directly.
-    if isinstance(gateway_result, dict) and gateway_result.get("type") == "rag":
-        try:
-            context_text = str(gateway_result.get("context", ""))
-            output = _ollama_generate(
-                f"""
-SYSTEM CAPABILITIES
-{CAPABILITY_BLOCK}
-
-RELEVANT PROJECT FILES
-{context_text or "No relevant Lady Linux project context was retrieved."}
-
-USER QUESTION
-{prompt}
-""",
-                model="mistral",
-            )
-            return JSONResponse(
-                content={
-                    "answer": output,
-                    "response": output,
-                    "model": "mistral",
-                    "route": "rag",
-                    "retrieved_chunks": 0,
-                    "tool_result": None,
-                }
-            )
-        except requests.RequestException as exc:
-            return _error_payload(
-                error_type="llm_backend_unavailable",
-                message=f"LLM request failed: {exc}",
-                suggestion="Verify Ollama runtime availability at http://127.0.0.1:11434.",
-                status_code=502,
-            )
+        tool_result = gateway_result["result"]
+        return JSONResponse(
+            content={
+                "answer": json.dumps(tool_result, indent=2),
+                "response": json.dumps(tool_result, indent=2),
+                "route": "tool",
+                "tool_result": tool_result,
+            }
+        )
 
     route = classify_prompt(prompt)
 
@@ -478,19 +443,6 @@ USER QUESTION
                     "rag_domain": domain,
                     "retrieved_chunks": len(context_results),
                     "tool_result": None,
-                }
-            )
-        if route == "hybrid":
-            output, tool_result, context_results, domain = handle_hybrid_prompt(prompt)
-            return JSONResponse(
-                content={
-                    "answer": output,
-                    "response": output,
-                    "model": "mistral",
-                    "route": route,
-                    "rag_domain": domain,
-                    "retrieved_chunks": len(context_results),
-                    "tool_result": tool_result,
                 }
             )
         if route == "chat":
@@ -542,28 +494,29 @@ async def ask(req: PromptRequest):
     """
     result = gateway_handle_prompt(req.prompt)
 
-    if isinstance(result, dict) and result.get("type") == "llm":
+    if isinstance(result, dict) and result.get("type") == "tool":
+        return result
+
+    if isinstance(result, dict) and result.get("type") == "ui":
+        # UI actions are returned for frontend handling (no backend execution).
+        return result
+
+    if isinstance(result, dict) and result.get("type") == "rag":
+        route = classify_prompt(req.prompt)
+        if route == "rag":
+            output, context_results, domain = handle_rag_prompt(req.prompt)
+            return {
+                "type": "rag",
+                "response": output,
+                "model": "mistral",
+                "rag_domain": domain,
+                "retrieved_chunks": len(context_results),
+            }
         output = handle_chat_prompt(req.prompt)
         return {"type": "llm", "response": output, "model": "mistral"}
 
-    if isinstance(result, dict) and result.get("type") == "rag":
-        context_text = str(result.get("context", ""))
-        output = _ollama_generate(
-            f"""
-SYSTEM CAPABILITIES
-{CAPABILITY_BLOCK}
-
-RELEVANT PROJECT FILES
-{context_text or "No relevant Lady Linux project context was retrieved."}
-
-USER QUESTION
-{req.prompt}
-""",
-            model="mistral",
-        )
-        return {"type": "rag", "context": context_text, "response": output, "model": "mistral"}
-
-    return result
+    output = handle_chat_prompt(req.prompt)
+    return {"type": "llm", "response": output, "model": "mistral"}
 
 
 @app.post("/api/chat")

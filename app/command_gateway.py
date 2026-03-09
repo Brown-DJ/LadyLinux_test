@@ -1,34 +1,40 @@
 """
-LadyLinux Command Gateway
+Command Gateway
 
-Routes prompts to the correct subsystem BEFORE using the LLM.
-This prevents LLM hallucination when executing system commands.
+Central routing layer that decides:
+- command execution
+- RAG retrieval
+- LLM conversation
 """
 
 from __future__ import annotations
 
-from .command_registry import resolve_command
-from .intent_classifier import classify_intent
-from .response_formatter import format_response
+from app.command_parser import parse_command
+from app.tool_router import ToolRouter
+
+TOOL_ROUTER = ToolRouter()
 
 
 def handle_prompt(prompt: str):
-    intent = classify_intent(prompt)
+    # 1) COMMAND PARSER (fast path)
+    parsed = parse_command(prompt)
+    if parsed:
+        tool, args = parsed
 
-    # SYSTEM COMMANDS
-    if intent in ("system_read", "system_write"):
-        handler, args = resolve_command(prompt)
-        if handler:
-            result = handler(**args)
-            return format_response(result)
+        # UI navigation commands intentionally bypass backend tools.
+        if tool == "ui_navigate":
+            return {"type": "ui", "action": tool, "args": args}
 
-    # KNOWLEDGE REQUESTS
-    if intent == "knowledge":
-        # Import lazily to avoid pulling RAG dependencies for system-only prompts.
-        from rag_layer.retriever import retrieve_context
+        result = TOOL_ROUTER.execute(tool, args)
+        return {
+            "type": "tool",
+            "tool": tool,
+            "args": args,
+            "result": result,
+        }
 
-        context = retrieve_context(prompt)
-        return {"type": "rag", "context": context}
-
-    # FALLBACK
-    return {"type": "llm", "prompt": prompt}
+    # 2) FALLBACK TO RAG
+    return {
+        "type": "rag",
+        "prompt": prompt,
+    }
