@@ -30,7 +30,8 @@ from rag_layer.retriever import build_context_block, retrieve
 from rag_layer.seed import seed
 from rag_layer.vector_store import COLLECTION_NAME, client, ensure_collection
 from llm_runtime import ensure_model
-from app.command_gateway import handle_prompt as gateway_handle_prompt
+from app.response_formatter import format_command_response
+from app.shell_router import run_shell_command
 from app.tool_router import ToolRouter, ToolRouterError
 
 app = FastAPI()
@@ -398,46 +399,39 @@ def ask_phi3_get(prompt: str):
 @app.post("/ask_rag")
 async def ask_rag(req: PromptRequest):
     # Pipeline architecture:
-    # 1) command parser + tool router fast path
+    # 1) shell router (command parser + direct tool execution) fast path
     # 2) RAG for documentation/explanations
     # 3) LLM chat fallback
     prompt = req.prompt
-    gateway_result = gateway_handle_prompt(prompt)
+    shell_result = run_shell_command(prompt)
 
     # COMMAND EXECUTION
-    if isinstance(gateway_result, dict) and gateway_result.get("type") == "tool":
-        return JSONResponse(content=gateway_result["result"])
-
-    # Gateway catches execution failures and returns structured error payloads.
-    if isinstance(gateway_result, dict) and gateway_result.get("type") == "error":
+    if isinstance(shell_result, dict) and shell_result.get("type") == "command":
+        formatted_answer = format_command_response(shell_result["tool"], shell_result["result"])
         return JSONResponse(
-            status_code=200,
             content={
-                "answer": f"Command failed: {gateway_result['error']}",
-                "route": "error",
-            },
+                "answer": formatted_answer,
+                "response": formatted_answer,
+                "route": "command",
+                "tool": shell_result["tool"],
+                "tool_result": shell_result["result"],
+            }
         )
 
-    if isinstance(gateway_result, dict) and gateway_result.get("type") == "ui":
-        return JSONResponse(content=gateway_result)
+    if isinstance(shell_result, dict) and shell_result.get("type") == "error":
+        return JSONResponse(
+            content={
+                "answer": f"Command failed: {shell_result['error']}",
+                "route": "error",
+            }
+        )
 
     route = classify_prompt(prompt)
 
     try:
-        if route == "tool":
-            tool_result = handle_tool_prompt(prompt)
-            answer = json.dumps(tool_result, indent=2)
-            return JSONResponse(
-                content={
-                    "answer": answer,
-                    "response": answer,
-                    "model": "mistral",
-                    "route": route,
-                    "retrieved_chunks": 0,
-                    "tool_result": tool_result,
-                }
-            )
-        if route == "rag":
+        # After shell command handling, non-command prompts follow the
+        # documentation/explanation path or conversational fallback.
+        if route in ("rag", "tool"):
             output, context_results, domain = handle_rag_prompt(prompt)
             return JSONResponse(
                 content={
@@ -494,38 +488,37 @@ async def ask_rag(req: PromptRequest):
 @app.post("/ask")
 async def ask(req: PromptRequest):
     """
-    Unified chat endpoint that uses command gateway routing first.
-    Existing /ask_rag remains available and now shares deterministic behavior.
+    Unified chat endpoint that shares the hybrid shell pipeline with /ask_rag:
+    command shell first, then RAG/LLM fallback.
     """
-    result = gateway_handle_prompt(req.prompt)
+    shell_result = run_shell_command(req.prompt)
 
-    if isinstance(result, dict) and result.get("type") == "tool":
-        return result["result"]
-
-    if isinstance(result, dict) and result.get("type") == "error":
+    if isinstance(shell_result, dict) and shell_result.get("type") == "command":
+        formatted_answer = format_command_response(shell_result["tool"], shell_result["result"])
         return {
-            "answer": f"Command failed: {result['error']}",
+            "answer": formatted_answer,
+            "response": formatted_answer,
+            "route": "command",
+            "tool": shell_result["tool"],
+            "tool_result": shell_result["result"],
+        }
+
+    if isinstance(shell_result, dict) and shell_result.get("type") == "error":
+        return {
+            "answer": f"Command failed: {shell_result['error']}",
             "route": "error",
         }
 
-    if isinstance(result, dict) and result.get("type") == "ui":
-        # UI actions are returned for frontend handling (no backend execution).
-        return result
-
-    if isinstance(result, dict) and result.get("type") == "rag":
-        route = classify_prompt(req.prompt)
-        if route == "rag":
-            output, context_results, domain = handle_rag_prompt(req.prompt)
-            return {
-                "type": "rag",
-                "response": output,
-                "model": "mistral",
-                "rag_domain": domain,
-                "retrieved_chunks": len(context_results),
-            }
-        output = handle_chat_prompt(req.prompt)
-        return {"type": "llm", "response": output, "model": "mistral"}
-
+    route = classify_prompt(req.prompt)
+    if route == "rag":
+        output, context_results, domain = handle_rag_prompt(req.prompt)
+        return {
+            "type": "rag",
+            "response": output,
+            "model": "mistral",
+            "rag_domain": domain,
+            "retrieved_chunks": len(context_results),
+        }
     output = handle_chat_prompt(req.prompt)
     return {"type": "llm", "response": output, "model": "mistral"}
 
