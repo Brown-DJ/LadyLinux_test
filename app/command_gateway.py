@@ -25,13 +25,21 @@ def handle_prompt(prompt: str):
         if tool == "ui_navigate":
             return {"type": "ui", "action": tool, "args": args}
 
-        result = TOOL_ROUTER.execute(tool, args)
-        return {
-            "type": "tool",
-            "tool": tool,
-            "args": args,
-            "result": result,
-        }
+        # Execute tools safely so UI receives structured failures instead of 500s.
+        try:
+            result = TOOL_ROUTER.execute(tool, args)
+            return {
+                "type": "tool",
+                "tool": tool,
+                "args": args,
+                "result": result,
+            }
+        except Exception as e:  # noqa: BLE001
+            return {
+                "type": "error",
+                "tool": tool,
+                "error": str(e),
+            }
 
     # 2) FALLBACK TO RAG
     return {

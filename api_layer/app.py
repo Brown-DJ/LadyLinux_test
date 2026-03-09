@@ -406,15 +406,20 @@ async def ask_rag(req: PromptRequest):
 
     # COMMAND EXECUTION
     if isinstance(gateway_result, dict) and gateway_result.get("type") == "tool":
-        tool_result = gateway_result["result"]
+        return JSONResponse(content=gateway_result["result"])
+
+    # Gateway catches execution failures and returns structured error payloads.
+    if isinstance(gateway_result, dict) and gateway_result.get("type") == "error":
         return JSONResponse(
+            status_code=200,
             content={
-                "answer": json.dumps(tool_result, indent=2),
-                "response": json.dumps(tool_result, indent=2),
-                "route": "tool",
-                "tool_result": tool_result,
-            }
+                "answer": f"Command failed: {gateway_result['error']}",
+                "route": "error",
+            },
         )
+
+    if isinstance(gateway_result, dict) and gateway_result.get("type") == "ui":
+        return JSONResponse(content=gateway_result)
 
     route = classify_prompt(prompt)
 
@@ -495,7 +500,13 @@ async def ask(req: PromptRequest):
     result = gateway_handle_prompt(req.prompt)
 
     if isinstance(result, dict) and result.get("type") == "tool":
-        return result
+        return result["result"]
+
+    if isinstance(result, dict) and result.get("type") == "error":
+        return {
+            "answer": f"Command failed: {result['error']}",
+            "route": "error",
+        }
 
     if isinstance(result, dict) and result.get("type") == "ui":
         # UI actions are returned for frontend handling (no backend execution).
