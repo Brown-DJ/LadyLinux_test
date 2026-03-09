@@ -1,21 +1,35 @@
 from __future__ import annotations
 
+import subprocess
+
 from api_layer.utils.command_runner import run_command
 from api_layer.utils.validators import validate_service_name
 
 
 def list_services() -> dict:
+    # Use explicit systemctl flags so output is deterministic and free of UI symbols.
     cmd = [
         "systemctl",
         "list-units",
         "--type=service",
         "--all",
+        "--full",
+        "--plain",
         "--no-pager",
         "--no-legend",
     ]
-    result = run_command(cmd)
+
+    completed = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=15,
+        shell=False,
+    )
+
     services = []
-    for line in result.stdout.splitlines():
+    for line in (completed.stdout or "").splitlines():
         parts = line.split(None, 4)
         if len(parts) < 4:
             continue
@@ -32,7 +46,12 @@ def list_services() -> dict:
                 "description": description,
             }
         )
-    payload = result.model_dump()
+    payload = {
+        "ok": completed.returncode == 0,
+        "stdout": (completed.stdout or "").strip(),
+        "stderr": (completed.stderr or "").strip(),
+        "returncode": completed.returncode,
+    }
     payload["services"] = services
     return payload
 

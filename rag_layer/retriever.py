@@ -95,6 +95,17 @@ def build_context_block(results: list[dict]) -> str:
     return "\n\n".join(sections)
 
 
+def retrieve_context(query: str, domain: str = "docs", top_k: int | None = None) -> str:
+    """
+    Compatibility helper for the command gateway knowledge path.
+
+    Returns a formatted context string so callers can pass RAG evidence
+    directly into downstream response generation.
+    """
+    results = retrieve(query=query, top_k=top_k, domain=domain)
+    return build_context_block(results)
+
+
 def _domain_search_order(domain: str) -> list[str]:
     if domain == "system-help":
         return ["system-help", "docs", "code"]

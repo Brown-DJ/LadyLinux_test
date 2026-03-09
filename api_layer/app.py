@@ -30,6 +30,7 @@ from rag_layer.retriever import build_context_block, retrieve
 from rag_layer.seed import seed
 from rag_layer.vector_store import COLLECTION_NAME, client, ensure_collection
 from llm_runtime import ensure_model
+from app.command_gateway import handle_prompt as gateway_handle_prompt
 from app.tool_router import ToolRouter, ToolRouterError
 
 app = FastAPI()
@@ -409,6 +410,47 @@ def ask_phi3_get(prompt: str):
 @app.post("/ask_rag")
 async def ask_rag(req: PromptRequest):
     prompt = req.prompt
+    gateway_result = gateway_handle_prompt(prompt)
+
+    # Deterministic gateway executes system commands before any RAG/LLM path.
+    if isinstance(gateway_result, dict) and gateway_result.get("type") == "tool":
+        return JSONResponse(content=gateway_result)
+
+    # Knowledge requests can bypass additional retrieval and use gateway context directly.
+    if isinstance(gateway_result, dict) and gateway_result.get("type") == "rag":
+        try:
+            context_text = str(gateway_result.get("context", ""))
+            output = _ollama_generate(
+                f"""
+SYSTEM CAPABILITIES
+{CAPABILITY_BLOCK}
+
+RELEVANT PROJECT FILES
+{context_text or "No relevant Lady Linux project context was retrieved."}
+
+USER QUESTION
+{prompt}
+""",
+                model="mistral",
+            )
+            return JSONResponse(
+                content={
+                    "answer": output,
+                    "response": output,
+                    "model": "mistral",
+                    "route": "rag",
+                    "retrieved_chunks": 0,
+                    "tool_result": None,
+                }
+            )
+        except requests.RequestException as exc:
+            return _error_payload(
+                error_type="llm_backend_unavailable",
+                message=f"LLM request failed: {exc}",
+                suggestion="Verify Ollama runtime availability at http://127.0.0.1:11434.",
+                status_code=502,
+            )
+
     route = classify_prompt(prompt)
 
     try:
@@ -490,6 +532,38 @@ async def ask_rag(req: PromptRequest):
             suggestion="Verify Ollama runtime availability at http://127.0.0.1:11434.",
             status_code=502,
         )
+
+
+@app.post("/ask")
+async def ask(req: PromptRequest):
+    """
+    Unified chat endpoint that uses command gateway routing first.
+    Existing /ask_rag remains available and now shares deterministic behavior.
+    """
+    result = gateway_handle_prompt(req.prompt)
+
+    if isinstance(result, dict) and result.get("type") == "llm":
+        output = handle_chat_prompt(req.prompt)
+        return {"type": "llm", "response": output, "model": "mistral"}
+
+    if isinstance(result, dict) and result.get("type") == "rag":
+        context_text = str(result.get("context", ""))
+        output = _ollama_generate(
+            f"""
+SYSTEM CAPABILITIES
+{CAPABILITY_BLOCK}
+
+RELEVANT PROJECT FILES
+{context_text or "No relevant Lady Linux project context was retrieved."}
+
+USER QUESTION
+{req.prompt}
+""",
+            model="mistral",
+        )
+        return {"type": "rag", "context": context_text, "response": output, "model": "mistral"}
+
+    return result
 
 
 @app.post("/api/chat")
