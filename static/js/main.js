@@ -273,8 +273,21 @@ async function initializeApp() {
       applyActionSummary(event.detail || {});
       syncOverviewFromDocument();
     });
-    const handleThemeApplied = (event) => {
-      const themeLabel = event.detail?.label || event.detail?.theme || "Custom";
+    const handleThemeApplied = (e) => {
+      const data = e.detail;
+
+      if (!data) return;
+
+      // support both formats
+      const css = data.css || data.css_variables;
+
+      if (css) {
+        Object.entries(css).forEach(([key, value]) => {
+          document.documentElement.style.setProperty(key, value);
+        });
+      }
+
+      const themeLabel = data.label || data.display_name || data.theme || "Custom";
       updateOverviewStatus("theme", themeLabel);
     };
     document.addEventListener("lady:theme-applied", handleThemeApplied);

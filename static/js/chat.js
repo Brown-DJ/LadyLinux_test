@@ -578,9 +578,11 @@ async function sendPrompt(prompt) {
     };
 
     if (data.route === "command" && data.tool === "set_theme") {
+      const event = data.data?.event || data.data;
+
       window.dispatchEvent(
         new CustomEvent("lady:theme-applied", {
-          detail: { theme: data?.data?.active_theme },
+          detail: event,
         })
       );
     }
