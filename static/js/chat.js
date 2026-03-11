@@ -544,7 +544,7 @@ function executeAction(actionName, params, options = {}) {
 
 /* Shared backend transport for all UI chat surfaces */
 async function sendPrompt(prompt) {
-  const response = await fetch("/ask_rag", {
+  const response = await fetch("/api/prompt", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
