@@ -430,98 +430,148 @@ def ask_phi3_get(prompt: str):
 
 @app.post("/ask_rag")
 async def ask_rag(req: PromptRequest):
-    # Pipeline architecture:
-    # 1) deterministic command kernel fast path
-    # 2) RAG for documentation/explanations
-    # 3) LLM chat fallback
+    """
+    Pipeline architecture:
+
+    1) Deterministic command kernel fast path
+    2) RAG for documentation/explanations
+    3) LLM chat fallback
+    """
+
     prompt = req.prompt
-    gateway_result = handle_prompt(prompt)
-
-    # Deterministic commands always execute before retrieval so UI requests
-    # follow the command_parser -> command_gateway -> tool_router -> service path.
-    if isinstance(gateway_result, dict) and gateway_result.get("type") == "tool":
-        payload = gateway_result.get("result", {})
-        return JSONResponse(
-            content={
-                "route": "command",
-                "message": payload.get("message", "Command executed"),
-                "tool": gateway_result.get("tool"),
-                "data": payload,
-            }
-        )
-
-    if isinstance(gateway_result, dict) and gateway_result.get("type") == "ui":
-        return JSONResponse(
-            content={
-                "answer": f"UI action: {gateway_result['action']}",
-                "response": f"UI action: {gateway_result['action']}",
-                "route": "ui",
-                "action": gateway_result["action"],
-                "action_args": gateway_result.get("args", {}),
-            }
-        )
-
-    if isinstance(gateway_result, dict) and gateway_result.get("type") == "error":
-        return JSONResponse(
-            content={
-                "answer": f"Command failed: {gateway_result['error']}",
-                "response": f"Command failed: {gateway_result['error']}",
-                "route": "error",
-                "tool": gateway_result.get("tool"),
-            }
-        )
-
-    route = classify_prompt(prompt)
 
     try:
-        # After deterministic command handling, non-command prompts follow the
-        # documentation/explanation path or conversational fallback.
+        # ---------------------------------------------------------
+        # STEP 1 — COMMAND KERNEL
+        # ---------------------------------------------------------
+        logger.info(f"[COMMAND_KERNEL] evaluating prompt: {prompt}")
+
+        gateway_result = handle_prompt(prompt)
+
+        logger.info(f"[COMMAND_KERNEL] result: {gateway_result}")
+
+        if isinstance(gateway_result, dict):
+
+            result_type = gateway_result.get("type")
+
+            # -----------------------------
+            # TOOL EXECUTION
+            # -----------------------------
+            if result_type == "tool":
+                payload = gateway_result.get("result", {}) or {}
+
+                return JSONResponse(
+                    content={
+                        "route": "command",
+                        "message": payload.get("message", "Command executed"),
+                        "tool": gateway_result.get("tool"),
+                        "data": payload,
+                    }
+                )
+
+            # -----------------------------
+            # UI ACTION
+            # -----------------------------
+            if result_type == "ui":
+                return JSONResponse(
+                    content={
+                        "route": "ui",
+                        "message": f"UI action: {gateway_result.get('action')}",
+                        "action": gateway_result.get("action"),
+                        "action_args": gateway_result.get("args", {}),
+                    }
+                )
+
+            # -----------------------------
+            # COMMAND ERROR
+            # -----------------------------
+            if result_type == "error":
+                return JSONResponse(
+                    content={
+                        "route": "error",
+                        "message": f"Command failed: {gateway_result.get('error')}",
+                        "tool": gateway_result.get("tool"),
+                    },
+                    status_code=400,
+                )
+
+        # ---------------------------------------------------------
+        # STEP 2 — PROMPT ROUTING
+        # ---------------------------------------------------------
+        route = classify_prompt(prompt)
+
+        logger.info(f"[ROUTER] classified route: {route}")
+
+        # ---------------------------------------------------------
+        # STEP 3 — RAG PATH
+        # ---------------------------------------------------------
         if route in ("rag", "tool"):
             output, context_results, domain = handle_rag_prompt(prompt)
+
             return JSONResponse(
                 content={
-                    "answer": output,
+                    "route": "rag",
                     "response": output,
+                    "answer": output,
                     "model": "mistral",
-                    "route": route,
                     "rag_domain": domain,
                     "retrieved_chunks": len(context_results),
-                    "tool_result": None,
                 }
             )
+
+        # ---------------------------------------------------------
+        # STEP 4 — CHAT FALLBACK
+        # ---------------------------------------------------------
         if route == "chat":
             output = handle_chat_prompt(prompt)
+
             return JSONResponse(
                 content={
-                    "answer": output,
+                    "route": "chat",
                     "response": output,
+                    "answer": output,
                     "model": "mistral",
-                    "route": route,
                     "retrieved_chunks": 0,
-                    "tool_result": None,
                 }
             )
+
+        # ---------------------------------------------------------
+        # STEP 5 — UNKNOWN ROUTE
+        # ---------------------------------------------------------
         return _error_payload(
             error_type="route_resolution_failed",
             message="Prompt route could not be resolved.",
             suggestion="Use a clearer request or verify classify_prompt routing.",
             status_code=400,
         )
+
+    # -------------------------------------------------------------
+    # ERROR HANDLING
+    # -------------------------------------------------------------
+
     except ToolRouterError as exc:
+        logger.exception("ToolRouter execution failed")
+
         return _error_payload(
             error_type="tool_execution_failed",
             message=str(exc),
             suggestion="Add missing endpoint to API and tools.json or adjust tool parameters.",
             status_code=400,
         )
+
     except (ValueError, json.JSONDecodeError) as exc:
+        logger.exception("Invalid tool payload")
+
         return _error_payload(
             error_type="invalid_tool_payload",
             message=str(exc),
             suggestion="Ensure tool planner returns valid JSON with allowed parameters.",
             status_code=400,
         )
+
     except requests.RequestException as exc:
+        logger.exception("LLM backend unavailable")
+
         return _error_payload(
             error_type="llm_backend_unavailable",
             message=f"LLM request failed: {exc}",
@@ -529,6 +579,15 @@ async def ask_rag(req: PromptRequest):
             status_code=502,
         )
 
+    except Exception as exc:
+        logger.exception("Unhandled server error")
+
+        return _error_payload(
+            error_type="internal_server_error",
+            message=str(exc),
+            suggestion="Check backend logs for the stack trace.",
+            status_code=500,
+        )
 
 @app.post("/api/prompt")
 async def prompt(req: PromptRequest):
