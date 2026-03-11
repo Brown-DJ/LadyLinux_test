@@ -6,6 +6,7 @@ This prevents LLM hallucination and makes system queries instant.
 """
 
 import json
+import re
 
 
 def parse_command(text: str):
@@ -48,15 +49,13 @@ def parse_command(text: str):
     if text == "firewall reload":
         return ("firewall_reload", {})
 
-    if text.startswith("set theme "):
-        theme = text.split("set theme ", 1)[1].strip()
-        if theme:
-            return ("set_theme", {"theme": theme})
-
-    if text.startswith("switch theme "):
-        theme = text.split("switch theme ", 1)[1].strip()
-        if theme:
-            return ("set_theme", {"theme": theme})
+    theme_match = re.search(
+        r"(set|switch|change)\s+theme\s+(to\s+)?([a-zA-Z\-]+)",
+        text,
+    )
+    if theme_match:
+        theme = theme_match.group(3).strip().lower()
+        return ("set_theme", {"theme": theme})
 
     # Optional UI navigation commands for frontend handling.
     if text == "open firewall page":

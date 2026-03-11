@@ -8,6 +8,10 @@ from core.event_bus import event_bus
 
 THEMES_DIR = Path("themes")
 THEME_STATE_PATH = Path("config/theme_state.json")
+THEME_ALIASES = {
+    "dark": "terminal",
+    "red": "crimson",
+}
 
 
 def _theme_path(theme_name: str) -> Path:
@@ -122,7 +126,7 @@ def apply_theme(theme: str) -> dict:
     Deterministic theme service:
     command -> service -> persisted state -> event bus -> UI
     """
-    key = str(theme).strip()
+    key = THEME_ALIASES.get(str(theme).strip(), str(theme).strip())
     result = get_theme(key)
     if not result.get("ok"):
         return {"ok": False, "applied": False, "stderr": f"Theme '{key}' not found"}

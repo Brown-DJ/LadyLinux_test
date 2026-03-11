@@ -476,55 +476,44 @@ async def ask_rag(req: PromptRequest):
         # ---------------------------------------------------------
         logger.info(f"[COMMAND_KERNEL] evaluating prompt: {prompt}")
 
+        # --- COMMAND KERNEL ---
         gateway_result = handle_prompt(prompt)
 
         logger.info(f"[COMMAND_KERNEL] result: {gateway_result}")
 
-        if isinstance(gateway_result, dict):
+        if isinstance(gateway_result, dict) and gateway_result.get("type") == "tool":
+            logger.info(f"[TOOL_ROUTER] executing tool: {gateway_result.get('tool')}")
+            payload = gateway_result.get("result", {})
 
-            result_type = gateway_result.get("type")
+            return JSONResponse(
+                content={
+                    "route": "command",
+                    "message": payload.get("message", "Command executed"),
+                    "tool": gateway_result.get("tool"),
+                    "data": payload,
+                }
+            )
 
-            # -----------------------------
-            # TOOL EXECUTION
-            # -----------------------------
-            if result_type == "tool":
-                logger.info(f"[TOOL_ROUTER] executing tool: {gateway_result.get('tool')}")
-                payload = gateway_result.get("result", {}) or {}
+        # Command errors must also return immediately
+        if isinstance(gateway_result, dict) and gateway_result.get("type") == "error":
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "route": "command_error",
+                    "message": gateway_result.get("error", "Command failed"),
+                    "tool": gateway_result.get("tool"),
+                }
+            )
 
-                return JSONResponse(
-                    content={
-                        "route": "command",
-                        "message": payload.get("message", "Command executed"),
-                        "tool": gateway_result.get("tool"),
-                        "data": payload,
-                    }
-                )
-
-            # -----------------------------
-            # UI ACTION
-            # -----------------------------
-            if result_type == "ui":
-                return JSONResponse(
-                    content={
-                        "route": "ui",
-                        "message": f"UI action: {gateway_result.get('action')}",
-                        "action": gateway_result.get("action"),
-                        "action_args": gateway_result.get("args", {}),
-                    }
-                )
-
-            # -----------------------------
-            # COMMAND ERROR
-            # -----------------------------
-            if result_type == "error":
-                return JSONResponse(
-                    content={
-                        "route": "error",
-                        "message": f"Command failed: {gateway_result.get('error')}",
-                        "tool": gateway_result.get("tool"),
-                    },
-                    status_code=400,
-                )
+        if isinstance(gateway_result, dict) and gateway_result.get("type") == "ui":
+            return JSONResponse(
+                content={
+                    "route": "ui",
+                    "message": f"UI action: {gateway_result.get('action')}",
+                    "action": gateway_result.get("action"),
+                    "action_args": gateway_result.get("args", {}),
+                }
+            )
 
         # ---------------------------------------------------------
         # STEP 2 — PROMPT ROUTING
