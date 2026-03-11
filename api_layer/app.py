@@ -36,6 +36,7 @@ from app.command_gateway import handle_prompt
 from app.response_formatter import format_command_response
 from app.shell_router import run_shell_command
 from app.tool_router import ToolRouter, ToolRouterError
+from app.ui_intent_parser import detect_ui_intent
 
 logging.basicConfig(
     level=logging.INFO,
@@ -268,6 +269,8 @@ Rules:
 - If not present, respond with "Information not found in system context."
 - Do not invent configuration or runtime state.
 - Do not invent tools, shell commands, or undocumented endpoints.
+- Do not generate CSS variables, UI override commands, or direct UI modification payloads.
+- UI customization is handled only by the deterministic UI intent parser.
 """
     output = _ollama_generate(system_prompt, model="mistral")
     return output, context_results, domain
@@ -303,6 +306,8 @@ Rules:
 - If not present, respond with "Information not found in system context."
 - Do not invent configuration or runtime state.
 - Do not invent tools, shell commands, or undocumented endpoints.
+- Do not generate CSS variables, UI override commands, or direct UI modification payloads.
+- UI customization is handled only by the deterministic UI intent parser.
 """
     output = _ollama_generate(system_prompt, model="mistral")
     return output, tool_result, context_results, domain
@@ -312,6 +317,8 @@ def handle_chat_prompt(prompt: str) -> str:
     chat_prompt = f"""
 You are Lady Linux, a Linux assistant. Keep responses concise and accurate.
 If a live system action is required, say to use a supported API tool.
+Do not generate CSS variables, UI override commands, or theme modification payloads.
+UI customization is handled only by the deterministic UI intent parser.
 
 {_command_hint_block()}
 
@@ -449,6 +456,21 @@ async def ask_rag(req: PromptRequest):
     prompt = req.prompt
 
     try:
+        # ---------- UI INTENT FAST PATH ----------
+        ui_intent = detect_ui_intent(prompt)
+
+        if ui_intent:
+            logger.info(f"[UI_INTENT] detected: {ui_intent}")
+
+            return JSONResponse(
+                content={
+                    "route": "command",
+                    "message": "UI updated",
+                    "tool": ui_intent["tool"],
+                    "data": ui_intent["result"],
+                }
+            )
+
         # ---------------------------------------------------------
         # STEP 1 — COMMAND KERNEL
         # ---------------------------------------------------------
