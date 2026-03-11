@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 import json
+import logging
 import threading
 import time
 from typing import Any, Literal
@@ -35,6 +36,13 @@ from app.command_gateway import handle_prompt
 from app.response_formatter import format_command_response
 from app.shell_router import run_shell_command
 from app.tool_router import ToolRouter, ToolRouterError
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+
+logger = logging.getLogger("ladylinux")
 
 app = FastAPI()
 
@@ -458,6 +466,7 @@ async def ask_rag(req: PromptRequest):
             # TOOL EXECUTION
             # -----------------------------
             if result_type == "tool":
+                logger.info(f"[TOOL_ROUTER] executing tool: {gateway_result.get('tool')}")
                 payload = gateway_result.get("result", {}) or {}
 
                 return JSONResponse(
