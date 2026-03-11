@@ -14,8 +14,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from api_layer import os_core
-from api_layer.firewall_core import get_firewall_status_json
+from core.tools import os_core
+from core.tools.firewall_core import get_firewall_status_json
 from api_layer.routes.firewall import router as firewall_router
 from api_layer.routes.logs import router as logs_router
 from api_layer.routes.network import router as network_router
@@ -28,12 +28,12 @@ from api_layer.routes.ws import router as ws_router
 from api_layer.services.system_service import get_status
 from api_layer.utils.command_runner import run_command
 from api_layer.utils.validators import validate_service_name
-from rag_layer.retriever import build_context_block, retrieve
-from rag_layer.seed import seed
-from rag_layer.vector_store import COLLECTION_NAME, client, ensure_collection
+from core.rag.retriever import build_context_block, retrieve
+from core.rag.seed import seed
+from core.rag.vector_store import COLLECTION_NAME, client, ensure_collection
 from llm_runtime import ensure_model
-from app.command_kernel import evaluate_prompt
-from app.tool_router import ToolRouter, ToolRouterError
+from core.command.command_kernel import evaluate_prompt
+from core.command.tool_router import ToolRouter, ToolRouterError
 
 logging.basicConfig(
     level=logging.INFO,

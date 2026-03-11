@@ -8,9 +8,9 @@ Description: Query-time orchestrator that embeds the user question, routes it
 
 import logging
 
-from rag_layer.config import RAG_DOMAINS, TOP_K, allowed_for_rag, domain_for_path
-from rag_layer.embedder import embed_query
-from rag_layer.vector_store import search
+from core.rag.config import RAG_DOMAINS, TOP_K, allowed_for_rag, domain_for_path
+from core.rag.embedder import embed_query
+from core.rag.vector_store import search
 
 log = logging.getLogger("rag_layer.retriever")
 

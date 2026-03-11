@@ -11,7 +11,7 @@ import logging
 import os
 from datetime import datetime, timezone
 
-from rag_layer.config import CHUNK_OVERLAP, CHUNK_SIZE, MAX_FILE_SIZE, domain_for_path, is_path_allowed
+from core.rag.config import CHUNK_OVERLAP, CHUNK_SIZE, MAX_FILE_SIZE, domain_for_path, is_path_allowed
 
 log = logging.getLogger("rag_layer.chunker")
 

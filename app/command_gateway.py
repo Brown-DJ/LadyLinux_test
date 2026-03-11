@@ -9,8 +9,8 @@ Central routing layer that decides:
 
 from __future__ import annotations
 
-from app.command_parser import parse_command
-from app.tool_router import ToolRouter
+from core.command.command_parser import parse_command
+from core.command.tool_router import ToolRouter
 
 TOOL_ROUTER = ToolRouter()
 

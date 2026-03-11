@@ -8,7 +8,7 @@ Description: Central configuration for chunking, retrieval, and vector store
 import os
 from pathlib import Path
 
-from rag_layer.domain_router import detect_domain_from_path
+from core.rag.domain_router import detect_domain_from_path
 
 # Qdrant
 # For Sprint 1 we run Qdrant in-memory via the Python client.

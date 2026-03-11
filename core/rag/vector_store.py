@@ -22,7 +22,7 @@ from qdrant_client.models import (
     VectorParams,
 )
 
-from rag_layer.config import (
+from core.rag.config import (
     COLLECTION_NAME,
     QDRANT_HOST,
     QDRANT_MODE,

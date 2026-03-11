@@ -13,8 +13,8 @@ set theme crimson
 switch theme crimson
 """
 
-from app.command_parser import parse_command
-from app.tool_router import ToolRouter
+from core.command.command_parser import parse_command
+from core.command.tool_router import ToolRouter
 
 ROUTER = ToolRouter()
 

@@ -14,9 +14,9 @@ import logging
 import os
 import sys
 
-from rag_layer.chunker import chunk_file
-from rag_layer.embedder import embed_texts
-from rag_layer.vector_store import ensure_collection, upsert_chunks
+from core.rag.chunker import chunk_file
+from core.rag.embedder import embed_texts
+from core.rag.vector_store import ensure_collection, upsert_chunks
 
 logging.basicConfig(
     level=logging.INFO,

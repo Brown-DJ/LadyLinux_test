@@ -11,7 +11,7 @@ import time
 
 import requests
 
-from rag_layer.config import (
+from core.rag.config import (
     EMBEDDING_MODEL,
     OLLAMA_EMBED_URL,
     VECTOR_DIM,
