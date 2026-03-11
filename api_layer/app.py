@@ -23,6 +23,7 @@ from api_layer.routes.services import router as services_router
 from api_layer.routes.storage import router as storage_router
 from api_layer.routes.system import router as system_router
 from api_layer.routes.theme import router as theme_router
+from api_layer.routes.ws import router as ws_router
 from api_layer.services.system_service import get_status
 from api_layer.utils.command_runner import run_command
 from api_layer.utils.validators import validate_service_name
@@ -45,6 +46,7 @@ app.include_router(storage_router)
 app.include_router(logs_router)
 app.include_router(packages_router)
 app.include_router(theme_router)
+app.include_router(ws_router)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")

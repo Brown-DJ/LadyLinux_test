@@ -9,6 +9,7 @@ list services
 restart nginx
 system status
 firewall reload
+set theme crimson
 switch theme crimson
 """
 

@@ -192,8 +192,8 @@ function updateThemeIndicator() {
   const themeEl = document.getElementById("currentTheme");
   if (!themeEl) return;
 
-  const theme = localStorage.getItem("lady-theme") || "soft";
-  themeEl.textContent = theme;
+  const theme = localStorage.getItem("lady-theme") || "softcore";
+  themeEl.textContent = theme === "soft" ? "softcore" : theme;
 }
 
 function syncOverviewFromDocument() {

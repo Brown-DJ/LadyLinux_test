@@ -12,6 +12,11 @@ def get_themes() -> dict:
     return theme_service.list_themes()
 
 
+@router.get("/active")
+def get_active_theme() -> dict:
+    return {"ok": True, "theme": theme_service.get_active_theme()}
+
+
 @router.get("/theme/{name}")
 def get_theme(name: str) -> dict:
     return theme_service.get_theme(name)

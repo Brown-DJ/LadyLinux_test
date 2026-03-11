@@ -15,6 +15,10 @@ def get_system_status() -> dict:
     # Keep a small wrapper so command routing can return a stable dict payload.
     return {"ok": True, "status": get_status()}
 
+register_command(
+    name="set_theme",
+    handler=theme_service.apply_theme
+)
 
 def resolve_command(text: str):
     # Deterministic text matching ensures tool routes are predictable.

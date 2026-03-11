@@ -7,7 +7,7 @@ const THEME_SELECTION_STORAGE_KEY = "lady-theme";
 const ACTIVE_CUSTOM_SLOT_KEY = "lady-active-custom-slot";
 
 const THEME_LABELS = {
-  soft: "Soft Core",
+  softcore: "Soft Core",
   crimson: "Crimson Core",
   glass: "Glass",
   terminal: "Terminal",
@@ -69,6 +69,35 @@ const COLOR_NAME_MAP = {
 
 let THEMES = {};
 let activeCustomSlot = null;
+
+function normalizeBackendTheme(theme) {
+  if (!theme || typeof theme !== "object") return null;
+
+  if (theme.css_variables && typeof theme.css_variables === "object") {
+    const css = theme.css_variables;
+    return {
+      name: theme.name,
+      display_name: theme.display_name,
+      css_variables: css,
+      "bg-main": css["--bg"] || "#1C1F26",
+      "bg-surface": css["--panel"] || css["--bg"] || "#242833",
+      "bg-elevated": css["--panel"] || css["--bg"] || "#2B3040",
+      "bg-input": css["--panel"] || css["--bg"] || "#2E3340",
+      "text-main": css["--text"] || "#F7F9FC",
+      "text-heading": css["--text"] || "#FFFFFF",
+      accent: css["--accent"] || "#C4B5FD",
+      "accent-hover": css["--accent"] || "#D6CBFF",
+      "border-soft": css["--panel"] || "#3A3F4F",
+      "radius-large": "18px",
+      "radius-medium": "12px",
+      "radius-small": "8px",
+      "shadow-main": "none",
+      "transition-speed": "0.15s",
+    };
+  }
+
+  return theme;
+}
 
 function notifyOverviewSync() {
   document.dispatchEvent(new CustomEvent("lady:overview-sync"));
@@ -292,6 +321,10 @@ function themeTokensToCssVars(themeInput) {
     return {};
   }
 
+  if (themeInput.css_variables && typeof themeInput.css_variables === "object") {
+    return { ...themeInput.css_variables };
+  }
+
   const cssVars = {};
   const tokenMap = {
     "bg-main": "--color-bg-main",
@@ -486,25 +519,17 @@ function populateCustomThemeModal(slotKey) {
 
 async function loadThemes() {
   try {
-    const response = await fetch("/static/themes.json");
-    if (!response.ok) throw new Error("Failed to load themes.json");
+    const response = await fetch("/api/theme/themes");
+    if (!response.ok) throw new Error("Failed to load backend themes");
 
     const data = await response.json();
-    const rawThemes = data.themes || {};
+    const rawThemes = Array.isArray(data.themes) ? data.themes : [];
     THEMES = {};
 
-    Object.keys(rawThemes).forEach((key) => {
-      const stored = localStorage.getItem(key);
-      if (stored) {
-        try {
-          THEMES[key] = JSON.parse(stored);
-          return;
-        } catch (err) {
-          console.error("Theme restore error:", err);
-        }
-      }
-
-      THEMES[key] = rawThemes[key];
+    rawThemes.forEach((theme) => {
+      const normalizedTheme = normalizeBackendTheme(theme);
+      if (!normalizedTheme || !normalizedTheme.name) return;
+      THEMES[normalizedTheme.name] = normalizedTheme;
     });
 
     renderThemePreviews();
@@ -514,6 +539,16 @@ async function loadThemes() {
 }
 
 function applyTheme(themeInput, options = {}) {
+  if (typeof themeInput === "string" && options.remote !== false) {
+    fetch(`/api/theme/theme/${encodeURIComponent(themeInput)}/apply`, {
+      method: "POST",
+    }).catch((error) => {
+      console.error("Backend theme apply error:", error);
+    });
+
+    return true;
+  }
+
   const themeConfig = getThemeConfig(themeInput);
   if (!themeConfig || !window.DesignEngine) return false;
 
@@ -613,9 +648,9 @@ function applyThemeInstructionFromText(text) {
 }
 
 function restoreTheme() {
-  const saved = localStorage.getItem(THEME_SELECTION_STORAGE_KEY);
+  const saved = localStorage.getItem(THEME_SELECTION_STORAGE_KEY) || "softcore";
   if (saved && THEMES[saved]) {
-    applyTheme(saved);
+    applyTheme(saved, { remote: false });
     return;
   }
 

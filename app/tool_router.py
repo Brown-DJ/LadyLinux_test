@@ -36,6 +36,7 @@ class ToolRouter:
             "firewall_reload": firewall_reload,
             "system_users": list_users,
             "network_interfaces": network_interfaces,
+            "set_theme": apply_theme,
             "theme_apply": apply_theme,
             "system_status": get_status,
         }
@@ -48,7 +49,8 @@ class ToolRouter:
             "firewall_reload": {},
             "system_users": {},
             "network_interfaces": {},
-            "theme_apply": {"name": "string"},
+            "set_theme": {"theme": "string"},
+            "theme_apply": {"theme": "string"},
             "system_status": {},
         }
 
@@ -134,7 +136,7 @@ class ToolRouter:
                 "data": raw_result,
             }
 
-        if tool_name == "theme_apply":
+        if tool_name in ("set_theme", "theme_apply"):
             ok = bool(raw_result.get("ok", raw_result.get("applied", False))) if isinstance(raw_result, dict) else True
             return {
                 "ok": ok,

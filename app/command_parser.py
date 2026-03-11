@@ -5,10 +5,28 @@ Detects system commands before any LLM or RAG step.
 This prevents LLM hallucination and makes system queries instant.
 """
 
+import json
+
 
 def parse_command(text: str):
     # Normalize command text while preserving deterministic behavior.
     text = text.strip()
+    if not text:
+        return None
+
+    if text.startswith("{"):
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError:
+            payload = None
+
+        if isinstance(payload, dict):
+            command = str(payload.get("command", "")).strip().lower()
+            if command == "set_theme":
+                theme = str(payload.get("theme", "")).strip()
+                if theme:
+                    return ("set_theme", {"theme": theme.lower()})
+
     if text.startswith(">") or text.startswith("$"):
         text = text[1:].strip()
     text = text.lower()
@@ -30,10 +48,15 @@ def parse_command(text: str):
     if text == "firewall reload":
         return ("firewall_reload", {})
 
+    if text.startswith("set theme "):
+        theme = text.split("set theme ", 1)[1].strip()
+        if theme:
+            return ("set_theme", {"theme": theme})
+
     if text.startswith("switch theme "):
         theme = text.split("switch theme ", 1)[1].strip()
         if theme:
-            return ("theme_apply", {"name": theme})
+            return ("set_theme", {"theme": theme})
 
     # Optional UI navigation commands for frontend handling.
     if text == "open firewall page":

@@ -115,12 +115,21 @@
       }
     },
     {
+      "name": "set_theme",
+      "description": "Apply one theme through the deterministic theme service",
+      "method": "POST",
+      "endpoint": "/api/theme/theme/{theme}/apply",
+      "parameters": {
+        "theme": "string"
+      }
+    },
+    {
       "name": "theme_apply",
       "description": "Apply one theme",
       "method": "POST",
-      "endpoint": "/api/theme/theme/{name}/apply",
+      "endpoint": "/api/theme/theme/{theme}/apply",
       "parameters": {
-        "name": "string"
+        "theme": "string"
       }
     },
     {
