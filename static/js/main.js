@@ -361,3 +361,29 @@ async function loadNavigation() {
     }
   });
 }
+
+
+/* =====================================================
+   THEME EVENT LISTENER
+   Applies theme variables from backend theme events
+   ===================================================== */
+
+window.addEventListener("lady:theme-applied", (e) => {
+  const detail = e.detail || {};
+
+  const css =
+    detail?.css ||
+    detail?.css_variables ||
+    detail?.theme?.css_variables;
+
+  if (!css) {
+    console.warn("Theme event received but no CSS variables found", detail);
+    return;
+  }
+
+  Object.entries(css).forEach(([key, value]) => {
+    document.documentElement.style.setProperty(key, value);
+  });
+
+  console.log("[THEME_APPLIED]", css);
+});
