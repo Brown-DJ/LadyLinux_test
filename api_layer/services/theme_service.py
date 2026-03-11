@@ -141,6 +141,7 @@ def apply_theme(theme: str) -> dict:
         "ok": True,
         "applied": True,
         "active_theme": theme_payload["name"],
+        "css": theme_payload["css_variables"],
         "theme": theme_payload,
         "event": event_payload,
     }

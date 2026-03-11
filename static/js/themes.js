@@ -79,15 +79,15 @@ function normalizeBackendTheme(theme) {
       name: theme.name,
       display_name: theme.display_name,
       css_variables: css,
-      "bg-main": css["--bg"] || "#1C1F26",
-      "bg-surface": css["--panel"] || css["--bg"] || "#242833",
-      "bg-elevated": css["--panel"] || css["--bg"] || "#2B3040",
-      "bg-input": css["--panel"] || css["--bg"] || "#2E3340",
-      "text-main": css["--text"] || "#F7F9FC",
-      "text-heading": css["--text"] || "#FFFFFF",
+      "bg-main": css["--bg-main"] || "#1C1F26",
+      "bg-surface": css["--bg-surface"] || css["--bg-panel"] || css["--bg-main"] || "#242833",
+      "bg-elevated": css["--bg-panel"] || css["--bg-surface"] || css["--bg-main"] || "#2B3040",
+      "bg-input": css["--bg-panel"] || css["--bg-surface"] || css["--bg-main"] || "#2E3340",
+      "text-main": css["--text-main"] || "#F7F9FC",
+      "text-heading": css["--text-main"] || "#FFFFFF",
       accent: css["--accent"] || "#C4B5FD",
       "accent-hover": css["--accent"] || "#D6CBFF",
-      "border-soft": css["--panel"] || "#3A3F4F",
+      "border-soft": css["--border-color"] || "#3A3F4F",
       "radius-large": "18px",
       "radius-medium": "12px",
       "radius-small": "8px",
@@ -327,16 +327,16 @@ function themeTokensToCssVars(themeInput) {
 
   const cssVars = {};
   const tokenMap = {
-    "bg-main": "--color-bg-main",
-    "bg-surface": "--color-bg-surface",
-    "bg-elevated": "--color-bg-overlay",
-    "bg-input": "--color-bg-overlay",
-    "text-main": "--color-text-primary",
-    "text-heading": "--color-heading",
-    "text-muted": "--color-text-muted",
-    accent: "--color-accent-primary",
-    "accent-hover": "--color-accent-hover",
-    "border-soft": "--color-border-soft",
+    "bg-main": "--bg-main",
+    "bg-surface": "--bg-surface",
+    "bg-elevated": "--bg-panel",
+    "bg-input": "--bg-panel",
+    "text-main": "--text-main",
+    "text-heading": "--text-main",
+    "text-muted": "--text-muted",
+    accent: "--accent",
+    "accent-hover": "--accent-hover",
+    "border-soft": "--border-color",
     "radius-small": "--radius-small",
     "radius-medium": "--radius-medium",
     "radius-large": "--radius-large",
@@ -372,10 +372,10 @@ function themeTokensToCssVars(themeInput) {
     cssVars["--ui-density-scale"] = SPACING_SCALE_MAP[themeInput["spacing-scale"]].density;
   }
 
-  if (cssVars["--color-accent-primary"]) {
-    const accent = normalizeHex(cssVars["--color-accent-primary"], "#C4B5FD");
+  if (cssVars["--accent"]) {
+    const accent = normalizeHex(cssVars["--accent"], "#C4B5FD");
     cssVars["--color-focus-ring"] = toRgba(accent, 0.4);
-    cssVars["--color-accent-soft"] = toRgba(accent, 0.12);
+    cssVars["--accent-soft"] = toRgba(accent, 0.12);
     cssVars["--color-on-accent"] = luminance(accent) > 0.55 ? "#111827" : "#F7F9FC";
     if (!cssVars["--color-link"]) {
       cssVars["--color-link"] = accent;
@@ -674,7 +674,7 @@ function renderThemePreviews() {
     const preview = card.querySelector(".theme-preview");
     if (preview && THEMES[key]) {
       preview.style.background = profilePreviewGradient(themeToProfile(THEMES[key]));
-      preview.style.borderColor = "var(--color-border-soft)";
+      preview.style.borderColor = "var(--border-color)";
     }
   });
 }
@@ -742,11 +742,11 @@ function loadCustomPreview(slotKey) {
   const themeConfig = THEMES[slotKey];
   if (!themeConfig) {
     preview.style.background = "transparent";
-    preview.style.border = "1px dashed var(--color-border-soft)";
+    preview.style.border = "1px dashed var(--border-color)";
     return;
   }
 
-  preview.style.border = "1px solid var(--color-border-soft)";
+  preview.style.border = "1px solid var(--border-color)";
   preview.style.background = profilePreviewGradient(themeToProfile(themeConfig));
 }
 

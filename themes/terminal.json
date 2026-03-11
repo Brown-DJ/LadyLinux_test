@@ -2,9 +2,12 @@
   "name": "terminal",
   "display_name": "Terminal",
   "css_variables": {
-    "--bg": "#000000",
-    "--panel": "#050505",
+    "--bg-main": "#000000",
+    "--bg-surface": "#050505",
+    "--bg-panel": "#050505",
     "--accent": "#00ff9c",
-    "--text": "#e5ffe5"
+    "--text-main": "#e5ffe5",
+    "--text-muted": "#9dd89d",
+    "--border-color": "#143126"
   }
 }

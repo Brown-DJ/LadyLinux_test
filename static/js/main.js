@@ -196,6 +196,12 @@ function updateThemeIndicator() {
   themeEl.textContent = theme === "soft" ? "softcore" : theme;
 }
 
+function applyThemeCssVars(cssVars) {
+  Object.entries(cssVars || {}).forEach(([key, value]) => {
+    document.documentElement.style.setProperty(key, value);
+  });
+}
+
 function syncOverviewFromDocument() {
   const themeKey = localStorage.getItem("lady-theme");
   const theme = typeof window.getThemeLabel === "function"
@@ -282,9 +288,7 @@ async function initializeApp() {
       const css = data.css || data.css_variables;
 
       if (css) {
-        Object.entries(css).forEach(([key, value]) => {
-          document.documentElement.style.setProperty(key, value);
-        });
+        applyThemeCssVars(css);
       }
 
       const themeLabel = data.label || data.display_name || data.theme || "Custom";
@@ -368,22 +372,4 @@ async function loadNavigation() {
    Applies theme variables from backend theme events
    ===================================================== */
 
-window.addEventListener("lady:theme-applied", (e) => {
-  const detail = e.detail || {};
-
-  const css =
-    detail?.css ||
-    detail?.css_variables ||
-    detail?.theme?.css_variables;
-
-  if (!css) {
-    console.warn("Theme event received but no CSS variables found", detail);
-    return;
-  }
-
-  Object.entries(css).forEach(([key, value]) => {
-    document.documentElement.style.setProperty(key, value);
-  });
-
-  console.log("[THEME_APPLIED]", css);
-});
+window.applyThemeCssVars = applyThemeCssVars;

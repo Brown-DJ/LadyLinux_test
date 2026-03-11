@@ -579,6 +579,11 @@ async function sendPrompt(prompt) {
 
     if (data.route === "command" && data.tool === "set_theme") {
       const event = data.data?.event || data.data;
+      const css = data.data?.css || event?.css || event?.css_variables;
+
+      if (css && typeof window.applyThemeCssVars === "function") {
+        window.applyThemeCssVars(css);
+      }
 
       window.dispatchEvent(
         new CustomEvent("lady:theme-applied", {
