@@ -273,10 +273,12 @@ async function initializeApp() {
       applyActionSummary(event.detail || {});
       syncOverviewFromDocument();
     });
-    document.addEventListener("lady:theme-applied", (event) => {
+    const handleThemeApplied = (event) => {
       const themeLabel = event.detail?.label || event.detail?.theme || "Custom";
       updateOverviewStatus("theme", themeLabel);
-    });
+    };
+    document.addEventListener("lady:theme-applied", handleThemeApplied);
+    window.addEventListener("lady:theme-applied", handleThemeApplied);
   } catch (err) {
     console.error("Initialization error:", err);
   } finally {

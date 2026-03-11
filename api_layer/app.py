@@ -31,6 +31,7 @@ from rag_layer.retriever import build_context_block, retrieve
 from rag_layer.seed import seed
 from rag_layer.vector_store import COLLECTION_NAME, client, ensure_collection
 from llm_runtime import ensure_model
+from app.command_gateway import handle_prompt
 from app.response_formatter import format_command_response
 from app.shell_router import run_shell_command
 from app.tool_router import ToolRouter, ToolRouterError
@@ -208,6 +209,29 @@ Relevant project context:
     return tool_name, parameters
 
 
+def _command_hint_block() -> str:
+    """
+    Expose the deterministic tool contract to the model so it can emit only
+    supported structured commands instead of hallucinating actions.
+    """
+    manifest = TOOL_ROUTER.get_tools_manifest()
+    command_names = [tool.get("name", "") for tool in manifest.get("tools", []) if tool.get("name")]
+    command_list = "\n".join(f"- {name}" for name in command_names) or "- No commands available"
+    return f"""
+COMMAND KERNEL
+You can execute system commands through a deterministic backend kernel.
+
+Available commands:
+{command_list}
+
+When a request matches a command, respond with JSON:
+{{
+  "command": "set_theme",
+  "theme": "terminal"
+}}
+"""
+
+
 def handle_tool_prompt(prompt: str) -> dict[str, Any]:
     tool_name, tool_parameters = _plan_tool_call(prompt, "")
     if not tool_name:
@@ -222,6 +246,8 @@ def handle_rag_prompt(prompt: str) -> tuple[str, list[dict], str]:
     system_prompt = f"""
 SYSTEM CAPABILITIES
 {CAPABILITY_BLOCK}
+
+{_command_hint_block()}
 
 RELEVANT PROJECT FILES
 {context_text or "No relevant Lady Linux project context was retrieved."}
@@ -253,6 +279,8 @@ def handle_hybrid_prompt(prompt: str) -> tuple[str, dict[str, Any] | None, list[
 SYSTEM CAPABILITIES
 {CAPABILITY_BLOCK}
 
+{_command_hint_block()}
+
 RELEVANT PROJECT FILES
 {context_text or "No relevant Lady Linux project context was retrieved."}
 
@@ -276,6 +304,8 @@ def handle_chat_prompt(prompt: str) -> str:
     chat_prompt = f"""
 You are Lady Linux, a Linux assistant. Keep responses concise and accurate.
 If a live system action is required, say to use a supported API tool.
+
+{_command_hint_block()}
 
 User question:
 {prompt}
@@ -401,37 +431,50 @@ def ask_phi3_get(prompt: str):
 @app.post("/ask_rag")
 async def ask_rag(req: PromptRequest):
     # Pipeline architecture:
-    # 1) shell router (command parser + direct tool execution) fast path
+    # 1) deterministic command kernel fast path
     # 2) RAG for documentation/explanations
     # 3) LLM chat fallback
     prompt = req.prompt
-    shell_result = run_shell_command(prompt)
+    gateway_result = handle_prompt(prompt)
 
-    # COMMAND EXECUTION
-    if isinstance(shell_result, dict) and shell_result.get("type") == "command":
-        formatted_answer = format_command_response(shell_result["tool"], shell_result["result"])
+    # Deterministic commands always execute before retrieval so UI requests
+    # follow the command_parser -> command_gateway -> tool_router -> service path.
+    if isinstance(gateway_result, dict) and gateway_result.get("type") == "tool":
+        payload = gateway_result.get("result", {})
         return JSONResponse(
             content={
-                "answer": formatted_answer,
-                "response": formatted_answer,
                 "route": "command",
-                "tool": shell_result["tool"],
-                "tool_result": shell_result["result"],
+                "message": payload.get("message", "Command executed"),
+                "tool": gateway_result.get("tool"),
+                "data": payload,
             }
         )
 
-    if isinstance(shell_result, dict) and shell_result.get("type") == "error":
+    if isinstance(gateway_result, dict) and gateway_result.get("type") == "ui":
         return JSONResponse(
             content={
-                "answer": f"Command failed: {shell_result['error']}",
+                "answer": f"UI action: {gateway_result['action']}",
+                "response": f"UI action: {gateway_result['action']}",
+                "route": "ui",
+                "action": gateway_result["action"],
+                "action_args": gateway_result.get("args", {}),
+            }
+        )
+
+    if isinstance(gateway_result, dict) and gateway_result.get("type") == "error":
+        return JSONResponse(
+            content={
+                "answer": f"Command failed: {gateway_result['error']}",
+                "response": f"Command failed: {gateway_result['error']}",
                 "route": "error",
+                "tool": gateway_result.get("tool"),
             }
         )
 
     route = classify_prompt(prompt)
 
     try:
-        # After shell command handling, non-command prompts follow the
+        # After deterministic command handling, non-command prompts follow the
         # documentation/explanation path or conversational fallback.
         if route in ("rag", "tool"):
             output, context_results, domain = handle_rag_prompt(prompt)
@@ -485,6 +528,18 @@ async def ask_rag(req: PromptRequest):
             suggestion="Verify Ollama runtime availability at http://127.0.0.1:11434.",
             status_code=502,
         )
+
+
+@app.post("/api/prompt")
+async def prompt(req: PromptRequest):
+    """
+    Transport compatibility layer.
+
+    The frontend currently sends prompts to /api/prompt.
+    Internally forward the request to the command kernel route
+    implemented in /ask_rag so the UI does not need modification.
+    """
+    return await ask_rag(req)
 
 
 @app.post("/ask")

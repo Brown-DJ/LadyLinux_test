@@ -560,13 +560,36 @@ async function sendPrompt(prompt) {
 
   const contentType = response.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {
-    const data = await response.json();
+    const responseClone = response.clone();
+    let data;
+
+    try {
+      data = await response.json();
+    } catch (err) {
+      const text = await responseClone.text().catch(() => "");
+      console.error("Invalid JSON response:", text);
+      throw new Error("Backend returned invalid JSON");
+    }
+
     // Persist metadata so Dev Mode can append diagnostics for the same request.
     lastRagMeta = {
       model: data?.model || "mistral",
       retrievedChunks: Number.isFinite(data?.retrieved_chunks) ? data.retrieved_chunks : 0,
     };
-    return data?.response || "";
+
+    if (data.route === "command" && data.tool === "set_theme") {
+      window.dispatchEvent(
+        new CustomEvent("lady:theme-applied", {
+          detail: { theme: data?.data?.active_theme },
+        })
+      );
+    }
+
+    if (data.route === "command") {
+      return data.message || "Command executed";
+    }
+
+    return data?.response || data?.answer || "";
   }
 
   // Reset metadata when backend does not return structured JSON.
