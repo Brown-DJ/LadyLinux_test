@@ -1,0 +1,10 @@
+{
+  "name": "crimson",
+  "display_name": "Crimson",
+  "css_variables": {
+    "--bg": "#0d0000",
+    "--panel": "#1a0000",
+    "--accent": "#ff2e2e",
+    "--text": "#ffffff"
+  }
+}

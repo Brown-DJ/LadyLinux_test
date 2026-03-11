@@ -1,0 +1,10 @@
+{
+  "name": "terminal",
+  "display_name": "Terminal",
+  "css_variables": {
+    "--bg": "#000000",
+    "--panel": "#050505",
+    "--accent": "#00ff9c",
+    "--text": "#e5ffe5"
+  }
+}

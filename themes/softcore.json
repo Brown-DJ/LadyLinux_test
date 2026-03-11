@@ -1,0 +1,10 @@
+{
+  "name": "softcore",
+  "display_name": "Soft Core",
+  "css_variables": {
+    "--bg": "#181926",
+    "--panel": "#24283b",
+    "--accent": "#c4b5fd",
+    "--text": "#f8fafc"
+  }
+}

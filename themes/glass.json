@@ -1,0 +1,10 @@
+{
+  "name": "glass",
+  "display_name": "Glass",
+  "css_variables": {
+    "--bg": "#0f172a",
+    "--panel": "rgba(255,255,255,0.08)",
+    "--accent": "#7dd3fc",
+    "--text": "#f8fafc"
+  }
+}
