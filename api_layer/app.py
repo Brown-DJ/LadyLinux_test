@@ -32,11 +32,8 @@ from rag_layer.retriever import build_context_block, retrieve
 from rag_layer.seed import seed
 from rag_layer.vector_store import COLLECTION_NAME, client, ensure_collection
 from llm_runtime import ensure_model
-from app.command_gateway import handle_prompt
-from app.response_formatter import format_command_response
-from app.shell_router import run_shell_command
+from app.command_kernel import evaluate_prompt
 from app.tool_router import ToolRouter, ToolRouterError
-from app.ui_intent_parser import detect_ui_intent
 
 logging.basicConfig(
     level=logging.INFO,
@@ -84,6 +81,10 @@ RAG context should be used for explanation and project knowledge only.
 # tools.json is the single source of truth for allowed tool calls.
 # Add new tools there (and implement matching API routes) instead of prompt text.
 TOOL_ROUTER = ToolRouter()
+TOOL_NAME_MAP = {
+    "list_services": "system_services",
+    "restart_service": "system_service_restart",
+}
 
 
 class PromptRequest(BaseModel):
@@ -246,6 +247,55 @@ def handle_tool_prompt(prompt: str) -> dict[str, Any]:
     if not tool_name:
         raise ToolRouterError("No tool selected for tool-routed request")
     return TOOL_ROUTER.execute(tool_name, tool_parameters)
+
+
+def execute_tool(tool_name: str, args: dict[str, Any] | None = None) -> dict[str, Any]:
+    args = args or {}
+    if tool_name == "set_ui_override":
+        return {
+            "ok": True,
+            "message": "UI updated",
+            "data": args,
+        }
+
+    mapped_tool = TOOL_NAME_MAP.get(tool_name, tool_name)
+    return TOOL_ROUTER.execute(mapped_tool, args)
+
+
+def run_command_kernel(prompt: str) -> dict[str, Any] | None:
+    logger.info(f"[COMMAND_KERNEL] evaluating prompt: {prompt}")
+    kernel_result = evaluate_prompt(prompt)
+    logger.info(f"[COMMAND_KERNEL] result: {kernel_result}")
+
+    if not kernel_result:
+        return None
+
+    if kernel_result["type"] == "error":
+        return {
+            "status_code": 400,
+            "content": {
+                "route": "command_error",
+                "message": kernel_result["error"],
+                "tool": kernel_result.get("tool"),
+            },
+        }
+
+    if kernel_result["type"] == "tool":
+        tool_name = kernel_result["tool"]
+        args = kernel_result.get("args", {})
+        logger.info(f"[TOOL_ROUTER] executing tool: {tool_name}")
+        result = execute_tool(tool_name, args)
+        return {
+            "status_code": 200,
+            "content": {
+                "route": "command",
+                "message": result.get("message", "Command executed"),
+                "tool": tool_name,
+                "data": result,
+            },
+        }
+
+    return None
 
 
 def handle_rag_prompt(prompt: str) -> tuple[str, list[dict], str]:
@@ -456,19 +506,11 @@ async def ask_rag(req: PromptRequest):
     prompt = req.prompt
 
     try:
-        # ---------- UI INTENT FAST PATH ----------
-        ui_intent = detect_ui_intent(prompt)
-
-        if ui_intent:
-            logger.info(f"[UI_INTENT] detected: {ui_intent}")
-
+        kernel_response = run_command_kernel(prompt)
+        if kernel_response is not None:
             return JSONResponse(
-                content={
-                    "route": "command",
-                    "message": "UI updated",
-                    "tool": ui_intent["tool"],
-                    "data": ui_intent["result"],
-                }
+                status_code=kernel_response["status_code"],
+                content=kernel_response["content"],
             )
 
         # ---------------------------------------------------------
@@ -476,8 +518,9 @@ async def ask_rag(req: PromptRequest):
         # ---------------------------------------------------------
         logger.info(f"[COMMAND_KERNEL] evaluating prompt: {prompt}")
 
-        # --- COMMAND KERNEL ---
-        gateway_result = handle_prompt(prompt)
+        # Legacy gateway disabled: unified command kernel runs first and owns
+        # command detection for this request path.
+        gateway_result = {"type": None}
 
         logger.info(f"[COMMAND_KERNEL] result: {gateway_result}")
 
@@ -624,26 +667,12 @@ async def prompt(req: PromptRequest):
 @app.post("/ask")
 async def ask(req: PromptRequest):
     """
-    Unified chat endpoint that shares the hybrid shell pipeline with /ask_rag:
-    command shell first, then RAG/LLM fallback.
+    Unified chat endpoint that shares the deterministic command kernel with
+    /ask_rag before falling back to RAG/LLM.
     """
-    shell_result = run_shell_command(req.prompt)
-
-    if isinstance(shell_result, dict) and shell_result.get("type") == "command":
-        formatted_answer = format_command_response(shell_result["tool"], shell_result["result"])
-        return {
-            "answer": formatted_answer,
-            "response": formatted_answer,
-            "route": "command",
-            "tool": shell_result["tool"],
-            "tool_result": shell_result["result"],
-        }
-
-    if isinstance(shell_result, dict) and shell_result.get("type") == "error":
-        return {
-            "answer": f"Command failed: {shell_result['error']}",
-            "route": "error",
-        }
+    kernel_response = run_command_kernel(req.prompt)
+    if kernel_response is not None:
+        return kernel_response["content"]
 
     route = classify_prompt(req.prompt)
     if route == "rag":
