@@ -585,6 +585,20 @@ async function sendPrompt(prompt) {
       );
     }
 
+    if (data.tool === "set_ui_override" && data.data) {
+      const overrides = data.data;
+
+      Object.entries(overrides).forEach(([key, value]) => {
+        document.documentElement.style.setProperty(key, value);
+      });
+
+      appendChatLine("Lady Linux", data.message || "UI updated");
+
+      console.log("[UI_OVERRIDE]", overrides);
+
+      return;
+    }
+
     if (data.route === "command") {
       return data.message || "Command executed";
     }

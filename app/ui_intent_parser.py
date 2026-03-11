@@ -51,6 +51,30 @@ def detect_ui_intent(text: str):
                     },
                 }
 
+    # ---------- SURFACE ----------
+    if "surface" in text:
+        for name, hexval in COLOR_MAP.items():
+            if name in text:
+                return {
+                    "type": "tool",
+                    "tool": "set_ui_override",
+                    "result": {
+                        "--panel": hexval,
+                    },
+                }
+
+    # ---------- TEXT COLOR ----------
+    if "text color" in text:
+        for name, hexval in COLOR_MAP.items():
+            if name in text:
+                return {
+                    "type": "tool",
+                    "tool": "set_ui_override",
+                    "result": {
+                        "--text": hexval,
+                    },
+                }
+
     # ---------- ACCENT COLOR ----------
     if "accent" in text:
         for name, hexval in COLOR_MAP.items():
