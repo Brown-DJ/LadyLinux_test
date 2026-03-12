@@ -11,12 +11,20 @@ except ImportError:  # pragma: no cover - optional dependency
     psutil = None
 
 START_TIME = time.time()
+_last_status: dict[str, Any] | None = None
+_last_status_time = 0.0
 
 
 def get_status() -> dict[str, Any]:
+    # Cache status briefly to avoid repeated psutil sampling in one request cycle.
+    global _last_status, _last_status_time
+    now = time.time()
+    if _last_status is not None and now - _last_status_time < 1.0:
+        return dict(_last_status)
+
     if psutil is None:
         disk = shutil.disk_usage("/")
-        return {
+        status = {
             "cpu": None,
             "memory_used": None,
             "memory_total": None,
@@ -25,10 +33,13 @@ def get_status() -> dict[str, Any]:
             "uptime": int(time.time() - START_TIME),
             "arch": platform.machine(),
         }
+        _last_status = status
+        _last_status_time = now
+        return dict(status)
 
     memory = psutil.virtual_memory()
     disk = psutil.disk_usage("/")
-    return {
+    status = {
         "cpu": float(psutil.cpu_percent(interval=0.2)),
         "memory_used": int(memory.used),
         "memory_total": int(memory.total),
@@ -37,6 +48,9 @@ def get_status() -> dict[str, Any]:
         "uptime": int(time.time() - START_TIME),
         "arch": platform.machine(),
     }
+    _last_status = status
+    _last_status_time = now
+    return dict(status)
 
 
 def get_cpu() -> dict[str, Any]:

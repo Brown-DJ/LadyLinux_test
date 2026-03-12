@@ -11,18 +11,7 @@ import os
 import subprocess
 from typing import Any
 
-# Security control:
-# Only these base commands are allowed to execute through subprocess.
-# This blocks accidental or malicious execution of arbitrary shell commands.
-ALLOWED_COMMANDS = {
-    "ufw",
-    "who",
-    "systemctl",
-    "iptables",
-    "nft",
-    "useradd",
-    "passwd",
-}
+from api_layer.utils.command_runner import ALLOWED_COMMANDS
 
 
 def _command_name(command: list[str]) -> str:

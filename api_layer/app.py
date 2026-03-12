@@ -119,7 +119,7 @@ def _error_payload(
     return JSONResponse(content=payload, status_code=status_code)
 
 
-def classify_prompt(message: str) -> Literal["tool", "rag", "chat"]:
+def classify_prompt(message: str) -> Literal["system", "rag", "chat"]:
     text = message.lower().strip()
 
     command_words = (
@@ -141,8 +141,9 @@ def classify_prompt(message: str) -> Literal["tool", "rag", "chat"]:
         "docs",
     )
 
+    # System-intent prompts should stay out of the RAG path.
     if any(x in text for x in command_words):
-        return "tool"
+        return "system"
 
     if any(x in text for x in knowledge_words):
         return "rag"
@@ -284,6 +285,8 @@ def run_command_kernel(prompt: str) -> dict[str, Any] | None:
         tool_name = kernel_result["tool"]
         args = kernel_result.get("args", {})
         logger.info(f"[TOOL_ROUTER] executing tool: {tool_name}")
+
+        # Theme updates go through the tool router directly.
         result = execute_tool(tool_name, args)
         if tool_name == "set_theme":
             return {
@@ -295,6 +298,8 @@ def run_command_kernel(prompt: str) -> dict[str, Any] | None:
                     "message": f"Theme switched to {args.get('theme')}",
                 },
             }
+
+        # Default command responses keep the existing payload contract.
         return {
             "status_code": 200,
             "content": {
@@ -487,7 +492,8 @@ def os_page(request: Request):
     return templates.TemplateResponse("os.html", {"request": request})
 
 
-@app.post("/ask_phi3")
+# Legacy: previously targeted phi3, now routes to mistral via Ollama.
+@app.post("/ask_llm")
 async def ask_phi3_post(req: PromptRequest):
     try:
         return PlainTextResponse(content=_ollama_generate(req.prompt, model="mistral"))
@@ -495,7 +501,7 @@ async def ask_phi3_post(req: PromptRequest):
         raise HTTPException(status_code=502, detail=f"LLM request failed: {exc}") from exc
 
 
-@app.get("/ask_phi3")
+@app.get("/ask_llm")
 def ask_phi3_get(prompt: str):
     try:
         return {"output": _ollama_generate(prompt, model="mistral")}
@@ -524,61 +530,30 @@ async def ask_rag(req: PromptRequest):
             )
 
         # ---------------------------------------------------------
-        # STEP 1 — COMMAND KERNEL
-        # ---------------------------------------------------------
-        logger.info(f"[COMMAND_KERNEL] evaluating prompt: {prompt}")
-
-        # Legacy gateway disabled: unified command kernel runs first and owns
-        # command detection for this request path.
-        gateway_result = {"type": None}
-
-        logger.info(f"[COMMAND_KERNEL] result: {gateway_result}")
-
-        if isinstance(gateway_result, dict) and gateway_result.get("type") == "tool":
-            logger.info(f"[TOOL_ROUTER] executing tool: {gateway_result.get('tool')}")
-            payload = gateway_result.get("result", {})
-
-            return JSONResponse(
-                content={
-                    "route": "command",
-                    "message": payload.get("message", "Command executed"),
-                    "tool": gateway_result.get("tool"),
-                    "data": payload,
-                }
-            )
-
-        # Command errors must also return immediately
-        if isinstance(gateway_result, dict) and gateway_result.get("type") == "error":
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "route": "command_error",
-                    "message": gateway_result.get("error", "Command failed"),
-                    "tool": gateway_result.get("tool"),
-                }
-            )
-
-        if isinstance(gateway_result, dict) and gateway_result.get("type") == "ui":
-            return JSONResponse(
-                content={
-                    "route": "ui",
-                    "message": f"UI action: {gateway_result.get('action')}",
-                    "action": gateway_result.get("action"),
-                    "action_args": gateway_result.get("args", {}),
-                }
-            )
-
-        # ---------------------------------------------------------
-        # STEP 2 — PROMPT ROUTING
+        # STEP 1 — PROMPT ROUTING
         # ---------------------------------------------------------
         route = classify_prompt(prompt)
 
         logger.info(f"[ROUTER] classified route: {route}")
 
         # ---------------------------------------------------------
+        # STEP 2 — ROUTED EXECUTION
+        # ---------------------------------------------------------
+        if route == "system":
+            tool_result = handle_tool_prompt(prompt)
+            return JSONResponse(
+                content={
+                    "route": "tool",
+                    "message": tool_result.get("message", "Tool executed"),
+                    "tool": tool_result.get("tool"),
+                    "data": tool_result,
+                }
+            )
+
+        # ---------------------------------------------------------
         # STEP 3 — RAG PATH
         # ---------------------------------------------------------
-        if route in ("rag", "tool"):
+        if route == "rag":
             output, context_results, domain = handle_rag_prompt(prompt)
 
             return JSONResponse(
@@ -685,6 +660,10 @@ async def ask(req: PromptRequest):
         return kernel_response["content"]
 
     route = classify_prompt(req.prompt)
+    # System prompts execute deterministic tools instead of entering RAG.
+    if route == "system":
+        result = handle_tool_prompt(req.prompt)
+        return {"type": "tool", "message": result.get("message", "Tool executed"), "data": result}
     if route == "rag":
         output, context_results, domain = handle_rag_prompt(req.prompt)
         return {
@@ -737,18 +716,22 @@ Explain this firewall configuration clearly for a Linux user.
 
 
 def log_action(action: str, target: str, status: str) -> None:
-    with open(LOG_FILE, "a", encoding="utf-8") as handle:
-        handle.write(
-            json.dumps(
-                {
-                    "time": datetime.now().isoformat(),
-                    "action": action,
-                    "target": target,
-                    "status": status,
-                }
+    # Logging failures should not break request handling.
+    try:
+        with open(LOG_FILE, "a", encoding="utf-8") as handle:
+            handle.write(
+                json.dumps(
+                    {
+                        "time": datetime.now().isoformat(),
+                        "action": action,
+                        "target": target,
+                        "status": status,
+                    }
+                )
+                + "\n"
             )
-            + "\n"
-        )
+    except OSError as exc:
+        logger.warning("Action log write failed: %s", exc)
 
 
 @app.post("/disable_service")

@@ -41,20 +41,13 @@ VALID_TOOLS = {
 
 def evaluate_prompt(text: str):
     text = text.lower().strip()
+    parts = text.split()
 
     # ------------------------------------------------
     # DIRECT TOOL SYNTAX
     # ------------------------------------------------
-    if "_" in text:
-        parts = text.split()
+    if parts and parts[0] in VALID_TOOLS:
         tool = parts[0]
-
-        if tool not in VALID_TOOLS:
-            return {
-                "type": "error",
-                "tool": tool,
-                "error": f"Unknown tool '{tool}'",
-            }
 
         if tool == "set_theme":
             if len(parts) != 2:

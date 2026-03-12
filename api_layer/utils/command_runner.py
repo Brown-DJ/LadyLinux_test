@@ -5,17 +5,23 @@ from typing import Iterable
 
 from api_layer.models.command import CommandResult
 
-ALLOWED_BINARIES = {
-    "systemctl",
-    "ufw",
-    "ip",
-    "ss",
-    "df",
-    "du",
-    "journalctl",
-    "apt-cache",
-    "dpkg-query",
-    "apt-get",
+# Shared subprocess allowlist for route handlers and security wrappers.
+ALLOWED_COMMANDS = {
+    "apt-cache",  # Read package metadata without mutating the system.
+    "apt-get",  # System package install/update operations exposed by the API.
+    "df",  # Disk capacity inspection for storage views.
+    "dpkg-query",  # Installed package queries for package status endpoints.
+    "du",  # Directory size inspection for storage tooling.
+    "ip",  # Network interface and address inspection.
+    "iptables",  # Firewall rule inspection/management compatibility.
+    "journalctl",  # Service and system log retrieval.
+    "nft",  # nftables firewall inspection/management compatibility.
+    "passwd",  # Password management flows routed through controlled endpoints.
+    "ss",  # Socket and listening-port inspection.
+    "systemctl",  # Service lifecycle and status management.
+    "ufw",  # UFW firewall inspection and control.
+    "useradd",  # User creation flows routed through controlled endpoints.
+    "who",  # Logged-in user inspection.
 }
 
 
@@ -30,7 +36,7 @@ def run_command(command: Iterable[str], timeout: int = 15) -> CommandResult:
         return CommandResult(ok=False, stdout="", stderr="Empty command", returncode=2)
 
     binary = cmd[0].strip().lower()
-    if binary not in ALLOWED_BINARIES:
+    if binary not in ALLOWED_COMMANDS:
         return CommandResult(
             ok=False,
             stdout="",
