@@ -273,30 +273,29 @@ function themeToProfile(theme) {
     return theme;
   }
 
-  return flatThemeToProfile(theme && typeof theme === "object" ? theme : {});
-}
+  const tokenTheme = theme && typeof theme === "object" ? theme : {};
+  const fontSize = FONT_SIZE_MAP[tokenTheme["font-size"] || "normal"] || FONT_SIZE_MAP.normal;
+  const spacingScale = SPACING_SCALE_MAP[tokenTheme["spacing-scale"] || "normal"] || SPACING_SCALE_MAP.normal;
 
-// Preset themes are normalized into the DesignEngine profile contract.
-function flatThemeToProfile(flat) {
   return {
     palette: {
-      bg_main: flat["bg-main"] ?? "#1C1F26",
-      accent_primary: flat.accent ?? "#C4B5FD",
-      text_mode: flat.text_mode ?? "auto",
+      bg_main: tokenTheme["bg-main"] || "#1C1F26",
+      accent_primary: tokenTheme.accent || tokenTheme["link-color"] || "#C4B5FD",
+      text_mode: inferTextMode(tokenTheme),
     },
     typography: {
-      font_family: flat["font-family"] ?? "Inter",
-      base_size: flat["base-size"] ?? 16,
-      scale: flat.scale ?? 1.0,
+      font_family: "Inter",
+      base_size: toNumber(fontSize.base, 16),
+      scale: toNumber(fontSize.scale, 1),
     },
     shape: {
-      radius: flat.radius ?? 12,
-      density: flat.density ?? 1.0,
+      radius: toNumber(tokenTheme["radius-medium"], 12),
+      density: toNumber(spacingScale.density, 1),
     },
     effects: {
-      shadow_strength: flat["shadow-strength"] ?? 0.25,
-      motion_speed: flat["motion-speed"] ?? 150,
-      glow_intensity: flat["glow-intensity"] ?? 0.2,
+      shadow_strength: tokenTheme["shadow-main"] === "none" ? 0 : 0.25,
+      motion_speed: Math.round(toNumber(tokenTheme["transition-speed"], 0.15) * 1000),
+      glow_intensity: 0.2,
     },
   };
 }
@@ -384,6 +383,13 @@ function themeTokensToCssVars(themeInput) {
   }
 
   return cssVars;
+}
+
+function applyCssVarOverrides(cssVars) {
+  const root = document.documentElement;
+  Object.entries(cssVars).forEach(([key, value]) => {
+    root.style.setProperty(key, value);
+  });
 }
 
 function setStoredValue(key, value) {
@@ -539,13 +545,15 @@ function applyTheme(themeInput, options = {}) {
     }).catch((error) => {
       console.error("Backend theme apply error:", error);
     });
+
+    return true;
   }
 
   const themeConfig = getThemeConfig(themeInput);
   if (!themeConfig || !window.DesignEngine) return false;
 
-  // Preset themes now flow through DesignEngine as the single CSS writer.
-  const profile = flatThemeToProfile(themeConfig);
+  const profile = themeToProfile(themeConfig);
+  const cssVarOverrides = themeTokensToCssVars(themeConfig);
   const persist = options.persist !== false;
   const previousProfile = localStorage.getItem(DESIGN_PROFILE_STORAGE_KEY);
   const previousThemeSelection = localStorage.getItem(THEME_SELECTION_STORAGE_KEY);
@@ -553,6 +561,7 @@ function applyTheme(themeInput, options = {}) {
 
   document.documentElement.setAttribute("data-theme", themeKey);
   window.DesignEngine.setProfile(profile);
+  applyCssVarOverrides(cssVarOverrides);
 
   if (persist) {
     if (typeof themeInput === "string") {
@@ -751,7 +760,6 @@ async function initThemes() {
 window.applyTheme = applyTheme;
 window.applyTemporaryTheme = applyTemporaryTheme;
 window.applyThemeInstructionFromText = applyThemeInstructionFromText;
-window.flatThemeToProfile = flatThemeToProfile;
 window.createDerivedThemeConfig = createDerivedThemeConfig;
 window.getThemeLabel = (themeKey) => THEME_LABELS[themeKey] || themeKey || "Default";
 window.updateActiveThemeCard = updateActiveThemeCard;
