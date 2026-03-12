@@ -124,6 +124,10 @@ function appendChatLine(label, text) {
   response.scrollTop = response.scrollHeight;
 }
 
+function displayMessage(label, text) {
+  appendChatLine(label, text);
+}
+
 function replaceLastAssistantLine(text, options = {}) {
   const { response } = getChatElements();
   if (!response) return;
@@ -577,12 +581,18 @@ async function sendPrompt(prompt) {
       retrievedChunks: Number.isFinite(data?.retrieved_chunks) ? data.retrieved_chunks : 0,
     };
 
-    // Prefer structured UI actions before legacy marker/text scanning.
+    // Structured UI theme actions should rehydrate through DesignEngine.
     if (data.route === "ui" && data.action === "set_theme") {
-      if (typeof window.applyTheme === "function") {
-        window.applyTheme(data.action_args?.theme);
-      }
-      appendChatLine("Lady Linux", data.message || "Theme updated");
+      const themeName = data.action_args?.theme;
+      fetch(`/api/theme/${themeName}`)
+        .then((r) => r.json())
+        .then((themeData) => {
+          if (window.DesignEngine && typeof window.DesignEngine.setProfile === "function" && typeof window.flatThemeToProfile === "function") {
+            window.DesignEngine.setProfile(window.flatThemeToProfile(themeData));
+          }
+        })
+        .catch((err) => console.error("[LadyLinux] Theme fetch failed:", err));
+      displayMessage("Lady Linux", data.message ?? `Theme switched to ${themeName}`);
       return;
     }
 
