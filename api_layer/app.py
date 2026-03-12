@@ -285,6 +285,16 @@ def run_command_kernel(prompt: str) -> dict[str, Any] | None:
         args = kernel_result.get("args", {})
         logger.info(f"[TOOL_ROUTER] executing tool: {tool_name}")
         result = execute_tool(tool_name, args)
+        if tool_name == "set_theme":
+            return {
+                "status_code": 200,
+                "content": {
+                    "route": "ui",
+                    "action": "set_theme",
+                    "action_args": args,
+                    "message": f"Theme switched to {args.get('theme')}",
+                },
+            }
         return {
             "status_code": 200,
             "content": {
