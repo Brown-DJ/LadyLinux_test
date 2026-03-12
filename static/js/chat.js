@@ -577,6 +577,15 @@ async function sendPrompt(prompt) {
       retrievedChunks: Number.isFinite(data?.retrieved_chunks) ? data.retrieved_chunks : 0,
     };
 
+    // Prefer structured UI actions before legacy marker/text scanning.
+    if (data.route === "ui" && data.action === "set_theme") {
+      if (typeof window.applyTheme === "function") {
+        window.applyTheme(data.action_args?.theme);
+      }
+      appendChatLine("Lady Linux", data.message || "Theme updated");
+      return;
+    }
+
     if (data.route === "command" && data.tool === "set_theme") {
       const event = data.data?.event || data.data;
       const css = data.data?.css || event?.css || event?.css_variables;
