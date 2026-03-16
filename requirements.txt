@@ -9,3 +9,5 @@ numpy
 watchdog
 grpcio
 grpcio-tools
+uvicorn[standard]
+websockets
