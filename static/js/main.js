@@ -19,6 +19,7 @@ function updateOverviewStatus(key, value) {
 let currentServicesData = [];
 let currentSortKey = "service";
 let currentSortDirection = "asc";
+let currentServiceFilter = "managed";
 
 const STATUS_SORT_PRIORITY = {
   running: 0,
@@ -130,6 +131,16 @@ function normalizeServices(services) {
   }));
 }
 
+// Managed mode intentionally stays heuristic for now. It keeps the default
+// view focused on Lady Linux and common app services without requiring a new
+// backend classification model.
+function isManagedService(service) {
+  const name = String(service?.name || "").toLowerCase();
+  const allowlist = ["ollama", "docker", "postgres", "redis", "nginx"];
+
+  return name.startsWith("ladylinux-") || allowlist.some((entry) => name === entry || name.startsWith(`${entry}-`));
+}
+
 function formatServiceUptime(seconds) {
   if (!Number.isFinite(seconds) || seconds < 0) return "-";
 
@@ -187,6 +198,14 @@ function getSortedServices(rows) {
   return [...rows].sort((a, b) => compareServiceRows(a, b, currentSortKey, currentSortDirection));
 }
 
+function getVisibleServices(rows) {
+  if (currentServiceFilter === "all") {
+    return rows;
+  }
+
+  return rows.filter((service) => isManagedService(service));
+}
+
 function getSortIconClass(sortKey) {
   if (currentSortKey !== sortKey) return "bi-arrow-down-up";
   return currentSortDirection === "asc" ? "bi-caret-up-fill" : "bi-caret-down-fill";
@@ -222,8 +241,15 @@ function renderServiceTable(rows) {
   const table = document.querySelector("#services-table-body");
   if (!table) return;
 
-  const sortedRows = getSortedServices(rows);
+  const sortedRows = getSortedServices(getVisibleServices(rows));
   table.innerHTML = "";
+
+  if (!sortedRows.length) {
+    table.innerHTML = `<tr><td colspan="4">No ${currentServiceFilter} services match the current view.</td></tr>`;
+    updateSortIndicators();
+    updateServiceFilterButtons();
+    return;
+  }
 
   sortedRows.forEach((service) => {
     const row = document.createElement("tr");
@@ -243,6 +269,7 @@ function renderServiceTable(rows) {
   });
 
   updateSortIndicators();
+  updateServiceFilterButtons();
 }
 
 function toggleServicesSort(sortKey) {
@@ -266,6 +293,33 @@ function initServicesSorting() {
   });
 
   updateSortIndicators();
+}
+
+function updateServiceFilterButtons() {
+  document.querySelectorAll("[data-service-filter]").forEach((button) => {
+    const isActive = button.getAttribute("data-service-filter") === currentServiceFilter;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", isActive ? "true" : "false");
+  });
+}
+
+function setServiceFilter(nextFilter) {
+  if (!nextFilter || currentServiceFilter === nextFilter) return;
+
+  // Keep the filter sticky across live refreshes by storing it outside the
+  // fetch cycle and always re-rendering from the full in-memory dataset.
+  currentServiceFilter = nextFilter;
+  renderServiceTable(currentServicesData);
+}
+
+function initServiceFilters() {
+  document.querySelectorAll("[data-service-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      setServiceFilter(button.getAttribute("data-service-filter"));
+    });
+  });
+
+  updateServiceFilterButtons();
 }
 
 /*
@@ -371,6 +425,7 @@ async function initializeApp() {
     await initThemes();
     await loadNavigation();
     initAccordionPanels();
+    initServiceFilters();
     initServicesSorting();
     initAskSuggestions();
     initChat();

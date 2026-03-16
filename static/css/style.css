@@ -721,6 +721,18 @@ html[data-high-contrast="true"] .response-area {
   margin-bottom: 0.75rem;
 }
 
+.ll-detail-intro {
+  margin-bottom: 1rem;
+}
+
+.ll-os-detail-value {
+  font-size: clamp(1.2rem, 2.3vw, 1.7rem);
+}
+
+.ll-os-detail-value--network {
+  font-size: clamp(1rem, 1.8vw, 1.2rem);
+}
+
 .ll-os-metric-card .metric-meta {
   color: var(--text-muted);
   font-size: 0.9rem;
@@ -892,6 +904,34 @@ html[data-high-contrast="true"] .response-area {
 .ll-health-banner[data-level="critical"] {
   border-color: color-mix(in srgb, #ef4444 58%, var(--border-color));
   background: color-mix(in srgb, #ef4444 14%, var(--bg-panel));
+}
+
+.ll-segmented-control {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-panel) 88%, transparent);
+}
+
+.ll-segmented-control__button {
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  color: var(--text-muted);
+  padding: 0.35rem 0.8rem;
+}
+
+.ll-segmented-control__button:hover,
+.ll-segmented-control__button:focus-visible {
+  color: var(--text-main);
+  outline: none;
+}
+
+.ll-segmented-control__button.is-active {
+  background: var(--accent);
+  color: var(--color-on-accent);
 }
 
 @media (max-width: 767.98px) {

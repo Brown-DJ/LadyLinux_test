@@ -56,6 +56,10 @@ function formatCompactNetwork(rx, tx) {
   return `RX ${formatBytes(rx)} | TX ${formatBytes(tx)}`;
 }
 
+function formatUsedTotal(used, total) {
+  return `${formatBytes(used)} / ${formatBytes(total)}`;
+}
+
 function setText(id, value) {
   const element = document.getElementById(id);
   if (element) {
@@ -105,26 +109,29 @@ function removeSkeletons() {
 function renderMetrics(data) {
   removeSkeletons();
 
-  setText("cpuLoadOS", formatPercent(data.cpu_load));
-  setText("cpuMetaOS", `Load average: ${formatLoadAverage(data.load_avg)}`);
+  // The top strip already carries the quick-glance percentages. The metrics tab
+  // stays as a detail view by foregrounding deeper inspection context instead.
+  setText("cpuLoadOS", `Load ${formatLoadAverage(data.load_avg)}`);
+  setText("cpuMetaOS", `${formatPercent(data.cpu_load)} utilization across active threads`);
   setProgress("cpuProgressOS", data.cpu_load);
 
-  setText("memoryUsageOS", formatPercent(data.memory_usage));
-  setText("memoryMetaOS", `${formatBytes(data.memory_used)} / ${formatBytes(data.memory_total)} used`);
+  setText("memoryUsageOS", formatUsedTotal(data.memory_used, data.memory_total));
+  setText("memoryMetaOS", `${formatPercent(data.memory_usage)} utilized`);
   setProgress("memoryProgressOS", data.memory_usage);
 
-  setText("diskUsageOS", formatPercent(data.disk_usage));
-  setText("diskMetaOS", `${formatBytes(data.disk_used)} / ${formatBytes(data.disk_total)} used`);
+  setText("diskUsageOS", formatUsedTotal(data.disk_used, data.disk_total));
+  setText("diskMetaOS", `${formatPercent(data.disk_usage)} used | ${formatBytes(Number(data.disk_total) - Number(data.disk_used))} free`);
   setProgress("diskProgressOS", data.disk_usage);
 
   setText("processCountOS", Number.isFinite(Number(data.process_count)) ? `${data.process_count}` : "N/A");
-  setText("processMetaOS", "Running processes");
+  setText("processMetaOS", "Current process count");
 
   setText("networkRxOS", formatBytes(data.network_rx));
   setText("networkTxOS", formatBytes(data.network_tx));
+  setText("networkMetaOS", "Cumulative transfer totals for deeper inspection.");
 
-  setText("uptimeOS", formatUptime(data.uptime));
-  setText("systemMetaOS", `${data.platform || "Unknown"} | ${data.arch || "Unknown"}`);
+  setText("uptimeOS", `${data.platform || "Unknown"} | ${data.arch || "Unknown"}`);
+  setText("systemMetaOS", `Uptime ${formatUptime(data.uptime)}`);
 }
 
 function renderStatusBar(metrics) {

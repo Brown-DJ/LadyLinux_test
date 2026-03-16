@@ -107,12 +107,15 @@
 
         <div class="tab-content pt-4" id="systemTabContent">
           <div class="tab-pane fade show active" id="metrics-pane" role="tabpanel" aria-labelledby="metrics-tab" tabindex="0">
+            <p class="text-muted ll-detail-intro">
+              The global status strip provides the quick-glance snapshot. These cards stay focused on deeper inspection details for each subsystem.
+            </p>
             <div class="ll-os-metric-grid">
               <div class="card ll-dashboard-card ll-os-metric-card h-100" id="cpu-panel">
                 <div class="card-body">
                   <h2 class="h6">CPU</h2>
                   <div class="metric-skeleton metric-skeleton-value skeleton"></div>
-                  <div class="metric-value" id="cpuLoadOS"></div>
+                  <div class="metric-value ll-os-detail-value" id="cpuLoadOS"></div>
                   <div class="progress ll-metric-bar mb-3" role="progressbar" aria-label="CPU load" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
                     <div id="cpuProgressOS" class="progress-bar" style="width: 0%"></div>
                   </div>
@@ -124,7 +127,7 @@
                 <div class="card-body">
                   <h2 class="h6">Memory</h2>
                   <div class="metric-skeleton metric-skeleton-value skeleton"></div>
-                  <div class="metric-value" id="memoryUsageOS"></div>
+                  <div class="metric-value ll-os-detail-value" id="memoryUsageOS"></div>
                   <div class="progress ll-metric-bar mb-3" role="progressbar" aria-label="Memory usage" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
                     <div id="memoryProgressOS" class="progress-bar" style="width: 0%"></div>
                   </div>
@@ -136,7 +139,7 @@
                 <div class="card-body">
                   <h2 class="h6">Disk</h2>
                   <div class="metric-skeleton metric-skeleton-value skeleton"></div>
-                  <div class="metric-value" id="diskUsageOS"></div>
+                  <div class="metric-value ll-os-detail-value" id="diskUsageOS"></div>
                   <div class="progress ll-metric-bar mb-3" role="progressbar" aria-label="Disk usage" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
                     <div id="diskProgressOS" class="progress-bar" style="width: 0%"></div>
                   </div>
@@ -157,18 +160,18 @@
                 <div class="card-body">
                   <h2 class="h6">Network</h2>
                   <div class="metric-skeleton metric-skeleton-value skeleton"></div>
-                  <div class="ll-os-network-values metric-value">
+                  <div class="ll-os-network-values metric-value ll-os-detail-value ll-os-detail-value--network">
                     <span>RX <strong id="networkRxOS"></strong></span>
                     <span>TX <strong id="networkTxOS"></strong></span>
                   </div>
-                  <div class="metric-meta">Cumulative network throughput</div>
+                  <div class="metric-meta" id="networkMetaOS">Cumulative transfer totals for deeper inspection.</div>
                 </div>
               </div>
               <div class="card ll-dashboard-card ll-os-metric-card h-100" id="system-panel">
                 <div class="card-body">
                   <h2 class="h6">System</h2>
                   <div class="metric-skeleton metric-skeleton-value skeleton"></div>
-                  <div class="metric-value" id="uptimeOS"></div>
+                  <div class="metric-value ll-os-detail-value" id="uptimeOS"></div>
                   <div class="metric-skeleton metric-skeleton-meta skeleton"></div>
                   <div class="metric-meta" id="systemMetaOS"></div>
                 </div>
@@ -179,7 +182,13 @@
           <div class="tab-pane fade" id="services-pane" role="tabpanel" aria-labelledby="services-tab" tabindex="0">
             <div class="card ll-dashboard-card">
               <div class="card-body">
-                <h2 class="h5 mb-3">Services</h2>
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+                  <h2 class="h5 mb-0">Services</h2>
+                  <div class="ll-segmented-control" role="group" aria-label="Service visibility filter">
+                    <button type="button" class="ll-segmented-control__button is-active" data-service-filter="managed">Managed</button>
+                    <button type="button" class="ll-segmented-control__button" data-service-filter="all">All</button>
+                  </div>
+                </div>
                 <div class="table-responsive">
                   <table class="table table-dark table-hover align-middle mb-0">
                     <thead>
