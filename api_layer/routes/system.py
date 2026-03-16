@@ -17,14 +17,6 @@ def get_system_status() -> dict:
         "stderr": "",
         "returncode": 0,
         **status,
-        # Backward-compatible fields consumed by existing UI scripts.
-        "cpu_load": f"{status['cpu']:.2f}%" if isinstance(status.get("cpu"), (int, float)) else "unknown",
-        "memory_usage": f"{round(status['memory_used'] / (1024 ** 3), 2)}GB / {round(status['memory_total'] / (1024 ** 3), 2)}GB"
-        if isinstance(status.get("memory_used"), (int, float)) and isinstance(status.get("memory_total"), (int, float)) and status.get("memory_total")
-        else "unknown",
-        "disk_usage": f"{round((status['disk_total'] - status['disk_free']) / (1024 ** 3), 2)}GB / {round(status['disk_total'] / (1024 ** 3), 2)}GB"
-        if isinstance(status.get("disk_free"), (int, float)) and isinstance(status.get("disk_total"), (int, float)) and status.get("disk_total")
-        else "unknown",
     }
 
 

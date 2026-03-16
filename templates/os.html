@@ -70,33 +70,70 @@
 
         <div class="tab-content pt-4" id="systemTabContent">
           <div class="tab-pane fade show active" id="metrics-pane" role="tabpanel" aria-labelledby="metrics-tab" tabindex="0">
-            <!-- Metric cards reused by existing action scripts -->
-            <div class="row g-3">
-              <div class="col-12 col-md-4">
-                <div class="card ll-dashboard-card ll-metric-card h-100" id="cpuPanel">
-                  <div class="card-body">
-                    <h2 class="h6" data-panel-title>CPU</h2>
-                    <p class="mb-2 text-muted" data-panel-value id="cpu_value">CPU load is waiting for refresh.</p>
-                    <small class="text-muted" data-panel-meta>Awaiting refresh.</small>
+            <div class="ll-os-metric-grid">
+              <div class="card ll-dashboard-card ll-os-metric-card h-100" id="cpu-panel">
+                <div class="card-body">
+                  <h2 class="h6">CPU</h2>
+                  <div class="metric-skeleton metric-skeleton-value skeleton"></div>
+                  <div class="metric-value" id="cpuLoadOS"></div>
+                  <div class="progress ll-metric-bar mb-3" role="progressbar" aria-label="CPU load" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                    <div id="cpuProgressOS" class="progress-bar" style="width: 0%"></div>
                   </div>
+                  <div class="metric-skeleton metric-skeleton-meta skeleton"></div>
+                  <div class="metric-meta" id="cpuMetaOS"></div>
                 </div>
               </div>
-              <div class="col-12 col-md-4">
-                <div class="card ll-dashboard-card ll-metric-card h-100" id="memoryPanel">
-                  <div class="card-body">
-                    <h2 class="h6" data-panel-title>Memory</h2>
-                    <p class="mb-2 text-muted" data-panel-value id="memory_value">RAM allocation details are waiting for refresh.</p>
-                    <small class="text-muted" data-panel-meta>Awaiting refresh.</small>
+              <div class="card ll-dashboard-card ll-os-metric-card h-100" id="memory-panel">
+                <div class="card-body">
+                  <h2 class="h6">Memory</h2>
+                  <div class="metric-skeleton metric-skeleton-value skeleton"></div>
+                  <div class="metric-value" id="memoryUsageOS"></div>
+                  <div class="progress ll-metric-bar mb-3" role="progressbar" aria-label="Memory usage" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                    <div id="memoryProgressOS" class="progress-bar" style="width: 0%"></div>
                   </div>
+                  <div class="metric-skeleton metric-skeleton-meta skeleton"></div>
+                  <div class="metric-meta" id="memoryMetaOS"></div>
                 </div>
               </div>
-              <div class="col-12 col-md-4">
-                <div class="card ll-dashboard-card ll-metric-card h-100" id="storagePanel">
-                  <div class="card-body">
-                    <h2 class="h6" data-panel-title>Storage</h2>
-                    <p class="mb-2 text-muted" data-panel-value id="disk_value">Disk volume details are waiting for refresh.</p>
-                    <small class="text-muted" data-panel-meta>Awaiting refresh.</small>
+              <div class="card ll-dashboard-card ll-os-metric-card h-100" id="disk-panel">
+                <div class="card-body">
+                  <h2 class="h6">Disk</h2>
+                  <div class="metric-skeleton metric-skeleton-value skeleton"></div>
+                  <div class="metric-value" id="diskUsageOS"></div>
+                  <div class="progress ll-metric-bar mb-3" role="progressbar" aria-label="Disk usage" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                    <div id="diskProgressOS" class="progress-bar" style="width: 0%"></div>
                   </div>
+                  <div class="metric-skeleton metric-skeleton-meta skeleton"></div>
+                  <div class="metric-meta" id="diskMetaOS"></div>
+                </div>
+              </div>
+              <div class="card ll-dashboard-card ll-os-metric-card h-100" id="process-panel">
+                <div class="card-body">
+                  <h2 class="h6">Processes</h2>
+                  <div class="metric-skeleton metric-skeleton-value skeleton"></div>
+                  <div class="metric-value" id="processCountOS"></div>
+                  <div class="metric-skeleton metric-skeleton-meta skeleton"></div>
+                  <div class="metric-meta" id="processMetaOS"></div>
+                </div>
+              </div>
+              <div class="card ll-dashboard-card ll-os-metric-card h-100" id="network-panel">
+                <div class="card-body">
+                  <h2 class="h6">Network</h2>
+                  <div class="metric-skeleton metric-skeleton-value skeleton"></div>
+                  <div class="ll-os-network-values metric-value">
+                    <span>RX <strong id="networkRxOS"></strong></span>
+                    <span>TX <strong id="networkTxOS"></strong></span>
+                  </div>
+                  <div class="metric-meta">Cumulative network throughput</div>
+                </div>
+              </div>
+              <div class="card ll-dashboard-card ll-os-metric-card h-100" id="system-panel">
+                <div class="card-body">
+                  <h2 class="h6">System</h2>
+                  <div class="metric-skeleton metric-skeleton-value skeleton"></div>
+                  <div class="metric-value" id="uptimeOS"></div>
+                  <div class="metric-skeleton metric-skeleton-meta skeleton"></div>
+                  <div class="metric-meta" id="systemMetaOS"></div>
                 </div>
               </div>
             </div>
@@ -306,7 +343,7 @@
   <script src="/static/js/ui_event_bus.js"></script>
   <script src="/static/js/actions.js"></script>
   <script src="/static/js/main.js"></script>
-  <script src="/static/js/system_metrics.js"></script>
+  <script type="module" src="/static/js/os_metrics.js"></script>
   <script src="/static/js/chat.js"></script>
   <script src="/static/js/ladyWidget.js"></script>
 </body>

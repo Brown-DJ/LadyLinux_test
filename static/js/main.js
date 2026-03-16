@@ -21,8 +21,6 @@ Track whether the periodic telemetry refresh has started.
 This avoids creating duplicate timers during re-initialization.
 ---------------------------------------------------------
 */
-let systemRefreshStarted = false;
-
 /*
 ---------------------------------------------------------
 Update the status cards on the Unified Control Surface.
@@ -37,81 +35,30 @@ function updateStatusUI(cpu, memory, disk, firewall, users, theme) {
   const themeElement = document.getElementById("currentTheme");
 
   // Populate placeholders once telemetry is available.
-  if (cpuElement) cpuElement.textContent = cpu;
-  if (memoryElement) memoryElement.textContent = memory;
-  if (diskElement) diskElement.textContent = disk;
+  if (cpuElement && cpu != null) cpuElement.textContent = cpu;
+  if (memoryElement && memory != null) memoryElement.textContent = memory;
+  if (diskElement && disk != null) diskElement.textContent = disk;
   // Firewall is optional in the current layout; update only if the element exists.
-  if (firewallElement) firewallElement.textContent = firewall;
-  if (usersElement) usersElement.textContent = users;
-  if (themeElement) themeElement.textContent = theme;
-}
-
-/**
- * Formats byte values into readable units for disk telemetry.
- */
-function formatBytes(bytes) {
-  if (!Number.isFinite(bytes) || bytes < 0) return "N/A";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let value = bytes;
-  let unitIndex = 0;
-
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex += 1;
-  }
-
-  const precision = value >= 10 ? 0 : 1;
-  return `${value.toFixed(precision)}${units[unitIndex]}`;
+  if (firewallElement && firewall != null) firewallElement.textContent = firewall;
+  if (usersElement && users != null) usersElement.textContent = users;
+  if (themeElement && theme != null) themeElement.textContent = theme;
 }
 
 /*
-Load system telemetry from the backend
-and update dashboard UI values.
+Load system telemetry from the backend and update non-metric overview values.
 */
 async function loadSystemTelemetry() {
-  // Only run telemetry polling on the Unified Control Surface page.
+  // Metric cards now subscribe through static/js/system_metrics.js.
+  // Keep this loader as a no-op for the current layout to avoid duplicate fetches.
   if (getCurrentPageKey() !== "index") return;
 
   try {
-    // Prefer the dedicated status endpoint.
-    // Fallback to /api/system to remain compatible with deployments that
-    // have not exposed /api/system/status yet.
-    let response = await fetch("/api/system/status");
-    if (!response.ok) {
-      response = await fetch("/api/system");
-    }
-    if (!response.ok) {
-      throw new Error(`System API failed (${response.status})`);
-    }
-
-    // Convert response to JSON.
-    const data = await response.json();
-
-    // The API wraps telemetry under "result"; keep fallbacks for resilience.
-    const result = data && typeof data === "object" ? (data.result || {}) : {};
-    const platform = result && typeof result === "object" ? (result.platform || {}) : {};
-    const disk = result && typeof result === "object" ? (result.disk || {}) : {};
-    const env = result && typeof result === "object" ? (result.env || {}) : {};
-    const firewall = result && typeof result === "object" ? (result.firewall || {}) : {};
-
-    // Compute display values with graceful fallbacks when fields are unavailable.
-    const cpuValue = data.cpu_load || data.cpu || platform.processor || "N/A";
-    const memoryValue = data.memory_usage || data.memory || "N/A";
-    const diskUsed = formatBytes(disk.used_bytes);
-    const diskTotal = formatBytes(disk.total_bytes);
-    const diskValue =
-      data.disk_usage ||
-      data.disk ||
-      (diskUsed !== "N/A" && diskTotal !== "N/A" ? `${diskUsed} / ${diskTotal}` : "N/A");
-    const firewallValue = data.firewall || firewall.active || "Unknown";
-    const usersValue = data.users || env.user || "N/A";
     const themeKey = localStorage.getItem("lady-theme");
-    const themeValue = data.theme || (typeof window.getThemeLabel === "function"
+    const themeValue = typeof window.getThemeLabel === "function"
       ? window.getThemeLabel(themeKey || "Default")
-      : (themeKey || "Unknown"));
+      : (themeKey || "Unknown");
 
-    // Update dashboard elements with returned values.
-    updateStatusUI(cpuValue, memoryValue, diskValue, firewallValue, usersValue, themeValue);
+    updateStatusUI(null, null, null, null, null, themeValue);
   } catch (error) {
     console.error("Failed to load system telemetry:", error);
   }
@@ -323,17 +270,9 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  /**
-   * Periodically refresh system telemetry so the dashboard
-   * reflects real-time system state.
-   */
-  if (!systemRefreshStarted) {
-    systemRefreshStarted = true;
-    setInterval(() => {
-      loadSystemTelemetry();
-      updateThemeIndicator();
-    }, 5000);
-  }
+  setInterval(() => {
+    updateThemeIndicator();
+  }, 5000);
 });
 
 if (document.readyState === "loading") {
