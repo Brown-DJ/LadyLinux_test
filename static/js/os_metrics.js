@@ -1,4 +1,4 @@
-import { subscribe } from "./system_metrics.js";
+import { subscribe } from "./ui_event_bus.js";
 
 function formatPercent(value) {
   return Number.isFinite(value) ? `${Math.round(value)}%` : "N/A";
@@ -93,7 +93,11 @@ function renderMetrics(data) {
   setText("systemMetaOS", `${data.platform || "Unknown"} | ${data.arch || "Unknown"}`);
 }
 
-subscribe((data) => {
+function renderOSMetrics(data) {
   if (document.body?.getAttribute("data-page") !== "system") return;
   renderMetrics(data);
+}
+
+subscribe("metrics:update", (metrics) => {
+  renderOSMetrics(metrics);
 });

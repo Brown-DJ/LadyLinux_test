@@ -1,4 +1,4 @@
-import { subscribe } from "./system_metrics.js";
+import { subscribe } from "./ui_event_bus.js";
 
 function updateMetric(valueId, barId, percent) {
   const valueEl = document.getElementById(valueId);
@@ -24,10 +24,14 @@ function updateMetric(valueId, barId, percent) {
   }
 }
 
-subscribe((metrics) => {
+function renderDashboardMetrics(metrics) {
   if (document.body?.getAttribute("data-page") !== "index") return;
 
   updateMetric("cpuLoad", "cpuProgress", metrics.cpu_load);
   updateMetric("memoryUsage", "memoryProgress", metrics.memory_usage);
   updateMetric("diskUsage", "diskProgress", metrics.disk_usage);
+}
+
+subscribe("metrics:update", (metrics) => {
+  renderDashboardMetrics(metrics);
 });
