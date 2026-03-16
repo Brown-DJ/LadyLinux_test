@@ -42,6 +42,43 @@
   <nav id="nav-container" class="d-none" aria-hidden="true"></nav>
 
   <main class="container pb-4">
+    <section class="ll-status-strip mb-3" aria-label="Live system status">
+      <div class="ll-status-strip__items">
+        <button type="button" class="ll-status-chip" data-status-target="metrics-tab">
+          <span class="ll-status-chip__label">CPU</span>
+          <span class="ll-status-chip__value" id="globalCpuStatus">N/A</span>
+        </button>
+        <button type="button" class="ll-status-chip" data-status-target="metrics-tab">
+          <span class="ll-status-chip__label">Memory</span>
+          <span class="ll-status-chip__value" id="globalMemoryStatus">N/A</span>
+        </button>
+        <button type="button" class="ll-status-chip" data-status-target="storage-tab">
+          <span class="ll-status-chip__label">Disk</span>
+          <span class="ll-status-chip__value" id="globalDiskStatus">N/A</span>
+        </button>
+        <div class="ll-status-chip ll-status-chip--static" aria-label="Network throughput">
+          <span class="ll-status-chip__label">Network</span>
+          <span class="ll-status-chip__value" id="globalNetworkStatus">RX N/A | TX N/A</span>
+        </div>
+        <button type="button" class="ll-status-chip" data-status-target="metrics-tab">
+          <span class="ll-status-chip__label">Uptime</span>
+          <span class="ll-status-chip__value" id="globalUptimeStatus">N/A</span>
+        </button>
+      </div>
+    </section>
+
+    <button
+      type="button"
+      id="systemHealthBanner"
+      class="ll-health-banner d-none mb-3"
+      aria-live="polite"
+      aria-hidden="true"
+    >
+      <span class="ll-health-banner__eyebrow" id="systemHealthBannerLevel">System Health</span>
+      <span class="ll-health-banner__message" id="systemHealthBannerMessage"></span>
+      <span class="ll-health-banner__action">View details</span>
+    </button>
+
     <section class="card ll-dashboard-card">
       <div class="card-body">
         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">

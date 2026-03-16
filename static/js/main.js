@@ -104,10 +104,20 @@ async function loadServices() {
     const data = await response.json();
     currentServicesData = normalizeServices(data.services || []);
     renderServiceTable(currentServicesData);
+
+    // Broadcast normalized service state so other System page widgets can react
+    // without introducing another fetch path or tight coupling to this module.
+    if (window.eventBus && typeof window.eventBus.emit === "function") {
+      window.eventBus.emit("services:update", currentServicesData);
+    }
   } catch (error) {
     console.error("Failed to load services:", error);
     // Keep failure visible to users within the table region.
     table.innerHTML = '<tr><td colspan="4">Unable to load services.</td></tr>';
+    currentServicesData = [];
+    if (window.eventBus && typeof window.eventBus.emit === "function") {
+      window.eventBus.emit("services:update", currentServicesData);
+    }
   }
 }
 

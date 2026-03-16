@@ -787,6 +787,131 @@ html[data-high-contrast="true"] .response-area {
   color: var(--accent);
 }
 
+.ll-status-strip {
+  background: color-mix(in srgb, var(--bg-panel) 84%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-color) 88%, #ffffff 12%);
+  border-radius: var(--ui-radius-large);
+  box-shadow: 0 0.75rem 1.5rem rgba(0, 0, 0, 0.18);
+  padding: 0.75rem 1rem;
+  backdrop-filter: blur(12px);
+}
+
+.ll-status-strip__items {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.ll-status-chip {
+  align-items: flex-start;
+  background: transparent;
+  border: 0;
+  border-right: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
+  color: var(--text-main);
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-height: 3rem;
+  padding: 0;
+  text-align: left;
+}
+
+.ll-status-chip:last-child {
+  border-right: 0;
+}
+
+.ll-status-chip--static {
+  cursor: default;
+}
+
+.ll-status-chip:not(.ll-status-chip--static):hover,
+.ll-status-chip:not(.ll-status-chip--static):focus-visible {
+  color: var(--accent-hover);
+  outline: none;
+}
+
+.ll-status-chip__label {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ll-status-chip__value {
+  font-size: 0.98rem;
+  font-weight: 600;
+}
+
+.ll-health-banner {
+  align-items: center;
+  background: color-mix(in srgb, var(--accent-soft) 72%, var(--bg-panel));
+  border: 1px solid color-mix(in srgb, var(--border-color) 88%, #ffffff 12%);
+  border-radius: var(--ui-radius-large);
+  color: var(--text-main);
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 0.85rem 1rem;
+  text-align: left;
+  width: 100%;
+}
+
+.ll-health-banner:hover,
+.ll-health-banner:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--effect-glow);
+}
+
+.ll-health-banner__eyebrow {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ll-health-banner__message {
+  flex: 1;
+}
+
+.ll-health-banner__action {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.ll-health-banner[data-level="info"] {
+  border-color: color-mix(in srgb, #38bdf8 45%, var(--border-color));
+}
+
+.ll-health-banner[data-level="warning"] {
+  border-color: color-mix(in srgb, #f59e0b 55%, var(--border-color));
+  background: color-mix(in srgb, #f59e0b 10%, var(--bg-panel));
+}
+
+.ll-health-banner[data-level="critical"] {
+  border-color: color-mix(in srgb, #ef4444 58%, var(--border-color));
+  background: color-mix(in srgb, #ef4444 14%, var(--bg-panel));
+}
+
+@media (max-width: 767.98px) {
+  .ll-status-chip {
+    border-right: 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
+    padding-bottom: 0.5rem;
+  }
+
+  .ll-status-chip:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  .ll-health-banner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
 .ll-module-button,
 .ll-module-card {
   transition: transform var(--transition-speed), border-color var(--transition-speed), box-shadow var(--transition-speed);
