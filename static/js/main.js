@@ -15,6 +15,19 @@ function updateOverviewStatus(key, value) {
   }
 }
 
+// Preserve the active services sort across live table refreshes.
+let currentServicesData = [];
+let currentSortKey = "service";
+let currentSortDirection = "asc";
+
+const STATUS_SORT_PRIORITY = {
+  running: 0,
+  exited: 1,
+  dead: 2,
+  failed: 3,
+  unknown: 4,
+};
+
 /*
 ---------------------------------------------------------
 Track whether the periodic telemetry refresh has started.
@@ -89,29 +102,160 @@ async function loadServices() {
     }
 
     const data = await response.json();
-    table.innerHTML = "";
-
-    (data.services || []).forEach((service) => {
-      const row = document.createElement("tr");
-      row.innerHTML = `
-        <td>${service.name}</td>
-        <td>${service.status}</td>
-        <td>-</td>
-        <td>
-          <button class="btn btn-sm btn-outline-secondary"
-                  onclick="restartService('${service.name}')"
-                  type="button">
-            Restart
-          </button>
-        </td>
-      `;
-      table.appendChild(row);
-    });
+    currentServicesData = normalizeServices(data.services || []);
+    renderServiceTable(currentServicesData);
   } catch (error) {
     console.error("Failed to load services:", error);
     // Keep failure visible to users within the table region.
     table.innerHTML = '<tr><td colspan="4">Unable to load services.</td></tr>';
   }
+}
+
+function normalizeServices(services) {
+  return services.map((service, index) => ({
+    ...service,
+    // Keep a stable tiebreaker so repeated refreshes stay deterministic.
+    originalIndex: index,
+    uptime_seconds: Number.isFinite(Number(service.uptime_seconds)) ? Number(service.uptime_seconds) : null,
+  }));
+}
+
+function formatServiceUptime(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return "-";
+
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m`;
+  return `${seconds}s`;
+}
+
+// Status sort follows semantic service health order, not plain alphabetic text.
+function getStatusRank(status) {
+  const normalized = String(status || "unknown").trim().toLowerCase();
+  return STATUS_SORT_PRIORITY[normalized] ?? STATUS_SORT_PRIORITY.unknown;
+}
+
+function compareText(a, b) {
+  return String(a || "").localeCompare(String(b || ""), undefined, { sensitivity: "base" });
+}
+
+// Uptime sorts by numeric seconds. Missing values go last when ascending.
+function compareServiceRows(a, b, sortKey, direction) {
+  let result = 0;
+
+  if (sortKey === "service") {
+    result = compareText(a.name, b.name);
+  } else if (sortKey === "status") {
+    result = getStatusRank(a.status) - getStatusRank(b.status);
+  } else if (sortKey === "uptime") {
+    const aMissing = !Number.isFinite(a.uptime_seconds);
+    const bMissing = !Number.isFinite(b.uptime_seconds);
+
+    if (aMissing && bMissing) {
+      result = 0;
+    } else if (aMissing) {
+      result = 1;
+    } else if (bMissing) {
+      result = -1;
+    } else {
+      result = a.uptime_seconds - b.uptime_seconds;
+    }
+  }
+
+  if (result === 0) {
+    result = a.originalIndex - b.originalIndex;
+  }
+
+  return direction === "desc" ? result * -1 : result;
+}
+
+function getSortedServices(rows) {
+  return [...rows].sort((a, b) => compareServiceRows(a, b, currentSortKey, currentSortDirection));
+}
+
+function getSortIconClass(sortKey) {
+  if (currentSortKey !== sortKey) return "bi-arrow-down-up";
+  return currentSortDirection === "asc" ? "bi-caret-up-fill" : "bi-caret-down-fill";
+}
+
+function updateSortIndicators() {
+  document.querySelectorAll("[data-services-sort]").forEach((button) => {
+    const sortKey = button.getAttribute("data-services-sort");
+    const header = button.closest("th");
+    const icon = button.querySelector("[data-sort-icon]");
+    const isActive = sortKey === currentSortKey;
+
+    if (header) {
+      header.setAttribute("aria-sort", isActive ? (currentSortDirection === "asc" ? "ascending" : "descending") : "none");
+    }
+
+    button.setAttribute(
+      "aria-label",
+      isActive
+        ? `Sorted by ${sortKey} ${currentSortDirection}. Activate to sort ${currentSortDirection === "asc" ? "descending" : "ascending"}.`
+        : `Sort by ${sortKey} ascending.`
+    );
+    button.classList.toggle("is-active", isActive);
+
+    if (icon) {
+      icon.className = `bi ${getSortIconClass(sortKey)} ll-sort-icon`;
+      icon.setAttribute("aria-hidden", "true");
+    }
+  });
+}
+
+function renderServiceTable(rows) {
+  const table = document.querySelector("#services-table-body");
+  if (!table) return;
+
+  const sortedRows = getSortedServices(rows);
+  table.innerHTML = "";
+
+  sortedRows.forEach((service) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${service.name}</td>
+      <td>${service.status || "unknown"}</td>
+      <td>${formatServiceUptime(service.uptime_seconds)}</td>
+      <td>
+        <button class="btn btn-sm btn-outline-secondary"
+                onclick="restartService('${service.name}')"
+                type="button">
+          Restart
+        </button>
+      </td>
+    `;
+    table.appendChild(row);
+  });
+
+  updateSortIndicators();
+}
+
+function toggleServicesSort(sortKey) {
+  if (!sortKey) return;
+
+  if (currentSortKey === sortKey) {
+    currentSortDirection = currentSortDirection === "asc" ? "desc" : "asc";
+  } else {
+    currentSortKey = sortKey;
+    currentSortDirection = "asc";
+  }
+
+  renderServiceTable(currentServicesData);
+}
+
+function initServicesSorting() {
+  document.querySelectorAll("[data-services-sort]").forEach((button) => {
+    button.addEventListener("click", () => {
+      toggleServicesSort(button.getAttribute("data-services-sort"));
+    });
+  });
+
+  updateSortIndicators();
 }
 
 /*
@@ -217,6 +361,7 @@ async function initializeApp() {
     await initThemes();
     await loadNavigation();
     initAccordionPanels();
+    initServicesSorting();
     initAskSuggestions();
     initChat();
     syncOverviewFromDocument();

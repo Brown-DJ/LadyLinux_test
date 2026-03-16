@@ -757,6 +757,36 @@ html[data-high-contrast="true"] .response-area {
   border-color: var(--accent);
 }
 
+.ll-sort-button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--text-main);
+  cursor: pointer;
+  display: inline-flex;
+  gap: 0.4rem;
+  padding: 0;
+  width: 100%;
+}
+
+.ll-sort-button:hover,
+.ll-sort-button:focus-visible {
+  color: var(--accent-hover);
+  outline: none;
+}
+
+.ll-sort-icon {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  transition: color var(--transition-speed);
+}
+
+.ll-sort-button.is-active .ll-sort-icon,
+.ll-sort-button:hover .ll-sort-icon,
+.ll-sort-button:focus-visible .ll-sort-icon {
+  color: var(--accent);
+}
+
 .ll-module-button,
 .ll-module-card {
   transition: transform var(--transition-speed), border-color var(--transition-speed), box-shadow var(--transition-speed);

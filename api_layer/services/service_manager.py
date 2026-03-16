@@ -1,9 +1,79 @@
 from __future__ import annotations
 
 import subprocess
+import time
 
 from api_layer.utils.command_runner import run_command
 from api_layer.utils.validators import validate_service_name
+
+
+def _parse_monotonic_usec(raw_value: str | None) -> int | None:
+    if raw_value in (None, "", "0"):
+        return None
+
+    try:
+        value = int(raw_value)
+    except (TypeError, ValueError):
+        return None
+
+    return value if value > 0 else None
+
+
+def _build_service_uptime_map(units: list[str]) -> dict[str, int | None]:
+    if not units:
+        return {}
+
+    cmd = [
+        "systemctl",
+        "show",
+        "--no-pager",
+        "--property=Id,ActiveEnterTimestampMonotonic,ExecMainStartTimestampMonotonic",
+        *units,
+    ]
+
+    completed = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=15,
+        shell=False,
+    )
+
+    if completed.returncode != 0:
+        return {}
+
+    now_usec = time.monotonic_ns() // 1000
+    uptime_map: dict[str, int | None] = {}
+    unit_data: dict[str, str] = {}
+
+    def commit_current_unit() -> None:
+        unit = unit_data.get("Id")
+        if not unit:
+            return
+
+        active_enter = _parse_monotonic_usec(unit_data.get("ActiveEnterTimestampMonotonic"))
+        exec_start = _parse_monotonic_usec(unit_data.get("ExecMainStartTimestampMonotonic"))
+        start_usec = active_enter or exec_start
+
+        if start_usec is None or start_usec > now_usec:
+            uptime_map[unit] = None
+            return
+
+        uptime_map[unit] = max(0, int((now_usec - start_usec) / 1_000_000))
+
+    for line in (completed.stdout or "").splitlines():
+        if not line.strip():
+            commit_current_unit()
+            unit_data = {}
+            continue
+
+        key, _, value = line.partition("=")
+        if key:
+            unit_data[key] = value
+
+    commit_current_unit()
+    return uptime_map
 
 
 def list_services() -> dict:
@@ -44,8 +114,13 @@ def list_services() -> dict:
                 "sub": sub,
                 "status": sub,
                 "description": description,
-            }
-        )
+                }
+            )
+
+    uptime_map = _build_service_uptime_map([service["unit"] for service in services])
+    for service in services:
+        service["uptime_seconds"] = uptime_map.get(service["unit"])
+
     payload = {
         "ok": completed.returncode == 0,
         "stdout": (completed.stdout or "").strip(),
