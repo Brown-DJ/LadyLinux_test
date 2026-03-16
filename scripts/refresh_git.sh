@@ -26,7 +26,7 @@ stop_services() {
  systemctl stop "$SERVICE" || true
  systemctl stop "$LLM_SERVICE" || true
 
- pkill -f "uvicorn api_layer:app" || true
+ pkill -f "uvicorn" || true
 }
 
 sync_repo() {
@@ -71,6 +71,9 @@ install_dependencies() {
 }
 
 restart_services() {
+
+ log "Reloading systemd"
+ systemctl daemon-reload
 
  log "Restarting Ollama runtime"
 

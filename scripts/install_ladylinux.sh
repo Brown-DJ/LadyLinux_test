@@ -11,6 +11,7 @@ VENV_DIR="$ROOT_DIR/venv"
 SCRIPTS_DIR="$ROOT_DIR/scripts"
 LOG_DIR="$ROOT_DIR/logs"
 SERVICE_USER="ladylinux"
+SERVICE_FILE="/etc/systemd/system/ladylinux-api.service"
 
 if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
   log "Run as root."
@@ -29,6 +30,16 @@ if [[ -f "$APP_DIR/requirements.txt" ]]; then
   sudo -u "$SERVICE_USER" python3 -m venv "$VENV_DIR"
   sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install --upgrade pip wheel setuptools
   sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install -r "$APP_DIR/requirements.txt"
+fi
+
+if [[ -f "$APP_DIR/systemd/ladylinux-api.service" ]]; then
+  cp "$APP_DIR/systemd/ladylinux-api.service" "$SERVICE_FILE"
+  systemctl daemon-reload
+  systemctl enable ladylinux-api.service
+elif [[ -f "$ROOT_DIR/ladylinux-api.service" ]]; then
+  cp "$ROOT_DIR/ladylinux-api.service" "$SERVICE_FILE"
+  systemctl daemon-reload
+  systemctl enable ladylinux-api.service
 fi
 
 find /opt/ladylinux/scripts -type f -name "*.sh" -exec chmod +x {} \;
