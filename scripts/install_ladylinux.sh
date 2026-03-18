@@ -64,21 +64,27 @@ prepare_directories() {
 
     chown -R "$SERVICE_USER:$SERVICE_USER" "$APP_ROOT"
 }
-
 setup_repo() {
+
     log "Preparing repository"
 
     if [[ ! -d "$APP_ROOT/.git" ]]; then
         log "Cloning repository"
         rm -rf "$APP_ROOT"
-        git clone "$REPO_URL" "$APP_ROOT"
+
+        # run clone as service user
+        sudo -u "$SERVICE_USER" git clone "$REPO_URL" "$APP_ROOT"
     fi
 
     cd "$APP_ROOT"
 
-    git fetch origin
-    git checkout "$BRANCH"
-    git reset --hard "origin/$BRANCH"
+    # run ALL git commands as service user
+    sudo -u "$SERVICE_USER" git fetch origin
+    sudo -u "$SERVICE_USER" git checkout "$BRANCH"
+    sudo -u "$SERVICE_USER" git reset --hard "origin/$BRANCH"
+
+    # optional safety (won’t hurt, but should already be correct now)
+    chown -R "$SERVICE_USER:$SERVICE_USER" "$APP_ROOT"
 }
 
 setup_venv() {
