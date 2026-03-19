@@ -67,3 +67,6 @@ SyslogIdentifier=ladylinux-api
 
 [Install]
 WantedBy=multi-user.target
+[Unit]
+Requires=
+After=network-online.target
