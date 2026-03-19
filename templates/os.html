@@ -107,6 +107,9 @@
 
         <div class="tab-content pt-4" id="systemTabContent">
           <div class="tab-pane fade show active" id="metrics-pane" role="tabpanel" aria-labelledby="metrics-tab" tabindex="0">
+            <div id="rag-banner" style="display:none" class="rag-indexing-notice">
+              Indexing knowledge base - first boot only, this takes a few minutes.
+            </div>
             <p class="text-muted ll-detail-intro">
               The global status strip provides the quick-glance snapshot. These cards stay focused on deeper inspection details for each subsystem.
             </p>
@@ -409,6 +412,20 @@
 <script src="/static/js/main.js"></script>
 
 <script type="module" src="/static/js/os_metrics.js"></script>
+
+<script>
+function checkRagStatus() {
+  fetch('/api/rag/status')
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('rag-banner').style.display =
+        data.seeding ? 'block' : 'none';
+      if (data.seeding) setTimeout(checkRagStatus, 3000);
+    })
+    .catch(() => {});
+}
+checkRagStatus();
+</script>
 
 <script src="/static/js/chat.js"></script>
 <script src="/static/js/ladyWidget.js"></script>
