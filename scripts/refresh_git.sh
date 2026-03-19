@@ -31,7 +31,10 @@ stop_services() {
     log "Stopping LadyLinux services"
     systemctl stop "$API_SERVICE" || true
     systemctl stop "$LLM_SERVICE" || true
+    systemctl stop ollama || true          # kill the system ollama if running
     pkill -f "uvicorn" || true
+    pkill -f "ollama serve" || true        # kill any orphaned ollama process
+    sleep 2                                # give port 11434 time to free
 }
 
 sync_repo() {

@@ -548,7 +548,7 @@ html[data-high-contrast="true"] .response-area {
    ===================================================== */
 
 /* Floating launcher button */
-#lady-launcher {
+.lady-btn {
   position: fixed;
   bottom: 22px;
   right: 22px;
@@ -565,7 +565,7 @@ html[data-high-contrast="true"] .response-area {
 }
 
 /* Popup mini console */
-#lady-console {
+.lady-panel {
   position: fixed;
   bottom: 90px;
   right: 20px;
@@ -574,34 +574,62 @@ html[data-high-contrast="true"] .response-area {
   background: var(--bg-surface);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-medium, var(--ui-radius-medium));
-  display: none;
+  display: flex;
   flex-direction: column;
+  gap: 0.75rem;
   z-index: 9999;
+  padding: 12px;
 }
 
 /* Header row with close control */
 .lady-header {
-  padding: 10px;
   font-weight: bold;
   border-bottom: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  padding-bottom: 10px;
 }
 
-/* Response feed container */
+.lady-close {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.lady-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.lady-actions [data-fullscreen-label="text"] {
+  grid-column: 1 / -1;
+}
+
 #lady-response {
   flex: 1;
-  padding: 12px;
+  padding: 0;
   overflow-y: auto;
 }
 
-/* Prompt input field */
-#lady-input {
-  border: none;
+.lady-input {
   border-top: 1px solid var(--border-color);
-  padding: 12px;
+  padding-top: 12px;
+}
+
+#lady-input {
+  width: 100%;
+  border: none;
+  padding: 0;
   background: transparent;
   color: var(--text-main);
+}
+
+#lady-input:focus {
+  outline: none;
 }
 
 /* Message styling for mini-console chat lines */
@@ -727,6 +755,10 @@ html[data-high-contrast="true"] .response-area {
   top: 10px;
   right: 20px;
   z-index: 1000;
+}
+
+.hidden {
+  display: none !important;
 }
 
 .ll-os-metric-card .metric-value {

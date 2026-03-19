@@ -2,33 +2,9 @@
    LADY LINUX - FLOATING MINI CONSOLE WIDGET
    ===================================================== */
 
-/* Widget page guard: never show on full console page */
-if (window.location.pathname === "/") {
-  const widget = document.getElementById("lady-widget");
-  if (widget) {
-    widget.style.display = "none";
-  }
-}
-
 /* Widget element bindings */
-const launcher = document.getElementById("lady-launcher");
-const consoleBox = document.getElementById("lady-console");
-const closeBtn = document.getElementById("lady-close");
 const input = document.getElementById("lady-input");
 const output = document.getElementById("lady-response");
-
-/* Widget toggle behavior */
-if (launcher && consoleBox) {
-  launcher.addEventListener("click", () => {
-    consoleBox.style.display = consoleBox.style.display === "flex" ? "none" : "flex";
-  });
-}
-
-if (closeBtn && consoleBox) {
-  closeBtn.addEventListener("click", () => {
-    consoleBox.style.display = "none";
-  });
-}
 
 /* Widget chat behavior: reuse shared chat.js sendPrompt + parser pipeline */
 if (input && output) {

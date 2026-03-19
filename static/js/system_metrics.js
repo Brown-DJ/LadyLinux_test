@@ -66,6 +66,8 @@ if (!window.__LL_METRICS_ENGINE) {
     }
   }
 
+  window.fetchMetrics = pollMetrics;
+
   function startEngine() {
     if (window.__LL_METRICS_ENGINE.running) return;
 

@@ -39,6 +39,7 @@
   </nav>
 
   {% include "controls.html" %}
+  {% include "lady_panel.html" %}
 
   <!-- Hidden nav loader target kept for script compatibility -->
   <nav id="nav-container" class="d-none" aria-hidden="true"></nav>
@@ -395,16 +396,6 @@
   <!-- Modal shell retained for themes.js save flow compatibility -->
   <div class="modal fade" id="customThemeModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog"><div class="modal-content d-none"></div></div>
-  </div>
-
-  <!-- Floating Lady widget (mini console) -->
-  <div id="lady-widget">
-    <button id="lady-launcher" title="Ask Lady">&#129504;</button>
-    <div id="lady-console">
-      <div class="lady-header">Lady <span id="lady-close">&times;</span></div>
-      <div id="lady-response"></div>
-      <input id="lady-input" placeholder="Ask Lady Linux..." autocomplete="off" />
-    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
