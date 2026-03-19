@@ -28,8 +28,10 @@ from api_layer.routes.ws import router as ws_router
 from api_layer.services.system_service import get_status
 from api_layer.utils.command_runner import run_command
 from api_layer.utils.validators import validate_service_name
+from core.command.intent_classifier import detect_live_topics
 from core.rag.retriever import build_context_block, retrieve
 from core.rag.seed import seed
+from core.rag.system_provider import SystemProvider
 from core.rag.vector_store import COLLECTION_NAME, client, ensure_collection
 from llm_runtime import ensure_model
 from core.command.command_kernel import evaluate_prompt
@@ -85,6 +87,7 @@ TOOL_NAME_MAP = {
     "list_services": "system_services",
     "restart_service": "system_service_restart",
 }
+SYSTEM_PROVIDER = SystemProvider()
 
 
 class PromptRequest(BaseModel):
@@ -243,6 +246,18 @@ When a request matches a command, respond with JSON:
 """
 
 
+def _build_live_state_block(query: str) -> str:
+    topics = detect_live_topics(query)
+    if not topics:
+        return ""
+
+    snapshots = SYSTEM_PROVIDER.snapshot(topics)
+    if not snapshots:
+        return ""
+
+    return "\n\n".join(f"[LIVE {topic.upper()}]\n{content}" for topic, content in snapshots.items())
+
+
 def handle_tool_prompt(prompt: str) -> dict[str, Any]:
     tool_name, tool_parameters = _plan_tool_call(prompt, "")
     if not tool_name:
@@ -315,27 +330,32 @@ def run_command_kernel(prompt: str) -> dict[str, Any] | None:
 
 def handle_rag_prompt(prompt: str) -> tuple[str, list[dict], str]:
     domain = classify_rag_domain(prompt)
+    live_block = _build_live_state_block(prompt)
     context_results = retrieve(prompt, domain=domain)
     context_text = build_context_block(context_results)
     system_prompt = f"""
 SYSTEM CAPABILITIES
 {CAPABILITY_BLOCK}
 
-{_command_hint_block()}
-
-RELEVANT PROJECT FILES
-{context_text or "No relevant Lady Linux project context was retrieved."}
+LIVE SYSTEM STATE
+{live_block or "No live system data was requested for this question."}
 
 USER QUESTION
 {prompt}
 
 Rules:
-- Prefer information found inside RELEVANT PROJECT FILES.
+- Prefer LIVE SYSTEM STATE when the question asks about current runtime conditions.
+- Prefer information found inside RELEVANT PROJECT FILES for project and documentation questions.
 - If not present, respond with "Information not found in system context."
 - Do not invent configuration or runtime state.
 - Do not invent tools, shell commands, or undocumented endpoints.
 - Do not generate CSS variables, UI override commands, or direct UI modification payloads.
 - UI customization is handled only by the deterministic UI intent parser.
+
+{_command_hint_block()}
+
+RELEVANT PROJECT FILES
+{context_text or "No relevant Lady Linux project context was retrieved."}
 """
     output = _ollama_generate(system_prompt, model="mistral")
     return output, context_results, domain
@@ -343,6 +363,7 @@ Rules:
 
 def handle_hybrid_prompt(prompt: str) -> tuple[str, dict[str, Any] | None, list[dict], str]:
     domain = classify_rag_domain(prompt)
+    live_block = _build_live_state_block(prompt)
     context_results = retrieve(prompt, domain=domain)
     context_text = build_context_block(context_results)
 
@@ -355,35 +376,44 @@ def handle_hybrid_prompt(prompt: str) -> tuple[str, dict[str, Any] | None, list[
 SYSTEM CAPABILITIES
 {CAPABILITY_BLOCK}
 
-{_command_hint_block()}
-
-RELEVANT PROJECT FILES
-{context_text or "No relevant Lady Linux project context was retrieved."}
+LIVE SYSTEM STATE
+{live_block or "No live system data was requested for this question."}
 
 USER QUESTION
 {prompt}
 
-TOOL RESULT
-{json.dumps(tool_result, indent=2) if tool_result is not None else "No tool was needed."}
-
 Rules:
+- Prefer LIVE SYSTEM STATE when the question asks about current runtime conditions.
 - Prefer information found inside RELEVANT PROJECT FILES and TOOL RESULT.
 - If not present, respond with "Information not found in system context."
 - Do not invent configuration or runtime state.
 - Do not invent tools, shell commands, or undocumented endpoints.
 - Do not generate CSS variables, UI override commands, or direct UI modification payloads.
 - UI customization is handled only by the deterministic UI intent parser.
+
+{_command_hint_block()}
+
+RELEVANT PROJECT FILES
+{context_text or "No relevant Lady Linux project context was retrieved."}
+
+TOOL RESULT
+{json.dumps(tool_result, indent=2) if tool_result is not None else "No tool was needed."}
 """
     output = _ollama_generate(system_prompt, model="mistral")
     return output, tool_result, context_results, domain
 
 
 def handle_chat_prompt(prompt: str) -> str:
+    live_block = _build_live_state_block(prompt)
     chat_prompt = f"""
 You are Lady Linux, a Linux assistant. Keep responses concise and accurate.
+Use LIVE SYSTEM STATE first when the question is about current runtime status.
 If a live system action is required, say to use a supported API tool.
 Do not generate CSS variables, UI override commands, or theme modification payloads.
 UI customization is handled only by the deterministic UI intent parser.
+
+LIVE SYSTEM STATE
+{live_block or "No live system data was requested for this question."}
 
 {_command_hint_block()}
 
@@ -680,11 +710,30 @@ async def ask(req: PromptRequest):
 @app.post("/api/chat")
 async def api_chat(req: ChatRequest):
     ensure_model()
+    user_messages = [message.content for message in req.messages if message.role == "user" and message.content.strip()]
+    latest_user_message = user_messages[-1] if user_messages else ""
+    live_block = _build_live_state_block(latest_user_message)
+    outbound_messages = [message.model_dump() for message in req.messages]
+
+    if live_block:
+        outbound_messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You are Lady Linux, a Linux system assistant. "
+                    "Use the live system data below before any older conversational context. "
+                    "Do not make up process names, PIDs, or service state.\n\n"
+                    f"{live_block}"
+                ),
+            },
+            *outbound_messages,
+        ]
+
     response = requests.post(
         "http://127.0.0.1:11434/api/chat",
         json={
             "model": "mistral",
-            "messages": [message.model_dump() for message in req.messages],
+            "messages": outbound_messages,
             "stream": False,
         },
         timeout=120,
