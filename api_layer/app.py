@@ -485,20 +485,27 @@ async def unhandled_exception_handler(_: Request, exc: Exception) -> JSONRespons
     )
 
 
+_seed_running = False
+
 @app.on_event("startup")
 def init_rag() -> None:
-    """Create collection and seed only when empty."""
     ensure_collection()
     if rag_collection_is_empty():
-        threading.Thread(target=seed, daemon=True).start()
+        def _seed_with_flag():
+            global _seed_running
+            _seed_running = True
+            seed()
+            _seed_running = False
+        threading.Thread(target=_seed_with_flag, daemon=True).start()
 
-    # Keep startup fast, then opportunistically warm the model later.
     def preload() -> None:
         time.sleep(30)
         ensure_model()
-
     threading.Thread(target=preload, daemon=True).start()
 
+@app.get("/api/rag/status")
+def rag_status():
+    return {"seeding": _seed_running}
 
 @app.get("/")
 def index(request: Request):
