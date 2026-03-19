@@ -38,6 +38,8 @@
     </div>
   </nav>
 
+  {% include "controls.html" %}
+
   <!-- Hidden nav loader target kept for script compatibility -->
   <nav id="nav-container" class="d-none" aria-hidden="true"></nav>
 
@@ -119,6 +121,7 @@
                   <h2 class="h6">CPU</h2>
                   <div class="metric-skeleton metric-skeleton-value skeleton"></div>
                   <div class="metric-value ll-os-detail-value" id="cpuLoadOS"></div>
+                  <canvas id="cpu-graph" class="mini-graph"></canvas>
                   <div class="progress ll-metric-bar mb-3" role="progressbar" aria-label="CPU load" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
                     <div id="cpuProgressOS" class="progress-bar" style="width: 0%"></div>
                   </div>
@@ -131,6 +134,7 @@
                   <h2 class="h6">Memory</h2>
                   <div class="metric-skeleton metric-skeleton-value skeleton"></div>
                   <div class="metric-value ll-os-detail-value" id="memoryUsageOS"></div>
+                  <canvas id="memory-graph" class="mini-graph"></canvas>
                   <div class="progress ll-metric-bar mb-3" role="progressbar" aria-label="Memory usage" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
                     <div id="memoryProgressOS" class="progress-bar" style="width: 0%"></div>
                   </div>
@@ -143,6 +147,7 @@
                   <h2 class="h6">Disk</h2>
                   <div class="metric-skeleton metric-skeleton-value skeleton"></div>
                   <div class="metric-value ll-os-detail-value" id="diskUsageOS"></div>
+                  <canvas id="disk-graph" class="mini-graph"></canvas>
                   <div class="progress ll-metric-bar mb-3" role="progressbar" aria-label="Disk usage" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
                     <div id="diskProgressOS" class="progress-bar" style="width: 0%"></div>
                   </div>
@@ -167,6 +172,7 @@
                     <span>RX <strong id="networkRxOS"></strong></span>
                     <span>TX <strong id="networkTxOS"></strong></span>
                   </div>
+                  <canvas id="network-graph" class="mini-graph"></canvas>
                   <div class="metric-meta" id="networkMetaOS">Cumulative transfer totals for deeper inspection.</div>
                 </div>
               </div>
@@ -404,6 +410,7 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/static/js/design_engine.js"></script>
 <script src="/static/js/themes.js"></script>
+<script src="/static/js/global.js"></script>
 
 <script type="module" src="/static/js/ui_event_bus.js"></script>
 <script type="module" src="/static/js/system_metrics.js"></script>

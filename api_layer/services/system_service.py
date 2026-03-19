@@ -14,6 +14,11 @@ except ImportError:  # pragma: no cover - optional dependency
 START_TIME = time.time()
 _last_status: dict[str, Any] | None = None
 _last_status_time = 0.0
+_last_net = {
+    "time": time.time(),
+    "sent": 0,
+    "recv": 0,
+}
 
 
 def get_status() -> dict[str, Any]:
@@ -85,6 +90,90 @@ def get_status() -> dict[str, Any]:
     _last_status = status
     _last_status_time = now
     return dict(status)
+
+
+def get_metrics() -> dict[str, Any]:
+    if psutil is None:
+        disk = shutil.disk_usage("/")
+        uptime = int(time.time() - START_TIME)
+        return {
+            "cpu": {"percent": None, "load": {"1m": None, "5m": None, "15m": None}},
+            "memory": {"used": None, "total": None, "percent": None},
+            "disk": {
+                "used": int(disk.used),
+                "total": int(disk.total),
+                "percent": (float(disk.used) / float(disk.total) * 100.0) if disk.total else None,
+            },
+            "network": {
+                "upload_speed": None,
+                "download_speed": None,
+                "total_sent": None,
+                "total_recv": None,
+            },
+            "system": {
+                "platform": platform.system(),
+                "arch": platform.machine(),
+                "uptime": uptime,
+            },
+            "processes": None,
+        }
+
+    global _last_net
+
+    cpu_percent = float(psutil.cpu_percent(interval=0.5))
+    memory = psutil.virtual_memory()
+    disk = psutil.disk_usage("/")
+    net = psutil.net_io_counters()
+    now = time.time()
+    elapsed = now - float(_last_net["time"])
+    if elapsed <= 0:
+        elapsed = 1.0
+
+    upload_speed = float(net.bytes_sent - int(_last_net["sent"])) / elapsed
+    download_speed = float(net.bytes_recv - int(_last_net["recv"])) / elapsed
+    _last_net = {
+        "time": now,
+        "sent": int(net.bytes_sent),
+        "recv": int(net.bytes_recv),
+    }
+
+    try:
+        load_avg_raw = psutil.getloadavg() if hasattr(psutil, "getloadavg") else (None, None, None)
+    except (OSError, AttributeError):
+        load_avg_raw = (None, None, None)
+
+    return {
+        "cpu": {
+            "percent": cpu_percent,
+            "load": {
+                "1m": load_avg_raw[0],
+                "5m": load_avg_raw[1],
+                "15m": load_avg_raw[2],
+            },
+        },
+        "memory": {
+            "used": int(memory.used),
+            "total": int(memory.total),
+            "percent": float(memory.percent),
+        },
+        "disk": {
+            "used": int(disk.used),
+            "total": int(disk.total),
+            "percent": float(disk.percent),
+        },
+        "network": {
+            "upload_speed": upload_speed,
+            "download_speed": download_speed,
+            "total_sent": int(net.bytes_sent),
+            "total_recv": int(net.bytes_recv),
+        },
+        "system": {
+            "platform": platform.system(),
+            "arch": platform.machine(),
+            "uptime": int(time.time() - psutil.boot_time()),
+        },
+        "processes": int(len(psutil.pids())),
+    }
 
 
 def get_cpu() -> dict[str, Any]:

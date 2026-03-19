@@ -8,6 +8,13 @@ const ALERT_SEVERITY_RANK = {
 
 let latestMetrics = null;
 let latestServices = [];
+const MAX_POINTS = 40;
+const graphData = {
+  cpu: [],
+  memory: [],
+  network: [],
+  disk: [],
+};
 
 function formatPercent(value) {
   return Number.isFinite(value) ? `${Math.round(value)}%` : "N/A";
@@ -56,8 +63,68 @@ function formatCompactNetwork(rx, tx) {
   return `RX ${formatBytes(rx)} | TX ${formatBytes(tx)}`;
 }
 
+function formatSpeed(bytesPerSecond) {
+  const numeric = Number(bytesPerSecond);
+  if (!Number.isFinite(numeric) || numeric < 0) return "N/A";
+  return `${formatBytes(numeric)}/s`;
+}
+
 function formatUsedTotal(used, total) {
   return `${formatBytes(used)} / ${formatBytes(total)}`;
+}
+
+function pushData(arr, value) {
+  const numeric = Number(value);
+  arr.push(Number.isFinite(numeric) ? numeric : 0);
+  if (arr.length > MAX_POINTS) {
+    arr.shift();
+  }
+}
+
+function drawGraph(canvasId, data, color = "#4ade80") {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  const width = canvas.width = canvas.offsetWidth;
+  const height = canvas.height = canvas.offsetHeight;
+  ctx.clearRect(0, 0, width, height);
+
+  if (data.length < 2 || width <= 0 || height <= 0) return;
+
+  const max = Math.max(...data, 1);
+  ctx.beginPath();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+
+  data.forEach((val, i) => {
+    const x = (i / (data.length - 1)) * width;
+    const y = height - (val / max) * height;
+
+    if (i === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+  });
+
+  ctx.stroke();
+}
+
+function updateGraphs(data) {
+  pushData(graphData.cpu, data.cpu_load);
+  drawGraph("cpu-graph", graphData.cpu, "#60a5fa");
+
+  pushData(graphData.memory, data.memory_usage);
+  drawGraph("memory-graph", graphData.memory, "#f59e0b");
+
+  pushData(graphData.disk, data.disk_usage);
+  drawGraph("disk-graph", graphData.disk, "#f87171");
+
+  pushData(graphData.network, data.network_download_speed);
+  drawGraph("network-graph", graphData.network, "#34d399");
 }
 
 function setText(id, value) {
@@ -126,9 +193,9 @@ function renderMetrics(data) {
   setText("processCountOS", Number.isFinite(Number(data.process_count)) ? `${data.process_count}` : "N/A");
   setText("processMetaOS", "Current process count");
 
-  setText("networkRxOS", formatBytes(data.network_rx));
-  setText("networkTxOS", formatBytes(data.network_tx));
-  setText("networkMetaOS", "Cumulative transfer totals for deeper inspection.");
+  setText("networkRxOS", formatSpeed(data.network_download_speed));
+  setText("networkTxOS", formatSpeed(data.network_upload_speed));
+  setText("networkMetaOS", `Totals RX ${formatBytes(data.network_rx)} | TX ${formatBytes(data.network_tx)}`);
 
   setText("uptimeOS", `${data.platform || "Unknown"} | ${data.arch || "Unknown"}`);
   setText("systemMetaOS", `Uptime ${formatUptime(data.uptime)}`);
@@ -138,7 +205,7 @@ function renderStatusBar(metrics) {
   setText("globalCpuStatus", formatPercent(metrics.cpu_load));
   setText("globalMemoryStatus", formatPercent(metrics.memory_usage));
   setText("globalDiskStatus", formatPercent(metrics.disk_usage));
-  setText("globalNetworkStatus", formatCompactNetwork(metrics.network_rx, metrics.network_tx));
+  setText("globalNetworkStatus", `Down ${formatSpeed(metrics.network_download_speed)} | Up ${formatSpeed(metrics.network_upload_speed)}`);
   setText("globalUptimeStatus", formatUptime(metrics.uptime));
 }
 
@@ -245,6 +312,7 @@ function renderOSMetrics(data) {
   if (document.body?.getAttribute("data-page") !== "system") return;
   latestMetrics = data;
   renderMetrics(data);
+  updateGraphs(data);
   updateSystemHealthUI();
 }
 

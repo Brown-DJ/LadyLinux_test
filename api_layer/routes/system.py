@@ -20,6 +20,11 @@ def get_system_status() -> dict:
     }
 
 
+@router.get("/metrics")
+def get_system_metrics() -> dict:
+    return {"ok": True, "stdout": "", "stderr": "", "returncode": 0, **system_service.get_metrics()}
+
+
 @router.get("/cpu")
 def get_cpu() -> dict:
     return {"ok": True, "stdout": "", "stderr": "", "returncode": 0, **system_service.get_cpu()}

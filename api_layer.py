@@ -9,6 +9,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import StreamingResponse, JSONResponse, PlainTextResponse
 from pydantic import BaseModel
 from llm_runtime import ensure_model
+from api_layer.services import system_service
 
 app = FastAPI()
 
@@ -373,4 +374,9 @@ def disable_service(target: str):
     except Exception as e:
         log_action("disable_service", target, "failed")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/system/metrics")
+def system_metrics():
+    return {"ok": True, "stdout": "", "stderr": "", "returncode": 0, **system_service.get_metrics()}
 
