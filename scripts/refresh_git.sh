@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-APP_DIR="/opt/ladylinux"
+APP_DIR="/opt/ladylinux/app"
 VENV_DIR="/opt/ladylinux/venv"
 SERVICE="ladylinux-api.service"
 LLM_SERVICE="ladylinux-llm.service"

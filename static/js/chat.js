@@ -780,6 +780,32 @@ function initChat() {
     });
   }
 
+  const fullscreenBtn = document.getElementById("fullscreenBtn");
+  if (fullscreenBtn) {
+    fullscreenBtn.addEventListener("click", () => {
+      const doc = document.documentElement;
+      if (!document.fullscreenElement) {
+        doc.requestFullscreen().catch((err) => {
+          alert(`Fullscreen request failed: ${err.message}`);
+        });
+        fullscreenBtn.textContent = "Exit Fullscreen";
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        }
+        fullscreenBtn.textContent = "Fullscreen";
+      }
+    });
+
+    document.addEventListener("fullscreenchange", () => {
+      if (document.fullscreenElement) {
+        fullscreenBtn.textContent = "Exit Fullscreen";
+      } else {
+        fullscreenBtn.textContent = "Fullscreen";
+      }
+    });
+  }
+
   setChatStatus("idle");
 }
 
