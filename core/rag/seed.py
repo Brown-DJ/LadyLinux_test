@@ -26,23 +26,24 @@ log = logging.getLogger("rag_layer.seed")
 
 # Strict ingestion scope for system-aware RAG seeding.
 ALLOWED_SEED_ROOTS: tuple[str, ...] = (
-    "/opt/ladylinux/app",
-    "/etc",
-    "/usr/share/doc",
+    "/opt/ladylinux/app",   # project code
+    "/etc/ssh",             # static system config
+    "/etc/ufw",
+    "/etc/netplan",
+    "/etc/systemd/system",  # just the unit files, not all of systemd
+    "/etc/hostname",
+    "/etc/hosts",
+    "/etc/network",
 )
 
 EXCLUDED_SEED_PATHS: tuple[str, ...] = (
     "/opt/ladylinux/venv",
-    "/usr/lib",
-    "/usr/bin",
-    "/usr/local/lib",
-    "/proc",
-    "/sys",
-    "/dev",
-    "/run",
-    "/tmp",
-    "/var/cache",
-    "/var/lib",
+    "/opt/ladylinux/app/static",
+    "/opt/ladylinux/app/templates",
+    "/etc/shadow",
+    "/etc/gshadow",
+    "/etc/ssl/private",
+    "/etc/ssh/ssh_host_",
 )
 
 VALID_EXTENSIONS: set[str] = {

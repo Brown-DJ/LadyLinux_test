@@ -75,6 +75,19 @@ class SystemProvider:
             f"{swap.percent:>6.1f}%"
         )
 
+    def _tail(self, path: str, lines: int = 50) -> str:
+        try:
+            result = subprocess.run(
+                ["tail", "-n", str(lines), path],
+                capture_output=True,
+                text=True,
+                timeout=3,
+                check=False,
+            )
+            return result.stdout or f"No output from {path}"
+        except Exception:
+            return f"Could not read {path}"
+
     def snapshot(self, topics: list[str]) -> dict[str, str]:
         data: dict[str, str] = {}
         for topic in topics:
@@ -88,4 +101,8 @@ class SystemProvider:
                 data["disk"] = self.get_disk()
             elif topic == "memory":
                 data["memory"] = self.get_memory()
+            elif topic == "logs":
+                data["logs"] = self._tail("/var/log/syslog", lines=50)
+            elif topic == "auth":
+                data["auth"] = self._tail("/var/log/auth.log", lines=30)
         return data
