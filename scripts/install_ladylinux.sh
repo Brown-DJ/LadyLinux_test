@@ -1,713 +1,678 @@
 #!/usr/bin/env bash
-# ==============================================================================
-# LadyLinux Full System Installer
-# Repo:    https://github.com/Brown-DJ/LadyLinux_test.git
-# Branch:  main (override via BRANCH=develop ./install_ladylinux.sh)
+#===============================================================================
+# LadyLinux Unified Installer
+# File: setup_ladylinux.sh
+# Repo: Brown-DJ/LadyLinux_test  Branch: main
 #
-# What this installer does:
-#   1.  Pre-flight checks (root, OS, internet)
-#   2.  Install system packages (git, python3, curl, dos2unix, chromium, avahi)
-#   3.  Create service user & directories
-#   4.  Set hostname to "ladylinux" (if currently "localhost")
-#   5.  Clone / update the GitHub repository
-#   6.  Create Python virtual environment
-#   7.  Install Python requirements
-#   8.  Fix permissions
-#   9.  Install Ollama runtime + pull mistral & nomic-embed-text models
-#   10. Write systemd units (ladylinux-api.service, ladylinux-llm.service)
-#   11. Create desktop launcher (.desktop + launch_ladylinux.sh)
-#   12. Enable & start services
-#   13. Validate API is listening
-#   14. Print access URLs
-#
-# What this installer does NOT do:
-#   - Reinstall or modify the OS
-#   - Delete existing model weights or application state
-#   - Overwrite /etc/ladylinux/ladylinux.env if it already exists
+# Purpose:
+#   Full bootstrap of a LadyLinux system from a bare Linux Mint install:
+#     1)  Pre-flight checks (root, OS, internet)
+#     2)  System packages
+#     3)  Service user + directory layout
+#     4)  Hostname (sets to "ladylinux" if currently "localhost")
+#     5)  Clone / refresh repo (Brown-DJ/LadyLinux_test @ main)
+#     6)  Python venv (3.12 → 3.11 → 3) + dependencies
+#     7)  Ownership / permissions / dos2unix all .sh files
+#     8)  Ollama install + pull mistral + nomic-embed-text
+#     9)  Systemd units (ladylinux-api.service + ladylinux-llm.service)
+#    10)  launch_ladylinux.sh + .desktop entry
+#    11)  Start services + runtime validation
+#    12)  Print access URLs
 #
 # Usage:
-#   sudo bash install_ladylinux.sh
-#   sudo BRANCH=develop bash install_ladylinux.sh
-#   sudo bash install_ladylinux.sh --dry-run
-#   sudo bash install_ladylinux.sh --skip-models
+#   sudo bash setup_ladylinux.sh
 #
 # Exit codes:
 #   0  success
 #   1  generic failure
-#   2  missing prerequisite / bad environment
-# ==============================================================================
+#   2  missing prerequisite / invalid environment
+#===============================================================================
 
 set -Eeuo pipefail
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Configuration  (edit here or export as environment variables before running)
-# ─────────────────────────────────────────────────────────────────────────────
+#===============================================================================
+# CONFIGURATION
+#===============================================================================
 
 REPO_URL="https://github.com/Brown-DJ/LadyLinux_test.git"
-BRANCH="${BRANCH:-main}"
-
-APP_ROOT="/opt/ladylinux"
-VENV_DIR="$APP_ROOT/venv"
-ETC_DIR="/etc/ladylinux"
-VAR_DIR="/var/lib/ladylinux"
+BRANCH="main"
 
 SERVICE_USER="ladylinux"
-SERVICE_NAME="ladylinux-api.service"
-LLM_SERVICE_NAME="ladylinux-llm.service"
+SERVICE_GROUP="ladylinux"
+TARGET_HOSTNAME="ladylinux"
 
-API_HOST="0.0.0.0"
+BASE_DIR="/opt/ladylinux"
+APP_DIR="$BASE_DIR/app"
+VENV_DIR="$BASE_DIR/venv"
+MODELS_DIR="$BASE_DIR/models"
+CONTAINERS_DIR="$BASE_DIR/containers"
+
+ETC_DIR="/etc/ladylinux"
+ENV_FILE="$ETC_DIR/ladylinux.env"
+
+VAR_DIR="/var/lib/ladylinux"
+DATA_DIR="$VAR_DIR/data"
+CACHE_DIR="$VAR_DIR/cache"
+LOGS_DIR="$VAR_DIR/logs"
+
 API_PORT="8000"
-OLLAMA_HOST="127.0.0.1:11434"
-UVICORN_MODULE="api_layer:app"
+API_SERVICE="ladylinux-api.service"
+LLM_SERVICE="ladylinux-llm.service"
 
-DRY_RUN="false"
-SKIP_MODELS="false"
+LAUNCH_SCRIPT="/usr/local/bin/launch_ladylinux.sh"
+DESKTOP_FILE="/usr/share/applications/ladylinux.desktop"
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Argument parsing
-# ─────────────────────────────────────────────────────────────────────────────
+FALLBACK_LOG="$LOGS_DIR/uvicorn-install.log"
 
-usage() {
-  cat <<EOF
-LadyLinux Installer
+#===============================================================================
+# HELPERS
+#===============================================================================
 
-Usage:
-  sudo bash install_ladylinux.sh [options]
+RED='\033[0;31m'; YELLOW='\033[1;33m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'; NC='\033[0m'
 
-Options:
-  --dry-run        Print actions without making any changes
-  --skip-models    Skip downloading Ollama LLM model weights
-  --branch <name>  Git branch to install (default: main)
-  -h, --help       Show this help text
+log()     { printf "${GREEN}[setup]${NC} %s\n" "$*"; }
+warn()    { printf "${YELLOW}[setup][WARN]${NC} %s\n" "$*" >&2; }
+die()     { printf "${RED}[setup][ERROR]${NC} %s\n" "$*" >&2; exit "${2:-1}"; }
+section() { printf "\n${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n${CYAN}  %s${NC}\n${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n" "$*"; }
 
-Environment overrides:
-  BRANCH=<name>    Same as --branch
-EOF
-}
+require_cmd() { command -v "$1" >/dev/null 2>&1 || die "Required command not found: $1"; }
 
-parse_args() {
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
-      --dry-run)       DRY_RUN="true";            shift ;;
-      --skip-models)   SKIP_MODELS="true";        shift ;;
-      --branch)        BRANCH="${2:-main}";        shift 2 ;;
-      -h|--help)       usage; exit 0 ;;
-      *)               die "Unknown argument: $1 (use --help)" 2 ;;
-    esac
-  done
-}
+run_as_service() { sudo -u "$SERVICE_USER" -- "$@"; }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Logging helpers
-# ─────────────────────────────────────────────────────────────────────────────
-
-BOLD="\033[1m"
-GREEN="\033[0;32m"
-YELLOW="\033[1;33m"
-RED="\033[0;31m"
-RESET="\033[0m"
-
-log()  { printf "${GREEN}[install]${RESET} %s\n"        "$*"; }
-warn() { printf "${YELLOW}[install][WARN]${RESET} %s\n" "$*" >&2; }
-die()  { printf "${RED}[install][ERROR]${RESET} %s\n"   "$*" >&2; exit "${2:-1}"; }
-step() { printf "\n${BOLD}══ %s ══${RESET}\n"           "$*"; }
-
-run() {
-  if [[ "$DRY_RUN" == "true" ]]; then
-    log "DRY-RUN: $*"
-  else
-    "$@"
-  fi
-}
-
-run_as_service() {
-  if [[ "$DRY_RUN" == "true" ]]; then
-    log "DRY-RUN (as $SERVICE_USER): $*"
-  else
-    sudo -u "$SERVICE_USER" -- "$@"
-  fi
-}
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 1 – Pre-flight checks
-# ─────────────────────────────────────────────────────────────────────────────
+#===============================================================================
+# STEP 1 — PRE-FLIGHT
+#===============================================================================
 
 preflight() {
-  step "Pre-flight checks"
+    section "Step 1 — Pre-flight checks"
 
-  # Root
-  if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
-    die "This installer must be run as root. Use: sudo bash $0" 2
-  fi
+    # Root check
+    if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
+        die "Please run as root:  sudo bash $0" 2
+    fi
+    log "Running as root: OK"
 
-  # OS / package manager
-  if ! command -v apt >/dev/null 2>&1; then
-    warn "apt not detected. This installer targets Debian/Ubuntu."
-    warn "Package installation may fail. Proceeding anyway."
-  fi
+    # OS check — warn but don't abort for non-Mint systems
+    if [[ -f /etc/os-release ]]; then
+        # shellcheck source=/dev/null
+        source /etc/os-release
+        log "Detected OS: ${PRETTY_NAME:-unknown}"
+        if [[ "${ID:-}" != "linuxmint" && "${ID_LIKE:-}" != *"ubuntu"* && "${ID_LIKE:-}" != *"debian"* ]]; then
+            warn "This installer is designed for Linux Mint / Ubuntu / Debian derivatives."
+            warn "Continuing anyway — some steps may fail on unsupported distros."
+        fi
+    else
+        warn "Could not detect OS (no /etc/os-release). Proceeding cautiously."
+    fi
 
-  # Internet connectivity (lightweight check)
-  if ! curl --silent --max-time 5 https://github.com >/dev/null 2>&1; then
-    warn "Cannot reach github.com. Check your internet connection."
-    warn "Continuing in case this is a transient failure."
-  fi
+    # Internet check
+    log "Checking internet connectivity..."
+    if ! curl --silent --max-time 10 --head https://github.com >/dev/null 2>&1; then
+        die "No internet access. Please check your network connection and retry." 2
+    fi
+    log "Internet connectivity: OK"
 
-  log "Pre-flight checks passed."
+    log "Pre-flight checks passed."
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 2 – System packages
-# ─────────────────────────────────────────────────────────────────────────────
+#===============================================================================
+# STEP 2 — SYSTEM PACKAGES
+#===============================================================================
 
 install_system_packages() {
-  step "Installing system packages"
+    section "Step 2 — System packages"
 
-  if [[ "$DRY_RUN" == "true" ]]; then
-    log "DRY-RUN: would run apt update and install packages"
-    return 0
-  fi
+    log "Updating package lists..."
+    apt-get update -qq
 
-  # Wait for dpkg lock to clear (handles cloud-init / unattended-upgrades)
-  local waited=0
-  while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
-    if (( waited == 0 )); then log "Waiting for package manager lock to clear..."; fi
-    sleep 3
-    (( waited += 3 ))
-    if (( waited > 120 )); then
-      die "Package manager lock held for >2 min. Run: sudo lsof /var/lib/dpkg/lock-frontend" 2
+    log "Upgrading installed packages..."
+    DEBIAN_FRONTEND=noninteractive apt-get upgrade -y -qq
+
+    PACKAGES=(
+        git
+        curl
+        dos2unix
+        lsof
+        avahi-daemon
+        chromium-browser
+        python3
+        python3-venv
+        python3-pip
+        python3.12
+        python3.12-venv
+        systemd
+        build-essential
+    )
+
+    log "Installing required packages: ${PACKAGES[*]}"
+    # Some packages (e.g. python3.12) may not exist on older Ubuntu LTS; tolerate failure
+    for pkg in "${PACKAGES[@]}"; do
+        if DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$pkg" 2>/dev/null; then
+            log "  Installed: $pkg"
+        else
+            warn "  Could not install $pkg — skipping (may not be available on this release)"
+        fi
+    done
+
+    # Update DNS for reliable model downloads (mirrors Darrius installer)
+    log "Updating DNS settings for reliable downloads..."
+    if [[ -f /etc/systemd/resolved.conf ]]; then
+        cp /etc/systemd/resolved.conf /etc/systemd/resolved.conf.bak
+        sed -i 's/^#\?DNS=.*$/DNS=1.1.1.1 8.8.8.8/'         /etc/systemd/resolved.conf
+        sed -i 's/^#\?FallbackDNS=.*$/FallbackDNS=8.8.4.4/' /etc/systemd/resolved.conf
+        systemctl restart systemd-resolved 2>/dev/null || true
+        log "DNS updated: 1.1.1.1 / 8.8.8.8 (fallback 8.8.4.4)"
+    else
+        warn "/etc/systemd/resolved.conf not found — skipping DNS update"
     fi
-  done
 
-  apt-get update -y -qq
-
-  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-    git \
-    curl \
-    ca-certificates \
-    build-essential \
-    python3 \
-    python3-venv \
-    python3-pip \
-    dos2unix \
-    lsof \
-    avahi-daemon \
-    libnss-mdns \
-    || die "System package installation failed."
-
-  # Chromium – try apt first, snap as fallback
-  if ! command -v chromium >/dev/null 2>&1 && ! command -v chromium-browser >/dev/null 2>&1; then
-    log "Installing Chromium browser..."
-    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-      chromium-browser fonts-liberation libgtk-3-0 2>/dev/null \
-    || snap install chromium 2>/dev/null \
-    || warn "Chromium install failed. The desktop launcher will be unavailable."
-  else
-    log "Chromium already installed — skipping."
-  fi
-
-  # Enable mDNS so machine is reachable at ladylinux.local
-  systemctl enable --now avahi-daemon 2>/dev/null || true
-
-  log "System packages installed."
+    log "System packages installed."
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 3 – Service user
-# ─────────────────────────────────────────────────────────────────────────────
+#===============================================================================
+# STEP 3 — SERVICE USER + DIRECTORY LAYOUT
+#===============================================================================
 
-ensure_service_user() {
-  step "Service user"
+create_user_and_dirs() {
+    section "Step 3 — Service user + directory layout"
 
-  if id "$SERVICE_USER" >/dev/null 2>&1; then
-    log "User '$SERVICE_USER' already exists — skipping creation."
-    return 0
-  fi
+    # Group
+    if getent group "$SERVICE_GROUP" >/dev/null 2>&1; then
+        log "Group already exists: $SERVICE_GROUP"
+    else
+        groupadd --system "$SERVICE_GROUP"
+        log "Created group: $SERVICE_GROUP"
+    fi
 
-  log "Creating system user: $SERVICE_USER"
-  run useradd \
-    --system \
-    --create-home \
-    --home-dir "/home/$SERVICE_USER" \
-    --shell /usr/sbin/nologin \
-    "$SERVICE_USER"
-}
+    # User
+    if id "$SERVICE_USER" >/dev/null 2>&1; then
+        log "User already exists: $SERVICE_USER"
+    else
+        useradd \
+            --system \
+            --gid "$SERVICE_GROUP" \
+            --create-home \
+            --home-dir /home/ladylinux \
+            --shell /usr/sbin/nologin \
+            "$SERVICE_USER"
+        log "Created system user: $SERVICE_USER (home: /home/ladylinux)"
+    fi
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 4 – Directory layout
-# ─────────────────────────────────────────────────────────────────────────────
+    # Ensure home dir exists with correct ownership
+    mkdir -p /home/ladylinux
+    chown "$SERVICE_USER":"$SERVICE_GROUP" /home/ladylinux
+    chmod 0750 /home/ladylinux
 
-create_directories() {
-  step "Creating directory layout"
+    # Create directory tree
+    for d in \
+        "$BASE_DIR" "$APP_DIR" "$VENV_DIR" "$MODELS_DIR" "$CONTAINERS_DIR" \
+        "$ETC_DIR" \
+        "$VAR_DIR" "$DATA_DIR" "$CACHE_DIR" "$LOGS_DIR"
+    do
+        if [[ -d "$d" ]]; then
+            log "Directory exists: $d"
+        else
+            mkdir -p "$d"
+            log "Created directory: $d"
+        fi
+    done
 
-  run mkdir -p \
-    "$APP_ROOT"/{app,venv,models,containers} \
-    "$VAR_DIR"/{data,cache,logs} \
-    "$ETC_DIR"
-
-  if [[ "$DRY_RUN" != "true" ]]; then
-    chown -R "$SERVICE_USER:$SERVICE_USER" "$APP_ROOT" "$VAR_DIR"
-    chmod 750 "$ETC_DIR"
-  fi
-
-  # Create a template env file if none exists
-  if [[ ! -f "$ETC_DIR/ladylinux.env" ]]; then
-    log "Writing template env file: $ETC_DIR/ladylinux.env"
-    run bash -c "cat > '$ETC_DIR/ladylinux.env' <<'ENVEOF'
+    # .env template (never overwrite)
+    if [[ -f "$ENV_FILE" ]]; then
+        log "Env file exists (not modified): $ENV_FILE"
+    else
+        cat > "$ENV_FILE" <<'ENVEOF'
 # LadyLinux environment configuration
-# Lines beginning with # are comments.
-# Uncomment and set values as needed.
+# Location: /etc/ladylinux/ladylinux.env
+# This file is machine-local — keep secrets out of Git.
 
-# OLLAMA_HOST=127.0.0.1:11434
-# API_PORT=8000
-ENVEOF"
-    run chmod 640 "$ETC_DIR/ladylinux.env"
-  else
-    log "Env file already exists — skipping: $ETC_DIR/ladylinux.env"
-  fi
+LADYLINUX_HOST=0.0.0.0
+LADYLINUX_PORT=8000
+LADYLINUX_MODELS_DIR=/opt/ladylinux/models
+LADYLINUX_STATE_DIR=/var/lib/ladylinux/data
+LADYLINUX_ENV=production
+ENVEOF
+        log "Created env template: $ENV_FILE"
+    fi
 
-  log "Directory layout ready."
+    log "User and directories ready."
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 5 – Hostname
-# ─────────────────────────────────────────────────────────────────────────────
+#===============================================================================
+# STEP 4 — HOSTNAME
+#===============================================================================
 
 set_hostname() {
-  step "Hostname"
+    section "Step 4 — Hostname"
 
-  local current
-  current="$(hostname 2>/dev/null || true)"
+    local current_hostname
+    current_hostname="$(hostname)"
 
-  if [[ "$current" == "localhost" || "$current" == "localhost.localdomain" ]]; then
-    log "Current hostname is '$current' — setting to 'ladylinux'"
-    run hostnamectl set-hostname ladylinux
-  else
-    log "Hostname is '$current' — leaving unchanged."
-  fi
+    if [[ "$current_hostname" == "localhost" || "$current_hostname" == "localhost.localdomain" ]]; then
+        log "Current hostname is '$current_hostname' — changing to '$TARGET_HOSTNAME'"
+        hostnamectl set-hostname "$TARGET_HOSTNAME"
+        # Update /etc/hosts so sudo doesn't warn about unknown hostname
+        if ! grep -q "$TARGET_HOSTNAME" /etc/hosts; then
+            echo "127.0.1.1  $TARGET_HOSTNAME" >> /etc/hosts
+        fi
+        log "Hostname set to: $TARGET_HOSTNAME"
+    else
+        log "Current hostname is '$current_hostname' — leaving unchanged (not 'localhost')"
+    fi
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 6 – Repository
-# ─────────────────────────────────────────────────────────────────────────────
+#===============================================================================
+# STEP 5 — CLONE / REFRESH REPO
+#===============================================================================
 
-setup_repo() {
-  step "Repository (branch: $BRANCH)"
+sync_repo() {
+    section "Step 5 — Clone / refresh repo ($REPO_URL @ $BRANCH)"
 
-  if [[ "$DRY_RUN" == "true" ]]; then
-    log "DRY-RUN: would clone/sync $REPO_URL → $APP_ROOT"
-    return 0
-  fi
+    # Temporarily give ladylinux a shell for git operations
+    usermod -s /bin/bash "$SERVICE_USER"
 
-  # Configure git safe.directory so service user can operate on root-owned clone
-  run_as_service git config --global --add safe.directory "$APP_ROOT" 2>/dev/null || true
+    # Configure git safe.directory
+    run_as_service git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
 
-  if [[ ! -d "$APP_ROOT/.git" ]]; then
-    log "Cloning $REPO_URL into $APP_ROOT"
-    run_as_service git clone "$REPO_URL" "$APP_ROOT"
-    # Fix Windows line-endings in scripts after fresh clone
-    find "$APP_ROOT" -type f -name "*.sh" -exec dos2unix --quiet {} + 2>/dev/null || true
-    find "$APP_ROOT" -type f -name "*.py"  -exec dos2unix --quiet {} + 2>/dev/null || true
-  else
-    log "Repository already cloned — fetching latest changes."
-  fi
+    if [[ -d "$APP_DIR/.git" ]]; then
+        log "Existing repo found — syncing to origin/$BRANCH"
 
-  run_as_service git -C "$APP_ROOT" fetch --prune origin
+        pushd "$APP_DIR" >/dev/null
 
-  # Validate branch exists on remote before hard-resetting
-  if ! run_as_service git -C "$APP_ROOT" show-ref --verify --quiet "refs/remotes/origin/$BRANCH"; then
-    die "Branch '$BRANCH' not found on remote $REPO_URL" 2
-  fi
+        # Fix remote URL if needed
+        local current_remote
+        current_remote="$(run_as_service git remote get-url origin 2>/dev/null || true)"
+        if [[ "$current_remote" != "$REPO_URL" ]]; then
+            if run_as_service git remote | grep -Fxq origin; then
+                run_as_service git remote set-url origin "$REPO_URL"
+            else
+                run_as_service git remote add origin "$REPO_URL"
+            fi
+            log "Remote origin set to: $REPO_URL"
+        fi
 
-  run_as_service git -C "$APP_ROOT" checkout -f "$BRANCH" 2>/dev/null || true
-  run_as_service git -C "$APP_ROOT" reset --hard "origin/$BRANCH"
-  run_as_service git -C "$APP_ROOT" clean -fd
+        run_as_service git fetch --prune origin
 
-  local commit
-  commit="$(run_as_service git -C "$APP_ROOT" rev-parse --short HEAD)"
-  log "Repository at commit $commit on branch $BRANCH."
+        # Validate branch exists on remote before hard-reset
+        if ! run_as_service git show-ref --verify --quiet "refs/remotes/origin/$BRANCH"; then
+            printf "${RED}[setup][ERROR]${NC} Branch '%s' not found on remote.\n" "$BRANCH" >&2
+            log "Available remote branches:"
+            run_as_service git branch -r || true
+            popd >/dev/null
+            die "Aborting — refusing to hard-reset to a non-existent branch." 1
+        fi
+
+        run_as_service git checkout -f "$BRANCH" 2>/dev/null || true
+        run_as_service git reset --hard "origin/$BRANCH"
+        run_as_service git clean -fd
+
+        popd >/dev/null
+        log "Repo updated to: $(cd "$APP_DIR" && run_as_service git rev-parse --short HEAD) ($BRANCH)"
+
+    else
+        log "No existing repo — cloning..."
+
+        # APP_DIR must be empty for clone
+        if [[ -d "$APP_DIR" ]] && [[ -n "$(ls -A "$APP_DIR" 2>/dev/null || true)" ]]; then
+            warn "$APP_DIR is non-empty but has no .git — clearing it before clone"
+            rm -rf "$APP_DIR"
+            mkdir -p "$APP_DIR"
+        fi
+
+        git clone --branch "$BRANCH" "$REPO_URL" "$APP_DIR"
+        chown -R "$SERVICE_USER":"$SERVICE_GROUP" "$APP_DIR"
+        log "Cloned repo to: $APP_DIR"
+    fi
+
+    # Restore secure shell
+    usermod -s /usr/sbin/nologin "$SERVICE_USER"
+    log "Repo sync complete."
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 7 – Python virtual environment
-# ─────────────────────────────────────────────────────────────────────────────
+#===============================================================================
+# STEP 6 — PYTHON VENV + DEPENDENCIES
+#===============================================================================
 
-setup_venv() {
-  step "Python virtual environment"
+build_venv() {
+    section "Step 6 — Python venv + dependencies"
 
-  if [[ "$DRY_RUN" == "true" ]]; then
-    log "DRY-RUN: would create venv at $VENV_DIR"
-    return 0
-  fi
+    # Auto-pick best available python
+    local python_bin=""
+    for candidate in python3.12 python3.11 python3; do
+        if command -v "$candidate" >/dev/null 2>&1; then
+            python_bin="$candidate"
+            log "Using Python: $(command -v $candidate) ($(${candidate} --version 2>&1))"
+            break
+        fi
+    done
+    [[ -n "$python_bin" ]] || die "No Python 3 interpreter found. Install python3 and retry."
 
-  # Pick the best available Python
-  local py
-  if   command -v python3.12 >/dev/null 2>&1; then py="python3.12"
-  elif command -v python3.11 >/dev/null 2>&1; then py="python3.11"
-  elif command -v python3    >/dev/null 2>&1; then py="python3"
-  else die "No Python 3 interpreter found." 2
-  fi
-  log "Using Python: $py ($(command -v "$py"))"
+    local pip_bin="$VENV_DIR/bin/pip"
 
-  if [[ ! -d "$VENV_DIR" || ! -x "$VENV_DIR/bin/python" ]]; then
-    log "Creating virtual environment at $VENV_DIR"
+    log "Building venv at $VENV_DIR (as $SERVICE_USER)..."
     rm -rf "$VENV_DIR"
     mkdir -p "$VENV_DIR"
-    chown "$SERVICE_USER:$SERVICE_USER" "$VENV_DIR"
-    run_as_service "$py" -m venv --system-site-packages "$VENV_DIR"
-  else
-    log "Virtual environment already exists — skipping creation."
-  fi
+    chown "$SERVICE_USER":"$SERVICE_GROUP" "$VENV_DIR"
 
-  [[ -x "$VENV_DIR/bin/python" ]] || die "Virtual environment creation failed." 1
-  log "Virtual environment ready."
+    # Temporarily allow shell for venv creation
+    usermod -s /bin/bash "$SERVICE_USER"
+
+    run_as_service "$python_bin" -m venv "$VENV_DIR"
+    run_as_service "$pip_bin" install --upgrade pip wheel setuptools --quiet
+
+    pushd "$APP_DIR" >/dev/null
+
+    if [[ -f "requirements.txt" ]]; then
+        log "Installing from requirements.txt..."
+        run_as_service "$pip_bin" install -r requirements.txt --quiet
+    elif [[ -f "pyproject.toml" ]]; then
+        log "pyproject.toml found — installing default runtime stack..."
+        run_as_service "$pip_bin" install fastapi uvicorn requests jinja2 python-multipart pydantic --quiet
+    else
+        log "No dependency manifest found — installing default runtime stack..."
+        run_as_service "$pip_bin" install fastapi uvicorn requests jinja2 python-multipart pydantic --quiet
+    fi
+
+    popd >/dev/null
+
+    # Restore secure shell
+    usermod -s /usr/sbin/nologin "$SERVICE_USER"
+
+    log "Python environment ready."
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 8 – Python requirements
-# ─────────────────────────────────────────────────────────────────────────────
-
-install_requirements() {
-  step "Python requirements"
-
-  if [[ "$DRY_RUN" == "true" ]]; then
-    log "DRY-RUN: would install requirements into $VENV_DIR"
-    return 0
-  fi
-
-  run_as_service "$VENV_DIR/bin/python" -m pip install --quiet --upgrade pip wheel setuptools
-
-  if [[ -f "$APP_ROOT/requirements.txt" ]]; then
-    log "Installing from requirements.txt"
-    run_as_service "$VENV_DIR/bin/pip" install --quiet -r "$APP_ROOT/requirements.txt"
-  else
-    warn "requirements.txt not found — installing fallback runtime stack."
-    run_as_service "$VENV_DIR/bin/pip" install --quiet \
-      fastapi uvicorn requests jinja2 python-multipart
-  fi
-
-  log "Python requirements installed."
-}
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 9 – Permissions
-# ─────────────────────────────────────────────────────────────────────────────
+#===============================================================================
+# STEP 7 — OWNERSHIP, PERMISSIONS, DOS2UNIX
+#===============================================================================
 
 fix_permissions() {
-  step "Permissions"
+    section "Step 7 — Ownership, permissions, line endings"
 
-  run chown -R "$SERVICE_USER:$SERVICE_USER" "$APP_ROOT" "$VAR_DIR"
+    chown -R "$SERVICE_USER":"$SERVICE_GROUP" "$BASE_DIR"
+    chown -R "$SERVICE_USER":"$SERVICE_GROUP" "$VAR_DIR"
+    chown -R root:"$SERVICE_GROUP"            "$ETC_DIR"
 
-  # Make all shell scripts executable
-  find "$APP_ROOT" -type f -name "*.sh" -exec chmod +x {} + 2>/dev/null || true
+    chmod 0755 "$BASE_DIR"
+    chmod 0755 "$APP_DIR" "$VENV_DIR" "$CONTAINERS_DIR"
+    chmod 0750 "$MODELS_DIR"
+    chmod 0755 "$VAR_DIR"
+    chmod 0750 "$DATA_DIR" "$CACHE_DIR" "$LOGS_DIR"
+    chmod 0750 "$ETC_DIR"
+    chmod 0640 "$ENV_FILE" 2>/dev/null || true
 
-  log "Permissions set."
-}
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 10 – Ollama runtime
-# ─────────────────────────────────────────────────────────────────────────────
-
-install_ollama() {
-  step "Ollama LLM runtime"
-
-  if [[ "$DRY_RUN" == "true" ]]; then
-    log "DRY-RUN: would install Ollama and pull mistral + nomic-embed-text"
-    return 0
-  fi
-
-  if ! command -v ollama >/dev/null 2>&1; then
-    log "Downloading and installing Ollama..."
-    curl -fsSL https://ollama.com/install.sh | sh \
-      || die "Ollama installation failed." 1
-  else
-    log "Ollama already installed: $(ollama --version 2>/dev/null || echo 'version unknown')"
-  fi
-
-  log "Ollama installed."
-}
-
-pull_models() {
-  step "Ollama model weights"
-
-  if [[ "$SKIP_MODELS" == "true" ]]; then
-    log "--skip-models flag set. Skipping model downloads."
-    return 0
-  fi
-
-  if [[ "$DRY_RUN" == "true" ]]; then
-    log "DRY-RUN: would pull mistral and nomic-embed-text models"
-    return 0
-  fi
-
-  # Ensure the LLM service is running so 'ollama pull' can talk to the daemon
-  systemctl daemon-reload 2>/dev/null || true
-  systemctl enable "$LLM_SERVICE_NAME" 2>/dev/null || true
-  systemctl restart "$LLM_SERVICE_NAME" || true
-
-  log "Waiting for Ollama daemon to be ready..."
-  local attempts=30
-  while (( attempts > 0 )); do
-    if curl --silent --fail --max-time 2 "http://$OLLAMA_HOST" >/dev/null 2>&1; then
-      break
+    # Make every .sh file in the repo executable + fix line endings
+    log "Fixing line endings and permissions on .sh files..."
+    if command -v dos2unix >/dev/null 2>&1; then
+        find "$APP_DIR" -name "*.sh" -type f | while read -r f; do
+            dos2unix "$f" 2>/dev/null || true
+            chmod +x "$f"
+            log "  Fixed: $f"
+        done
+    else
+        warn "dos2unix not available — skipping CRLF conversion"
+        find "$APP_DIR" -name "*.sh" -type f -exec chmod +x {} \;
     fi
-    sleep 2
-    (( attempts-- ))
-  done
 
-  if ! curl --silent --fail --max-time 2 "http://$OLLAMA_HOST" >/dev/null 2>&1; then
-    warn "Ollama daemon did not respond. Skipping model downloads."
-    warn "Run manually after start: ollama pull mistral && ollama pull nomic-embed-text"
-    return 0
-  fi
-
-  if ! ollama list 2>/dev/null | grep -q "^mistral"; then
-    log "Pulling mistral model (this may take several minutes)..."
-    ollama pull mistral || warn "mistral pull failed. Run manually: ollama pull mistral"
-  else
-    log "mistral model already present — skipping."
-  fi
-
-  if ! ollama list 2>/dev/null | grep -q "nomic-embed-text"; then
-    log "Pulling nomic-embed-text embedding model..."
-    ollama pull nomic-embed-text \
-      || warn "nomic-embed-text pull failed. Run manually: ollama pull nomic-embed-text"
-  else
-    log "nomic-embed-text model already present — skipping."
-  fi
-
-  log "Model weights ready."
+    log "Permissions set."
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 11 – Systemd units
-# ─────────────────────────────────────────────────────────────────────────────
+#===============================================================================
+# STEP 8 — OLLAMA + MODELS
+#===============================================================================
 
-write_llm_service() {
-  local dest="/etc/systemd/system/$LLM_SERVICE_NAME"
-  local src="$APP_ROOT/scripts/testbranchscripts/ladylinux-llm.service"
+install_ollama_and_models() {
+    section "Step 8 — Ollama + model pull (mistral, nomic-embed-text)"
 
-  # Prefer unit file shipped in repo if it exists
-  if [[ -f "$src" ]]; then
-    log "Installing LLM service unit from repo: $src"
-    run install -m 0644 "$src" "$dest"
-  else
-    log "Writing LLM service unit: $dest"
-    run bash -c "cat > '$dest' <<'UNITEOF'
+    if command -v ollama >/dev/null 2>&1; then
+        log "Ollama already installed: $(ollama --version 2>/dev/null || true)"
+    else
+        log "Installing Ollama..."
+        curl -fsSL https://ollama.com/install.sh | sh
+        log "Ollama installed."
+    fi
+
+    log "Enabling and starting Ollama service..."
+    systemctl enable ollama 2>/dev/null || true
+    systemctl start  ollama
+    sleep 3
+
+    # Pull models (ollama pull is idempotent)
+    log "Pulling mistral LLM (this may take several minutes)..."
+    ollama pull mistral
+
+    log "Pulling nomic-embed-text model..."
+    ollama pull nomic-embed-text
+
+    log "Models ready."
+}
+
+#===============================================================================
+# STEP 9 — SYSTEMD UNITS
+#===============================================================================
+
+write_systemd_units() {
+    section "Step 9 — Systemd service units"
+
+    # ── ladylinux-llm.service ──────────────────────────────────────────────────
+    log "Writing $LLM_SERVICE..."
+    cat > "/etc/systemd/system/$LLM_SERVICE" <<LLMEOF
 [Unit]
-Description=LadyLinux LLM Runtime (Ollama)
+Description=LadyLinux LLM Runtime (Ollama / Mistral)
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=/usr/bin/ollama serve
-Restart=always
-RestartSec=3
+Type=simple
 User=root
-Environment=\"OLLAMA_HOST=$OLLAMA_HOST\"
-
+ExecStart=/usr/local/bin/ollama serve
+Restart=on-failure
+RestartSec=5
 StandardOutput=journal
 StandardError=journal
+SyslogIdentifier=ladylinux-llm
 
 [Install]
 WantedBy=multi-user.target
-UNITEOF"
-  fi
-}
+LLMEOF
 
-write_api_service() {
-  local dest="/etc/systemd/system/$SERVICE_NAME"
-  log "Writing API service unit: $dest"
-  run bash -c "cat > '$dest' <<UNITEOF
+    # ── ladylinux-api.service ──────────────────────────────────────────────────
+    log "Writing $API_SERVICE..."
+    cat > "/etc/systemd/system/$API_SERVICE" <<APIEOF
 [Unit]
-Description=LadyLinux API
-After=network-online.target $LLM_SERVICE_NAME
+Description=LadyLinux FastAPI Server
+After=network-online.target $LLM_SERVICE
 Wants=network-online.target
-Requires=$LLM_SERVICE_NAME
+Requires=$LLM_SERVICE
 
 [Service]
 Type=simple
 User=$SERVICE_USER
-Group=$SERVICE_USER
-WorkingDirectory=$APP_ROOT
-EnvironmentFile=-$ETC_DIR/ladylinux.env
-Environment=PYTHONUNBUFFERED=1
-
-ExecStart=$VENV_DIR/bin/python -m uvicorn $UVICORN_MODULE --host $API_HOST --port $API_PORT
-
-Restart=always
-RestartSec=3
-
+Group=$SERVICE_GROUP
+WorkingDirectory=$APP_DIR
+EnvironmentFile=-$ENV_FILE
+Environment="PATH=$VENV_DIR/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=$VENV_DIR/bin/uvicorn api_layer:app --host 0.0.0.0 --port $API_PORT
+Restart=on-failure
+RestartSec=5
 StandardOutput=journal
 StandardError=journal
+SyslogIdentifier=ladylinux-api
 
 [Install]
 WantedBy=multi-user.target
-UNITEOF"
+APIEOF
+
+    systemctl daemon-reload
+    systemctl enable "$LLM_SERVICE"
+    systemctl enable "$API_SERVICE"
+    log "Systemd units written and enabled."
 }
 
-install_services() {
-  step "Systemd service units"
+#===============================================================================
+# STEP 10 — LAUNCH SCRIPT + DESKTOP ENTRY
+#===============================================================================
 
-  if [[ "$DRY_RUN" == "true" ]]; then
-    log "DRY-RUN: would write and enable $SERVICE_NAME and $LLM_SERVICE_NAME"
-    return 0
-  fi
+write_launch_and_desktop() {
+    section "Step 10 — Launch script + .desktop entry"
 
-  write_llm_service
-  write_api_service
-
-  systemctl daemon-reload
-
-  systemctl enable "$LLM_SERVICE_NAME"
-  systemctl enable "$SERVICE_NAME"
-
-  log "Service units installed and enabled."
-}
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 12 – Desktop launcher
-# ─────────────────────────────────────────────────────────────────────────────
-
-setup_desktop_launcher() {
-  step "Desktop launcher"
-
-  if [[ "$DRY_RUN" == "true" ]]; then
-    log "DRY-RUN: would create launch_ladylinux.sh and ladylinux.desktop"
-    return 0
-  fi
-
-  # Launcher shell script
-  local launcher="$APP_ROOT/launch_ladylinux.sh"
-  cat > "$launcher" <<'LAUNCHEOF'
+    log "Writing $LAUNCH_SCRIPT..."
+    cat > "$LAUNCH_SCRIPT" <<'LAUNCHEOF'
 #!/usr/bin/env bash
-APP_DIR="/opt/ladylinux"
-PYTHON="$APP_DIR/venv/bin/python"
-SCRIPT="$APP_DIR/scripts/testbranchscripts/start_ladylinux.py"
-exec "$PYTHON" "$SCRIPT"
-LAUNCHEOF
-  chmod +x "$launcher"
-  chown "$SERVICE_USER:$SERVICE_USER" "$launcher"
+set -euo pipefail
 
-  # System-wide .desktop entry
-  cat > /usr/share/applications/ladylinux.desktop <<'DESKEOF'
+echo "Launching LadyLinux..."
+
+# Ensure Ollama is running
+if ! systemctl is-active --quiet ollama 2>/dev/null && \
+   ! systemctl is-active --quiet ladylinux-llm.service 2>/dev/null; then
+    sudo systemctl start ollama 2>/dev/null || sudo systemctl start ladylinux-llm.service 2>/dev/null || true
+fi
+
+# Ensure API is running
+if ! pgrep -f "uvicorn api_layer:app" >/dev/null 2>&1; then
+    sudo systemctl start ladylinux-api.service 2>/dev/null || true
+    sleep 3
+fi
+
+URL="http://localhost:8000"
+
+# Open browser
+if command -v chromium-browser >/dev/null 2>&1; then
+    chromium-browser --app="$URL" --class=LadyLinuxApp &
+elif command -v xdg-open >/dev/null 2>&1; then
+    xdg-open "$URL" &
+else
+    echo "Please open your browser and visit: $URL"
+fi
+
+echo "LadyLinux launched at $URL"
+LAUNCHEOF
+
+    chmod +x "$LAUNCH_SCRIPT"
+    log "Launch script written: $LAUNCH_SCRIPT"
+
+    log "Writing $DESKTOP_FILE..."
+    cat > "$DESKTOP_FILE" <<DESKTOPEOF
 [Desktop Entry]
-Name=Lady Linux
-Comment=LadyLinux System Control Interface
-Exec=/opt/ladylinux/launch_ladylinux.sh
+Version=1.0
+Type=Application
+Name=LadyLinux
+Comment=LadyLinux LLM Chat Interface
+Exec=$LAUNCH_SCRIPT
 Icon=utilities-terminal
 Terminal=false
-Type=Application
-Categories=System;Utility;
+Categories=Utility;AI;
+Keywords=LLM;AI;Chat;Mistral;
 StartupNotify=true
-DESKEOF
+DESKTOPEOF
 
-  log "Desktop launcher created."
+    chmod 0644 "$DESKTOP_FILE"
+    log "Desktop entry written: $DESKTOP_FILE"
+
+    # Update desktop database if available
+    update-desktop-database 2>/dev/null || true
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 13 – Start services
-# ─────────────────────────────────────────────────────────────────────────────
+#===============================================================================
+# STEP 11 — START SERVICES + RUNTIME VALIDATION
+#===============================================================================
 
-start_services() {
-  step "Starting services"
+start_and_validate() {
+    section "Step 11 — Start services + validation"
 
-  if [[ "$DRY_RUN" == "true" ]]; then
-    log "DRY-RUN: would start $LLM_SERVICE_NAME and $SERVICE_NAME"
-    return 0
-  fi
+    log "Starting $LLM_SERVICE..."
+    systemctl start "$LLM_SERVICE" || warn "Could not start $LLM_SERVICE — check: journalctl -u $LLM_SERVICE"
 
-  log "Starting LLM service ($LLM_SERVICE_NAME)..."
-  systemctl restart "$LLM_SERVICE_NAME" \
-    || warn "LLM service failed to start. Check: journalctl -u $LLM_SERVICE_NAME -n 50"
+    log "Starting $API_SERVICE..."
+    systemctl start "$API_SERVICE" || {
+        warn "systemd start failed — attempting fallback uvicorn startup..."
+        mkdir -p "$(dirname "$FALLBACK_LOG")"
+        touch "$FALLBACK_LOG"
+        chown "$SERVICE_USER":"$SERVICE_GROUP" "$FALLBACK_LOG"
+        sudo -u "$SERVICE_USER" bash -c \
+            "cd '$APP_DIR' && nohup '$VENV_DIR/bin/uvicorn' api_layer:app \
+             --host 0.0.0.0 --port $API_PORT >> '$FALLBACK_LOG' 2>&1 &"
+    }
 
-  log "Starting API service ($SERVICE_NAME)..."
-  systemctl restart "$SERVICE_NAME" \
-    || warn "API service failed to start. Check: journalctl -u $SERVICE_NAME -n 50"
-}
+    # Wait for port 8000 to open (up to 20 seconds)
+    log "Waiting for API to become available on port $API_PORT..."
+    local attempts=20
+    local ready=0
+    while (( attempts > 0 )); do
+        if lsof -i :"$API_PORT" >/dev/null 2>&1 || \
+           ss -tlnp 2>/dev/null | grep -q ":$API_PORT "; then
+            ready=1
+            break
+        fi
+        sleep 1
+        (( attempts-- ))
+    done
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 14 – Validate & summarize
-# ─────────────────────────────────────────────────────────────────────────────
+    if [[ "$ready" -ne 1 ]]; then
+        warn "Port $API_PORT is not yet listening after 20s."
+        warn "Check logs:"
+        warn "  journalctl -u $API_SERVICE -n 50 --no-pager"
+        warn "  cat $FALLBACK_LOG"
+    else
+        log "Port $API_PORT is open — API is running."
 
-validate_and_summarize() {
-  step "Validation"
-
-  if [[ "$DRY_RUN" == "true" ]]; then
-    log "DRY-RUN: would wait for port $API_PORT to open"
-    return 0
-  fi
-
-  log "Waiting for API to start on port $API_PORT..."
-  local attempts=20
-  local ready=0
-  while (( attempts > 0 )); do
-    if lsof -i :"$API_PORT" >/dev/null 2>&1; then
-      ready=1
-      break
+        if command -v curl >/dev/null 2>&1; then
+            if curl --silent --fail --max-time 5 "http://127.0.0.1:$API_PORT/" >/dev/null 2>&1; then
+                log "HTTP health check: OK (200 response from localhost:$API_PORT)"
+            else
+                warn "Process is listening but HTTP health check did not return 200."
+                warn "The app may still be initialising — try again in a moment."
+            fi
+        fi
     fi
-    sleep 2
-    (( attempts-- ))
-  done
-
-  if [[ "$ready" -ne 1 ]]; then
-    warn "API port $API_PORT did not open within the timeout."
-    warn "Inspect logs: journalctl -u $SERVICE_NAME -n 100 --no-pager"
-  else
-    log "API is listening on port $API_PORT."
-  fi
-
-  local host_ip
-  host_ip="$(hostname -I 2>/dev/null | awk '{print $1}' || echo "127.0.0.1")"
-
-  printf "\n"
-  printf "${BOLD}╔══════════════════════════════════════════╗${RESET}\n"
-  printf "${BOLD}║      LadyLinux Installation Complete     ║${RESET}\n"
-  printf "${BOLD}╠══════════════════════════════════════════╣${RESET}\n"
-  printf "${BOLD}║${RESET}  Branch : %-31s${BOLD}║${RESET}\n" "$BRANCH"
-  printf "${BOLD}║${RESET}  App    : %-31s${BOLD}║${RESET}\n" "$APP_ROOT"
-  printf "${BOLD}╠══════════════════════════════════════════╣${RESET}\n"
-  printf "${BOLD}║${RESET}  ${GREEN}Desktop :${RESET} http://127.0.0.1:%-16s${BOLD}║${RESET}\n" "${API_PORT}"
-  printf "${BOLD}║${RESET}  ${GREEN}Network :${RESET} http://%-23s${BOLD}║${RESET}\n" "${host_ip}:${API_PORT}"
-  printf "${BOLD}║${RESET}  ${GREEN}mDNS    :${RESET} http://ladylinux.local:%-10s${BOLD}║${RESET}\n" "${API_PORT}"
-  printf "${BOLD}╠══════════════════════════════════════════╣${RESET}\n"
-  printf "${BOLD}║${RESET}  View API logs:                           ${BOLD}║${RESET}\n"
-  printf "${BOLD}║${RESET}    journalctl -u ladylinux-api -f         ${BOLD}║${RESET}\n"
-  printf "${BOLD}║${RESET}  Refresh from GitHub:                     ${BOLD}║${RESET}\n"
-  printf "${BOLD}║${RESET}    sudo ./scripts/refresh_vm.sh $BRANCH   ${BOLD}║${RESET}\n"
-  printf "${BOLD}╚══════════════════════════════════════════╝${RESET}\n"
-  printf "\n"
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Main
-# ─────────────────────────────────────────────────────────────────────────────
+#===============================================================================
+# STEP 12 — PRINT ACCESS URLS
+#===============================================================================
+
+print_access_urls() {
+    section "Step 12 — Access URLs"
+
+    local lan_ip=""
+    lan_ip="$(hostname -I 2>/dev/null | awk '{print $1}' || true)"
+
+    printf "\n"
+    printf "${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}\n"
+    printf "${GREEN}║           LadyLinux Installation Complete!                  ║${NC}\n"
+    printf "${GREEN}╠══════════════════════════════════════════════════════════════╣${NC}\n"
+    printf "${GREEN}║${NC}  Localhost:  ${CYAN}http://localhost:$API_PORT${NC}\n"
+    if [[ -n "$lan_ip" ]]; then
+    printf "${GREEN}║${NC}  LAN IP:     ${CYAN}http://$lan_ip:$API_PORT${NC}\n"
+    fi
+    printf "${GREEN}║${NC}  mDNS:       ${CYAN}http://ladylinux.local:$API_PORT${NC}\n"
+    printf "${GREEN}╠══════════════════════════════════════════════════════════════╣${NC}\n"
+    printf "${GREEN}║${NC}  Launch app: ${CYAN}$LAUNCH_SCRIPT${NC}\n"
+    printf "${GREEN}║${NC}  API logs:   ${CYAN}journalctl -u $API_SERVICE -f${NC}\n"
+    printf "${GREEN}║${NC}  LLM logs:   ${CYAN}journalctl -u $LLM_SERVICE -f${NC}\n"
+    printf "${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}\n"
+    printf "\n"
+
+    log "Setup finished successfully."
+}
+
+#===============================================================================
+# MAIN
+#===============================================================================
 
 main() {
-  parse_args "$@"
-
-  if [[ "$DRY_RUN" == "true" ]]; then
-    warn "DRY-RUN mode enabled — no changes will be made."
-  fi
-
-  preflight
-  install_system_packages
-  ensure_service_user
-  create_directories
-  set_hostname
-  setup_repo
-  setup_venv
-  install_requirements
-  fix_permissions
-  install_ollama
-  write_llm_service 2>/dev/null || true  # first pass so daemon can start for model pulls
-  systemctl daemon-reload 2>/dev/null || true
-  systemctl enable "$LLM_SERVICE_NAME"  2>/dev/null || true
-  systemctl restart "$LLM_SERVICE_NAME" 2>/dev/null || true
-  pull_models
-  install_services
-  setup_desktop_launcher
-  start_services
-  validate_and_summarize
+    preflight
+    install_system_packages
+    create_user_and_dirs
+    set_hostname
+    sync_repo
+    build_venv
+    fix_permissions
+    install_ollama_and_models
+    write_systemd_units
+    write_launch_and_desktop
+    start_and_validate
+    print_access_urls
 }
 
 main "$@"
