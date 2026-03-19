@@ -4,96 +4,87 @@ set -Eeuo pipefail
 log() { echo "[LadyLinux] $1"; }
 die() { echo "[LadyLinux][ERROR] $1"; exit 1; }
 
-#---------------- CONFIG ----------------#
-
 ROOT_DIR="/opt/ladylinux"
 APP_DIR="$ROOT_DIR/app"
 VENV_DIR="$ROOT_DIR/venv"
-LOG_DIR="$ROOT_DIR/logs"
 
 SERVICE_USER="ladylinux"
 
 REPO_URL="https://github.com/Brown-DJ/LadyLinux_test.git"
 BRANCH="main"
 
-APP_MODULE="main:app"   # change if needed
 PORT="8000"
-
-#---------------- ROOT CHECK ----------------#
 
 if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
   die "Run as root."
 fi
 
-#---------------- PACKAGES ----------------#
-
-log "Installing system packages"
+log "Installing dependencies"
 apt-get update
-apt-get install -y python3 python3-venv python3-pip git curl
-
-#---------------- DIRECTORIES ----------------#
+apt-get install -y python3 python3-venv python3-pip git
 
 log "Creating directories"
-mkdir -p "$APP_DIR" "$VENV_DIR" "$LOG_DIR"
-
-#---------------- USER ----------------#
+mkdir -p "$APP_DIR" "$VENV_DIR"
 
 if ! id "$SERVICE_USER" >/dev/null 2>&1; then
-  log "Creating service user"
   useradd --system --home "$ROOT_DIR" --shell /usr/sbin/nologin "$SERVICE_USER"
 fi
 
 chown -R "$SERVICE_USER:$SERVICE_USER" "$ROOT_DIR"
 
-#---------------- GIT SETUP ----------------#
-
-log "Setting git safe directory"
+log "Fixing git safe directory"
 git config --global --add safe.directory "$APP_DIR"
 
 if [[ -d "$APP_DIR/.git" ]]; then
-  log "Updating existing repo"
+  log "Updating repo"
   git -C "$APP_DIR" fetch origin
   git -C "$APP_DIR" checkout "$BRANCH"
   git -C "$APP_DIR" reset --hard "origin/$BRANCH"
 else
-  log "Cloning repo (branch: $BRANCH)"
+  log "Cloning repo"
   rm -rf "$APP_DIR"
   git clone --branch "$BRANCH" "$REPO_URL" "$APP_DIR"
 fi
 
 chown -R "$SERVICE_USER:$SERVICE_USER" "$APP_DIR"
 
-#---------------- VENV ----------------#
+# 🔥 AUTO-DETECT APP ROOT
+if [[ -d "$APP_DIR/LadyLinux_myine" ]]; then
+  RUN_DIR="$APP_DIR/LadyLinux_myine"
+else
+  RUN_DIR="$APP_DIR"
+fi
 
-log "Setting up virtual environment"
+# 🔥 AUTO-DETECT ENTRYPOINT
+if [[ -f "$RUN_DIR/api_layer/app.py" ]]; then
+  APP_MODULE="api_layer.app:app"
+elif [[ -f "$RUN_DIR/api_layer.py" ]]; then
+  APP_MODULE="api_layer:app"
+else
+  die "Could not find FastAPI entrypoint"
+fi
 
+log "Using app module: $APP_MODULE"
+log "Run directory: $RUN_DIR"
+
+log "Setting up venv"
 sudo -u "$SERVICE_USER" python3 -m venv "$VENV_DIR"
 
 sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install --upgrade pip wheel setuptools
 
-# smarter requirements detection
-REQ_FILE="$(find "$APP_DIR" -maxdepth 2 -name requirements.txt | head -n 1 || true)"
+REQ_FILE="$(find "$RUN_DIR" -maxdepth 2 -name requirements.txt | head -n 1 || true)"
 
 if [[ -n "$REQ_FILE" ]]; then
-  log "Installing requirements from $REQ_FILE"
+  log "Installing requirements"
   sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install -r "$REQ_FILE"
 else
-  log "No requirements.txt found → installing FastAPI + Uvicorn"
-  sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install fastapi uvicorn
+  log "No requirements → installing FastAPI + Uvicorn"
+  sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install fastapi uvicorn requests jinja2
 fi
 
-#---------------- VERIFY ----------------#
-
-[[ -d "$APP_DIR" ]] || die "App directory missing"
-[[ -x "$VENV_DIR/bin/python" ]] || die "Venv failed"
-
-log "Verification passed"
-
-#---------------- RUN ----------------#
-
-log "Starting test server"
+log "Starting server"
 
 sudo -u "$SERVICE_USER" bash -c "
-cd $APP_DIR
+cd $RUN_DIR
 $VENV_DIR/bin/python -m uvicorn $APP_MODULE --host 0.0.0.0 --port $PORT
 "
