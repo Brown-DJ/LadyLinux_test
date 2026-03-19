@@ -24,9 +24,6 @@
       </button>
       <div class="collapse navbar-collapse" id="llMainNav">
         <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-2">
-          <li class="nav-item"><a class="nav-link" href="/os"><i class="bi bi-cpu me-1"></i>System</a></li>
-          <li class="nav-item"><a class="nav-link" href="/users"><i class="bi bi-people me-1"></i>Users</a></li>
-          <li class="nav-item"><a class="nav-link" href="/firewall"><i class="bi bi-shield-lock me-1"></i>Firewall</a></li>
           <li class="nav-item">
             <button class="btn btn-link nav-link" type="button" aria-label="Notifications"><i class="bi bi-bell"></i></button>
           </li>
@@ -45,6 +42,7 @@
   <nav id="nav-container" class="d-none" aria-hidden="true"></nav>
 
   <main class="container pb-4">
+    {% include "context_nav.html" %}
     <section class="ll-status-strip mb-3" aria-label="Live system status">
       <div class="ll-status-strip__items">
         <button type="button" class="ll-status-chip" data-status-target="metrics-tab">
@@ -105,6 +103,9 @@
           </li>
           <li class="nav-item" role="presentation">
             <button class="nav-link" id="appearance-tab" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#appearance-pane" aria-controls="appearance-pane" aria-selected="false">Appearance</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="settings-tab" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#settings-pane" aria-controls="settings-pane" aria-selected="false">System Settings</button>
           </li>
         </ul>
 
@@ -384,6 +385,75 @@
                   <div class="theme-option" data-custom-slot="custom-2"><div id="preview-custom-2"></div></div>
                   <div class="theme-option" data-custom-slot="custom-3"><div id="preview-custom-3"></div></div>
                   <div class="theme-option" data-custom-slot="custom-4"><div id="preview-custom-4"></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tab-pane fade" id="settings-pane" role="tabpanel" aria-labelledby="settings-tab" tabindex="0">
+            <div class="card ll-dashboard-card">
+              <div class="card-body">
+                <h2 class="h5 mb-3">System Settings</h2>
+                <div class="settings-grid">
+                  <div class="settings-group">
+                    <h3>General</h3>
+                    <label for="hostname">Hostname</label>
+                    <input type="text" id="hostname" value="loading...">
+                    <label for="timezone">Timezone</label>
+                    <select id="timezone">
+                      <option>UTC</option>
+                      <option>America/New_York</option>
+                    </select>
+                  </div>
+
+                  <div class="settings-group">
+                    <h3>Performance</h3>
+                    <label for="power-mode">Power Mode</label>
+                    <select id="power-mode">
+                      <option>Balanced</option>
+                      <option>Performance</option>
+                      <option>Powersave</option>
+                    </select>
+                  </div>
+
+                  <div class="settings-group">
+                    <h3>Network</h3>
+                    <label for="network-iface">Interface</label>
+                    <select id="network-iface">
+                      <option>eth0</option>
+                      <option>wlan0</option>
+                    </select>
+                    <label for="ip-address">IP Address</label>
+                    <input type="text" id="ip-address" value="loading...">
+                  </div>
+
+                  <div class="settings-group">
+                    <h3>Security</h3>
+                    <label class="settings-check">
+                      <input type="checkbox" id="firewall-toggle">
+                      <span>Firewall Enabled</span>
+                    </label>
+                    <label class="settings-check">
+                      <input type="checkbox" id="ssh-toggle">
+                      <span>SSH Enabled</span>
+                    </label>
+                  </div>
+
+                  <div class="settings-group">
+                    <h3>Lady AI</h3>
+                    <label class="settings-check">
+                      <input type="checkbox" id="ai-monitoring" checked>
+                      <span>System Awareness</span>
+                    </label>
+                    <label class="settings-check">
+                      <input type="checkbox" id="ai-auto">
+                      <span>Auto Optimization</span>
+                    </label>
+                    <label class="settings-check">
+                      <input type="checkbox" id="ai-suggestions">
+                      <span>Suggestions Enabled</span>
+                    </label>
+                  </div>
                 </div>
               </div>
             </div>

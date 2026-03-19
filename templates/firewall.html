@@ -24,9 +24,6 @@
       </button>
       <div class="collapse navbar-collapse" id="llMainNav">
         <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-2">
-          <li class="nav-item"><a class="nav-link" href="/os"><i class="bi bi-cpu me-1"></i>System</a></li>
-          <li class="nav-item"><a class="nav-link" href="/users"><i class="bi bi-people me-1"></i>Users</a></li>
-          <li class="nav-item"><a class="nav-link" href="/firewall"><i class="bi bi-shield-lock me-1"></i>Firewall</a></li>
           <li class="nav-item">
             <button class="btn btn-link nav-link" type="button" aria-label="Notifications"><i class="bi bi-bell"></i></button>
           </li>
@@ -45,6 +42,7 @@
   <nav id="nav-container" class="d-none" aria-hidden="true"></nav>
 
   <main class="container pb-4">
+    {% include "context_nav.html" %}
     <div class="row g-4">
       <div class="col-12 col-lg-4">
         <!-- Firewall Status -->
