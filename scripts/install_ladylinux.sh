@@ -1,14 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-log() {
-  echo "[LadyLinux] $1"
-}
-
-die() {
-  echo "[LadyLinux][ERROR] $1"
-  exit 1
-}
+log() { echo "[LadyLinux] $1"; }
+die() { echo "[LadyLinux][ERROR] $1"; exit 1; }
 
 #---------------- CONFIG ----------------#
 
@@ -19,10 +13,10 @@ LOG_DIR="$ROOT_DIR/logs"
 
 SERVICE_USER="ladylinux"
 
-REPO_URL="https://github.com/theCodingProfessor/LadyLinux"
-BRANCH="brown-dj"   # 🔥 YOUR BRANCH
+REPO_URL="https://github.com/Brown-DJ/LadyLinux_test.git"
+BRANCH="main"
 
-APP_MODULE="main:app"
+APP_MODULE="main:app"   # change if needed
 PORT="8000"
 
 #---------------- ROOT CHECK ----------------#
@@ -77,12 +71,15 @@ sudo -u "$SERVICE_USER" python3 -m venv "$VENV_DIR"
 
 sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install --upgrade pip wheel setuptools
 
-if [[ -f "$APP_DIR/requirements.txt" ]]; then
-  log "Installing requirements"
-  sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install -r "$APP_DIR/requirements.txt"
+# smarter requirements detection
+REQ_FILE="$(find "$APP_DIR" -maxdepth 2 -name requirements.txt | head -n 1 || true)"
+
+if [[ -n "$REQ_FILE" ]]; then
+  log "Installing requirements from $REQ_FILE"
+  sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install -r "$REQ_FILE"
 else
-  log "No requirements.txt found, installing uvicorn manually"
-  sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install uvicorn fastapi
+  log "No requirements.txt found → installing FastAPI + Uvicorn"
+  sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install fastapi uvicorn
 fi
 
 #---------------- VERIFY ----------------#
@@ -92,7 +89,7 @@ fi
 
 log "Verification passed"
 
-#---------------- OPTIONAL RUN ----------------#
+#---------------- RUN ----------------#
 
 log "Starting test server"
 
