@@ -41,8 +41,11 @@ sync_repo() {
     # Temporarily restore /bin/bash so git commands work, same as installer does.
     usermod -s /bin/bash "$SERVICE_USER"
 
-    # FIX 8: installer sets safe.directory; refresher must too or git refuses to run
+    # FIX 8: safe.directory must be set AFTER the shell is restored to /bin/bash,
+    # otherwise sudo -u ladylinux is rejected by nologin and the config is never written.
+    # Also set it for root so the final rev-parse (which runs as root) works too.
     sudo -u "$SERVICE_USER" git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
+    git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
 
     cd "$APP_DIR"
 
@@ -203,7 +206,7 @@ main() {
     restart_services
     validate_api
 
-    log "Refresh complete. Branch: $BRANCH  Commit: $(git -C "$APP_DIR" rev-parse --short HEAD)"
+    log "Refresh complete. Branch: $BRANCH  Commit: $(git -C "$APP_DIR" rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
 }
 
 main "$@"
