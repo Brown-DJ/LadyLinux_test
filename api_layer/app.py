@@ -574,6 +574,7 @@ async def ask_rag(req: PromptRequest):
     try:
         kernel_response = run_command_kernel(prompt)
         if kernel_response is not None:
+            log_action("assistant", prompt[:120], kernel_response["content"].get("route", "command"))
             return JSONResponse(
                 status_code=kernel_response["status_code"],
                 content=kernel_response["content"],
@@ -591,6 +592,7 @@ async def ask_rag(req: PromptRequest):
         # ---------------------------------------------------------
         if route == "system":
             tool_result = handle_tool_prompt(prompt)
+            log_action("assistant:tool", prompt[:120], tool_result.get("tool", "unknown"))
             return JSONResponse(
                 content={
                     "route": "tool",
@@ -605,7 +607,7 @@ async def ask_rag(req: PromptRequest):
         # ---------------------------------------------------------
         if route == "rag":
             output, context_results, domain = handle_rag_prompt(prompt)
-
+            log_action("assistant:rag", prompt[:120], domain)
             return JSONResponse(
                 content={
                     "route": "rag",
@@ -622,7 +624,7 @@ async def ask_rag(req: PromptRequest):
         # ---------------------------------------------------------
         if route == "chat":
             output = handle_chat_prompt(prompt)
-
+            log_action("assistant:chat", prompt[:120], "ok")
             return JSONResponse(
                 content={
                     "route": "chat",
