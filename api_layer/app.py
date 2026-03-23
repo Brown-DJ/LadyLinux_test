@@ -860,3 +860,8 @@ async def api_intent(request: Request):
     if not isinstance(payload, dict):
         raise HTTPException(status_code=400, detail="request body must be a JSON object")
     return os_core.handle_intent(payload)
+
+from api_layer.routes import users as users_router
+app.include_router(users_router.router)
+
+
