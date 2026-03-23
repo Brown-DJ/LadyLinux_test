@@ -272,7 +272,7 @@
                   <h2 class="h5 mb-0">Firewall Status</h2>
                   <span class="badge text-bg-secondary" id="firewallStatusValue">Unknown</span>
                 </div>
-                <p class="text-muted" id="firewallStatusMeta">Awaiting assistant action.</p>
+                <p class="text-muted" id="firewallStatusMeta">Loading…</p>
                 <div id="firewallResponse" class="response-area p-3">
                   Use the assistant dock to check or change firewall state.
                 </div>
@@ -283,47 +283,31 @@
           <div class="col-12 col-lg-8">
             <section class="card ll-dashboard-card">
               <div class="card-body">
-                <h2 class="h5 mb-3">Rules Table</h2>
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                  <h2 class="h5 mb-0">Rules Table</h2>
+                  <button class="btn btn-outline-secondary btn-sm" id="refreshFirewallBtn">
+                    <i class="bi bi-arrow-clockwise"></i>
+                  </button>
+                </div>
                 <div class="table-responsive">
                   <table class="table table-dark table-hover align-middle">
                     <thead>
                       <tr>
                         <th>Source</th>
                         <th>Destination</th>
-                        <th>Port</th>
+                        <th>Port / Service</th>
                         <th>Action</th>
-                        <th>Controls</th>
+                        <th></th>
                       </tr>
                     </thead>
-                    <tbody>
-                      <tr>
-                        <td>192.168.1.0/24</td>
-                        <td>10.0.0.10</td>
-                        <td>22</td>
-                        <td><span class="badge text-bg-success">Allow</span></td>
-                        <td><button class="btn btn-sm btn-outline-secondary" type="button">Edit</button></td>
-                      </tr>
-                      <tr>
-                        <td>Any</td>
-                        <td>Server</td>
-                        <td>3389</td>
-                        <td><span class="badge text-bg-danger">Deny</span></td>
-                        <td><button class="btn btn-sm btn-outline-secondary" type="button">Edit</button></td>
-                      </tr>
-                      <tr>
-                        <td>10.10.10.0/24</td>
-                        <td>Database</td>
-                        <td>5432</td>
-                        <td><span class="badge text-bg-success">Allow</span></td>
-                        <td><button class="btn btn-sm btn-outline-secondary" type="button">Edit</button></td>
-                      </tr>
+                    <tbody id="firewallRulesBody">
+                      <tr><td colspan="5" class="text-center text-muted py-4">
+                        <span class="spinner-border spinner-border-sm me-2"></span>Loading…
+                      </td></tr>
                     </tbody>
                   </table>
                 </div>
-                <pre id="firewallJSON" class="response-area p-3 mb-0">{
-  "status": "unknown",
-  "detail": "No firewall action has been run yet."
-}</pre>
+                <pre id="firewallJSON" class="response-area p-3 mb-0"></pre>
               </div>
             </section>
           </div>
@@ -385,24 +369,37 @@
           <i class="bi bi-exclamation-triangle me-1"></i>${msg}</td></tr>`;
     }
 
+    /* ── Helpers ── */
+    function formatSpeed(bps) {
+      if (bps === null || bps === undefined || isNaN(bps)) return "—";
+      if (bps < 1024)        return `${Math.round(bps)} B/s`;
+      if (bps < 1048576)     return `${(bps / 1024).toFixed(1)} KB/s`;
+      return `${(bps / 1048576).toFixed(1)} MB/s`;
+    }
+
+    /* ── RX / TX bandwidth (from system metrics) ── */
+    async function loadBandwidth() {
+      try {
+        const res  = await fetch("/api/system/metrics");
+        const data = await res.json();
+        const net  = data.network || {};
+        document.getElementById("statRx").textContent = formatSpeed(net.download_speed);
+        document.getElementById("statTx").textContent = formatSpeed(net.upload_speed);
+      } catch { /* keep — */ }
+    }
+
     /* ── Status strip ── */
     async function loadStatus() {
       try {
         const res  = await fetch("/api/network/status");
         const data = await res.json();
 
-        /* Routes for the strip */
-        const routes = data.routes || [];
-        document.getElementById("statRx").textContent =
-          document.getElementById("globalNetworkStatus")
-            ? document.getElementById("globalNetworkStatus").textContent.split("|")[0].replace("RX","").trim() || "—"
-            : "—";
-
         /* Interface count from links */
         const links = data.links || [];
         document.getElementById("statIfaceCount").textContent = links.length || "—";
 
         /* Route count as proxy for connection activity */
+        const routes = data.routes || [];
         document.getElementById("statIfaceUp").textContent =
           routes.length ? `${routes.length} routes` : "—";
 
@@ -506,6 +503,63 @@
       }
     }
 
+    /* ── Firewall ── */
+    async function loadFirewall() {
+      const statusBadge = document.getElementById("firewallStatusValue");
+      const statusMeta  = document.getElementById("firewallStatusMeta");
+      const rulesBody   = document.getElementById("firewallRulesBody");
+      const jsonPre     = document.getElementById("firewallJSON");
+      try {
+        const [sRes, rRes] = await Promise.all([
+          fetch("/api/firewall/status"),
+          fetch("/api/firewall/rules"),
+        ]);
+        const sData = await sRes.json();
+        const rData = await rRes.json();
+
+        const status = sData.status || "unknown";
+        statusBadge.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+        statusBadge.className = status === "active"   ? "badge text-bg-success"
+                               : status === "inactive" ? "badge text-bg-danger"
+                               :                         "badge text-bg-secondary";
+        statusMeta.textContent = sData.ok
+          ? (sData.stdout.split("\n")[0] || "Status retrieved.")
+          : (sData.stderr || "Could not retrieve status.");
+
+        const rules = rData.rules || [];
+        if (!rules.length) {
+          rulesBody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-3">No rules found</td></tr>`;
+        } else {
+          rulesBody.innerHTML = rules.map(rule => {
+            const m = rule.match(/^\[\s*\d+\]\s+(\S+)\s+(ALLOW|DENY|REJECT|LIMIT)\s+(?:IN|OUT|FWD)?\s*(.*)/i);
+            if (m) {
+              const to     = m[1];
+              const action = m[2].toUpperCase();
+              const from   = m[3].trim() || "Anywhere";
+              const cls    = action === "ALLOW" ? "text-bg-success" : "text-bg-danger";
+              return `<tr>
+                <td class="text-muted">${from}</td>
+                <td>—</td>
+                <td>${to}</td>
+                <td><span class="badge ${cls}">${action}</span></td>
+                <td></td>
+              </tr>`;
+            }
+            return `<tr><td colspan="5" class="font-monospace" style="font-size:0.78rem">${rule}</td></tr>`;
+          }).join("");
+        }
+
+        jsonPre.textContent = JSON.stringify({ status: sData.status, rules: rData.rules }, null, 2);
+
+      } catch (err) {
+        statusBadge.textContent = "Error";
+        statusBadge.className = "badge text-bg-danger";
+        statusMeta.textContent = "Failed to load firewall data.";
+        rulesBody.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-3">Failed to load rules</td></tr>`;
+        console.error("loadFirewall:", err);
+      }
+    }
+
     /* ── Routes ── */
     async function loadRoutes() {
       setLoading("routeTableBody", 2);
@@ -539,23 +593,29 @@
     /* ── Refresh wiring ── */
     function refreshAll() {
       loadStatus();
+      loadBandwidth();
       loadInterfaces();
       loadConnections();
       loadRoutes();
+      loadFirewall();
     }
 
-    document.getElementById("refreshAllBtn")?.addEventListener("click",    refreshAll);
-    document.getElementById("refreshIfacesBtn")?.addEventListener("click", loadInterfaces);
-    document.getElementById("refreshConnsBtn")?.addEventListener("click",  loadConnections);
-    document.getElementById("refreshRoutesBtn")?.addEventListener("click", loadRoutes);
+    document.getElementById("refreshAllBtn")?.addEventListener("click",      refreshAll);
+    document.getElementById("refreshIfacesBtn")?.addEventListener("click",   loadInterfaces);
+    document.getElementById("refreshConnsBtn")?.addEventListener("click",    loadConnections);
+    document.getElementById("refreshRoutesBtn")?.addEventListener("click",   loadRoutes);
+    document.getElementById("refreshFirewallBtn")?.addEventListener("click", loadFirewall);
 
     /* Load on tab show (lazy) */
     document.getElementById("tab-connections")?.addEventListener("shown.bs.tab", loadConnections);
     document.getElementById("tab-routes")?.addEventListener("shown.bs.tab",      loadRoutes);
+    document.getElementById("tab-firewall")?.addEventListener("shown.bs.tab",    loadFirewall);
 
     /* ── Init ── */
     loadStatus();
+    loadBandwidth();
     loadInterfaces();
+    setInterval(loadBandwidth, 3000);
 
   }());
   </script>
