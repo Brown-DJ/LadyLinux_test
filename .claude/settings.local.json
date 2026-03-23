@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -n \"from fastapi\" C:/Users/Darrius/PycharmProjects/LadyLinux_test/templates/*.html)",
+      "Bash(grep -l \"script\" C:/Users/Darrius/PycharmProjects/LadyLinux_test/templates/*.html)"
+    ]
+  }
+}
