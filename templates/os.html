@@ -167,15 +167,17 @@
                 </div>
               </div>
               <div class="card ll-dashboard-card ll-os-metric-card h-100" id="network-panel">
-                <div class="card-body">
+                <div class="card-body d-flex flex-column justify-content-between">
                   <h2 class="h6">Network</h2>
-                  <div class="metric-skeleton metric-skeleton-value skeleton"></div>
-                  <div class="ll-os-network-values metric-value ll-os-detail-value ll-os-detail-value--network">
-                    <span>RX <strong id="networkRxOS"></strong></span>
-                    <span>TX <strong id="networkTxOS"></strong></span>
+                  <div class="metric-value" id="networkRxOSQuick" style="font-size:0.95rem">
+                    <span class="text-muted" style="font-size:0.75rem">RX</span>
+                    <strong id="networkRxOS"></strong>
                   </div>
-                  <canvas id="network-graph" class="mini-graph"></canvas>
-                  <div class="metric-meta" id="networkMetaOS">Cumulative transfer totals for deeper inspection.</div>
+                  <div class="mt-auto pt-2">
+                    <a href="/network" class="btn btn-outline-secondary btn-sm w-100">
+                      <i class="bi bi-diagram-3 me-1"></i>Network Settings
+                    </a>
+                  </div>
                 </div>
               </div>
               <div class="card ll-dashboard-card ll-os-metric-card h-100" id="system-panel">
