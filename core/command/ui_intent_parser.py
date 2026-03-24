@@ -47,7 +47,7 @@ def detect_ui_intent(text: str):
                     "type": "tool",
                     "tool": "set_ui_override",
                     "result": {
-                        "--bg": hexval,
+                        "--bg-main": hexval,
                     },
                 }
 

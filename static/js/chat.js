@@ -544,90 +544,137 @@ function executeAction(actionName, params, options = {}) {
 
 /* Shared backend transport for all UI chat surfaces */
 async function sendPrompt(prompt) {
-  const response = await fetch("/api/prompt", {
+  const response = await fetch("/api/prompt/stream", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      prompt,
-      context: "ui",
-    }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt, context: "ui" }),
   });
+
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`);
   }
 
-  const contentType = response.headers.get("content-type") || "";
-  if (contentType.includes("application/json")) {
-    const responseClone = response.clone();
-    let data;
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let accumulatedText = "";
+  let finalPayload = null;
 
-    try {
-      data = await response.json();
-    } catch (err) {
-      const text = await responseClone.text().catch(() => "");
-      console.error("Invalid JSON response:", text);
-      throw new Error("Backend returned invalid JSON");
-    }
+  // Kick off a visible "thinking" indicator immediately
+  replaceLastAssistantLine("▌", { isPlaceholder: true });
 
-    // Persist metadata so Dev Mode can append diagnostics for the same request.
-    lastRagMeta = {
-      model: data?.model || "mistral",
-      retrievedChunks: Number.isFinite(data?.retrieved_chunks) ? data.retrieved_chunks : 0,
-    };
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
 
-    // Prefer structured UI actions before legacy marker/text scanning.
-    if (data.route === "ui" && data.action === "set_theme") {
-      if (typeof window.applyTheme === "function") {
-        window.applyTheme(data.action_args?.theme);
-      }
-      appendChatLine("Lady Linux", data.message || "Theme updated");
-      return;
-    }
+    buffer += decoder.decode(value, { stream: true });
 
-    if (data.route === "command" && data.tool === "set_theme") {
-      const event = data.data?.event || data.data;
-      const css = data.data?.css || event?.css || event?.css_variables;
+    // Process every complete line in the buffer
+    const lines = buffer.split("\n");
+    // Keep the last (possibly incomplete) line in the buffer
+    buffer = lines.pop();
 
-      if (css && typeof window.applyThemeCssVars === "function") {
-        window.applyThemeCssVars(css);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      let event;
+      try {
+        event = JSON.parse(trimmed);
+      } catch {
+        // Malformed line — skip
+        continue;
       }
 
-      window.dispatchEvent(
-        new CustomEvent("lady:theme-applied", {
-          detail: event,
-        })
-      );
+      if (event.type === "token") {
+        // Append token and update the DOM live
+        accumulatedText += event.text || "";
+        replaceLastAssistantLine(accumulatedText, {});
+
+      } else if (event.type === "done") {
+        // LLM finished — record metadata for Dev Mode
+        lastRagMeta = {
+          model: event.model || "mistral",
+          retrievedChunks: Number.isFinite(event.retrieved_chunks)
+            ? event.retrieved_chunks
+            : 0,
+        };
+        finalPayload = accumulatedText;
+
+      } else if (
+        event.type === "tool" ||
+        event.type === "command" ||
+        event.type === "ui"
+      ) {
+        // Instant structured response — no streaming needed
+        lastRagMeta = { model: "mistral", retrievedChunks: 0 };
+
+        // Handle set_theme: return a descriptive string rather than bare return
+        if (event.route === "ui" && event.action === "set_theme") {
+          finalPayload = event.message || "Theme updated";
+        // Handle set_ui_override: apply CSS vars directly and return a string
+        } else if (event.tool === "set_ui_override" || event.action === "set_ui_override") {
+          const rawData = event.data;
+          const overrides = rawData?.data || rawData;
+          const cssVars = Object.fromEntries(
+            Object.entries(overrides || {}).filter(([key]) => key.startsWith("--"))
+          );
+          Object.entries(cssVars).forEach(([key, value]) => {
+            document.documentElement.style.setProperty(key, value);
+          });
+          finalPayload = event.message || "UI updated";
+        // Handle list_services: format service data as readable text
+        } else if (event.tool === "list_services" && event.data?.services?.length) {
+          const services = event.data.services;
+          const lines = services.map(
+            (s) => `• ${s.name} — ${s.status || "unknown"}`
+          );
+          if (typeof window.loadServices === "function") {
+            window.loadServices();
+          }
+          finalPayload = `${event.message || "Services retrieved"}\n\n${lines.join("\n")}`;
+        } else {
+          // Format as the legacy response string so processAssistantReply works
+          finalPayload = event.message || "";
+          // Preserve structured payload for action handling by embedding it
+          // in the same format the old JSON path used
+          if (event.data || event.action) {
+            const structuredHint = JSON.stringify({
+              route: event.route,
+              message: event.message,
+              tool: event.tool,
+              action: event.action,
+              action_args: event.action_args,
+              data: event.data,
+            });
+            finalPayload = `${event.message || ""}\n%%LLACTION%%: ${structuredHint}`;
+          }
+        }
+
+      } else if (event.type === "error") {
+        throw new Error(event.message || "Backend error");
+      }
     }
-
-    if (data.tool === "set_ui_override" && data.data) {
-      const overrides = data.data;
-
-      Object.entries(overrides).forEach(([key, value]) => {
-        document.documentElement.style.setProperty(key, value);
-      });
-
-      appendChatLine("Lady Linux", data.message || "UI updated");
-
-      console.log("[UI_OVERRIDE]", overrides);
-
-      return;
-    }
-
-    if (data.route === "command") {
-      return data.message || "Command executed";
-    }
-
-    return data?.response || data?.answer || "";
   }
 
-  // Reset metadata when backend does not return structured JSON.
-  lastRagMeta = {
-    model: "mistral",
-    retrievedChunks: 0,
-  };
-  return response.text();
+  // Handle any remaining buffer content
+  if (buffer.trim()) {
+    try {
+      const event = JSON.parse(buffer.trim());
+      if (event.type === "token") {
+        accumulatedText += event.text || "";
+        finalPayload = accumulatedText;
+      }
+    } catch {
+      // Incomplete final line — ignore
+    }
+  }
+
+  if (finalPayload === null) {
+    throw new Error("Stream ended without a response");
+  }
+
+  return finalPayload;
 }
 
 function applyProfile(profile) {
@@ -708,7 +755,6 @@ async function handlePrompt(prompt) {
   logSystemActivity(`Command received: ${prompt}`);
   clearConfirmation();
   setChatStatus("thinking");
-  replaceLastAssistantLine("...", { isPlaceholder: true });
 
   try {
     const reply = await sendPrompt(prompt);

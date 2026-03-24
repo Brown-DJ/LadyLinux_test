@@ -162,7 +162,7 @@ def evaluate_prompt(text: str):
                     "type": "tool",
                     "tool": "set_ui_override",
                     "args": {
-                        "--bg": hexval,
+                        "--bg-main": hexval,
                     },
                 }
 

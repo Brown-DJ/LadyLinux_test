@@ -3,13 +3,14 @@ from __future__ import annotations
 from datetime import datetime
 import json
 import logging
+import re
 import threading
 import time
 from typing import Any, Literal
 
 import requests
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -124,30 +125,27 @@ def _error_payload(
     return JSONResponse(content=payload, status_code=status_code)
 
 
+# Compiled once at module level — matches any standard English question opener.
+_QUESTION_OPENER = re.compile(
+    r"^(what|who|where|when|why|how|which|whose|"
+    r"is|are|was|were|do|does|did|"
+    r"can|could|will|would|should|"
+    r"has|have|had|am|"
+    r"isn't|aren't|doesn't|don't|won't|wasn't|weren't|"
+    r"tell me|help me understand|explain to me)\b",
+    re.IGNORECASE,
+)
+
+
 def classify_prompt(message: str) -> Literal["system", "rag", "chat"]:
-    text = message.lower().strip()
+    text = message.strip()
+    text_lower = text.lower()
 
-    # Question-phrase pre-check: if the prompt is clearly asking for an
-    # explanation or understanding, route to RAG before command keywords
-    # are evaluated. This prevents "how does the network work" from
-    # misfiring to a tool call just because "network" is a command word.
-    question_phrases = (
-        "how does",
-        "how do",
-        "how is",
-        "how are",
-        "why does",
-        "why is",
-        "why are",
-        "what is",
-        "what are",
-        "what does",
-        "explain",
-        "tell me about",
-        "describe",
-    )
-
-    if any(text.startswith(phrase) or f" {phrase}" in text for phrase in question_phrases):
+    # Interrogative structure check — covers all standard English question
+    # forms including "is my system connected", "are my services running",
+    # "can I check the firewall", "does this affect the network", etc.
+    # Also catches a trailing question mark regardless of word order.
+    if _QUESTION_OPENER.match(text) or text.endswith("?"):
         return "rag"
 
     command_words = (
@@ -166,10 +164,10 @@ def classify_prompt(message: str) -> Literal["system", "rag", "chat"]:
         "docs",
     )
 
-    if any(x in text for x in command_words):
+    if any(x in text_lower for x in command_words):
         return "system"
 
-    if any(x in text for x in knowledge_words):
+    if any(x in text_lower for x in knowledge_words):
         return "rag"
 
     return "chat"
@@ -429,14 +427,13 @@ def handle_chat_prompt(prompt: str) -> str:
     chat_prompt = f"""
 You are Lady Linux, a Linux assistant. Keep responses concise and accurate.
 Use LIVE SYSTEM STATE first when the question is about current runtime status.
-If a live system action is required, say to use a supported API tool.
+If a live system action is required, tell the user to use the appropriate
+command — do not emit JSON or structured payloads.
 Do not generate CSS variables, UI override commands, or theme modification payloads.
 UI customization is handled only by the deterministic UI intent parser.
 
 LIVE SYSTEM STATE
 {live_block or "No live system data was requested for this question."}
-
-{_command_hint_block()}
 
 User question:
 {prompt}
@@ -471,6 +468,36 @@ def _ollama_generate(prompt: str, model: str = "mistral") -> str:
         except json.JSONDecodeError:
             output += line
     return output
+
+
+def _ollama_stream(prompt: str, model: str = "mistral"):
+    """Call Ollama with streaming enabled and yield text tokens as they arrive.
+
+    Each iteration yields a single string token. The caller is responsible
+    for wrapping tokens into whatever wire format the endpoint needs.
+
+    Raises requests.RequestException if the Ollama service is unreachable.
+    """
+    ensure_model()
+    with requests.post(
+        OLLAMA_URL,
+        json={"model": model, "prompt": prompt, "stream": True},
+        stream=True,
+        timeout=120,
+    ) as resp:
+        resp.raise_for_status()
+        for raw_line in resp.iter_lines():
+            if not raw_line:
+                continue
+            try:
+                chunk = json.loads(raw_line)
+            except json.JSONDecodeError:
+                continue
+            token = chunk.get("response", "")
+            if token:
+                yield token
+            if chunk.get("done", False):
+                break
 
 
 def rag_collection_is_empty() -> bool:
@@ -718,6 +745,173 @@ async def prompt(req: PromptRequest):
     implemented in /ask_rag so the UI does not need modification.
     """
     return await ask_rag(req)
+
+
+def _stream_llm_response(prompt: str, route: str, handle_fn):
+    """Shared generator for RAG and chat streaming routes.
+
+    Calls handle_fn to get the system prompt string, then streams Ollama
+    tokens as NDJSON events, finishing with a done event.
+    """
+    try:
+        system_prompt, context_results, domain = handle_fn(prompt)
+    except Exception as exc:
+        yield json.dumps({
+            "type": "error",
+            "error_type": "internal_server_error",
+            "message": str(exc),
+            "suggestion": "Check backend logs for the stack trace.",
+        }) + "\n"
+        return
+
+    retrieved_chunks = len(context_results) if context_results else 0
+
+    try:
+        for token in _ollama_stream(system_prompt):
+            yield json.dumps({"type": "token", "text": token}) + "\n"
+    except requests.RequestException as exc:
+        yield json.dumps({
+            "type": "error",
+            "error_type": "llm_backend_unavailable",
+            "message": f"LLM request failed: {exc}",
+            "suggestion": "Verify Ollama runtime availability at http://127.0.0.1:11434.",
+        }) + "\n"
+        return
+
+    yield json.dumps({
+        "type": "done",
+        "route": route,
+        "model": "mistral",
+        "retrieved_chunks": retrieved_chunks,
+    }) + "\n"
+
+
+def _build_rag_system_prompt(prompt: str) -> tuple[str, list[dict], str]:
+    domain = classify_rag_domain(prompt)
+    live_block = _build_live_state_block(prompt)
+    context_results = retrieve(prompt, domain=domain)
+    context_text = build_context_block(context_results)
+    system_prompt = f"""
+SYSTEM CAPABILITIES
+{CAPABILITY_BLOCK}
+
+LIVE SYSTEM STATE
+{live_block or "No live system data was requested for this question."}
+
+USER QUESTION
+{prompt}
+
+Rules:
+- Prefer LIVE SYSTEM STATE when the question asks about current runtime conditions.
+- Prefer information found inside RELEVANT PROJECT FILES for project and documentation questions.
+- If not present, respond with "Information not found in system context."
+- Do not invent configuration or runtime state.
+- Do not invent tools, shell commands, or undocumented endpoints.
+- Do not generate CSS variables, UI override commands, or direct UI modification payloads.
+- UI customization is handled only by the deterministic UI intent parser.
+
+{_command_hint_block()}
+
+RELEVANT PROJECT FILES
+{context_text or "No relevant Lady Linux project context was retrieved."}
+"""
+    return system_prompt, context_results, domain
+
+
+def _build_chat_system_prompt(prompt: str) -> tuple[str, list[dict], str]:
+    live_block = _build_live_state_block(prompt)
+    chat_prompt = f"""
+You are Lady Linux, a Linux assistant. Keep responses concise and accurate.
+Use LIVE SYSTEM STATE first when the question is about current runtime status.
+If a live system action is required, tell the user to use the appropriate
+command — do not emit JSON or structured payloads.
+Do not generate CSS variables, UI override commands, or theme modification payloads.
+UI customization is handled only by the deterministic UI intent parser.
+
+LIVE SYSTEM STATE
+{live_block or "No live system data was requested for this question."}
+
+User question:
+{prompt}
+"""
+    return chat_prompt, [], "chat"
+
+
+@app.post("/api/prompt/stream")
+async def prompt_stream(req: PromptRequest):
+    """
+    Unified streaming endpoint.
+
+    All route types are handled here:
+    - Command kernel / tool routes: emit one JSON event immediately and close.
+    - RAG / chat routes: stream Ollama tokens as NDJSON then emit a done event.
+
+    Wire format: newline-delimited JSON (NDJSON).
+    Each line is a complete JSON object. Event types: token, done, tool,
+    command, ui, error.
+    """
+
+    prompt = req.prompt
+
+    def generate():
+        # ── Command kernel fast path ──────────────────────────────────────────
+        kernel_response = run_command_kernel(prompt)
+        if kernel_response is not None:
+            content = kernel_response["content"]
+            route = content.get("route", "command")
+            log_action("assistant", prompt[:120], route)
+            yield json.dumps({
+                "type": route,
+                **content,
+            }) + "\n"
+            return
+
+        # ── Prompt routing ────────────────────────────────────────────────────
+        route = classify_prompt(prompt)
+        logger.info(f"[STREAM ROUTER] classified route: {route}")
+
+        # ── Tool route ────────────────────────────────────────────────────────
+        if route == "system":
+            try:
+                tool_result = handle_tool_prompt(prompt)
+                log_action("assistant:tool", prompt[:120], tool_result.get("tool", "unknown"))
+                yield json.dumps({
+                    "type": "tool",
+                    "route": "tool",
+                    "message": tool_result.get("message", "Tool executed"),
+                    "tool": tool_result.get("tool"),
+                    "data": tool_result,
+                }) + "\n"
+            except ToolRouterError as exc:
+                yield json.dumps({
+                    "type": "error",
+                    "error_type": "tool_execution_failed",
+                    "message": str(exc),
+                    "suggestion": "Add missing endpoint to API and tools.json or adjust tool parameters.",
+                }) + "\n"
+            return
+
+        # ── RAG streaming ─────────────────────────────────────────────────────
+        if route == "rag":
+            log_action("assistant:rag", prompt[:120], "streaming")
+            yield from _stream_llm_response(prompt, "rag", _build_rag_system_prompt)
+            return
+
+        # ── Chat streaming ────────────────────────────────────────────────────
+        if route == "chat":
+            log_action("assistant:chat", prompt[:120], "streaming")
+            yield from _stream_llm_response(prompt, "chat", _build_chat_system_prompt)
+            return
+
+        # ── Unknown route ─────────────────────────────────────────────────────
+        yield json.dumps({
+            "type": "error",
+            "error_type": "route_resolution_failed",
+            "message": "Prompt route could not be resolved.",
+            "suggestion": "Use a clearer request or verify classify_prompt routing.",
+        }) + "\n"
+
+    return StreamingResponse(generate(), media_type="text/plain; charset=utf-8")
 
 
 @app.post("/ask")

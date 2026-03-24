@@ -342,6 +342,7 @@ async function restartService(name) {
 
 // Expose restartService globally because service rows call it via inline onclick.
 window.restartService = restartService;
+window.loadServices = loadServices;
 
 function updateThemeIndicator() {
   const themeEl = document.getElementById("currentTheme");
