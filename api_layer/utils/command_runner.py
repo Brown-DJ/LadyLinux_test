@@ -22,6 +22,7 @@ ALLOWED_COMMANDS = {
     "ufw",  # UFW firewall inspection and control.
     "useradd",  # User creation flows routed through controlled endpoints.
     "who",  # Logged-in user inspection.
+    "tail",  # Log file reading for the logs viewer.
 }
 
 

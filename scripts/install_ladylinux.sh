@@ -198,6 +198,10 @@ create_user_and_dirs() {
         log "Created system user: $SERVICE_USER (home: /home/ladylinux)"
     fi
 
+    # Grant journal read access so the logs page can read systemd journal
+    usermod -aG systemd-journal "$SERVICE_USER" 2>/dev/null || true
+    log "Added $SERVICE_USER to systemd-journal group."
+
     # Ensure home dir exists with correct ownership
     mkdir -p /home/ladylinux
     chown "$SERVICE_USER":"$SERVICE_GROUP" /home/ladylinux
@@ -216,6 +220,15 @@ create_user_and_dirs() {
             log "Created directory: $d"
         fi
     done
+
+    # Application action log — must exist before the API starts writing
+    mkdir -p /var/log/ladylinux
+    chown "$SERVICE_USER":"$SERVICE_GROUP" /var/log/ladylinux
+    chmod 0750 /var/log/ladylinux
+    touch /var/log/ladylinux/actions.log
+    chown "$SERVICE_USER":"$SERVICE_GROUP" /var/log/ladylinux/actions.log
+    chmod 0640 /var/log/ladylinux/actions.log
+    log "Created /var/log/ladylinux/actions.log"
 
     # .env template (never overwrite)
     if [[ -f "$ENV_FILE" ]]; then
@@ -434,14 +447,38 @@ install_ollama_and_models() {
     log "Enabling and starting Ollama service..."
     systemctl enable ollama 2>/dev/null || true
     systemctl start  ollama
-    sleep 3
 
-    # Pull models (ollama pull is idempotent)
+    # Wait for Ollama to be ready before pulling models.
+    # sleep 3 is not reliable on slow VMs — poll the health endpoint instead.
+    log "Waiting for Ollama to become ready..."
+    local ollama_ready=0
+    for i in $(seq 1 30); do
+        if curl --silent --fail --max-time 2 "http://127.0.0.1:11434" >/dev/null 2>&1; then
+            ollama_ready=1
+            log "Ollama ready after ${i}s."
+            break
+        fi
+        sleep 1
+    done
+
+    if [[ "$ollama_ready" -ne 1 ]]; then
+        die "Ollama did not become ready within 30 seconds. Check: journalctl -u ollama -n 20" 1
+    fi
+
+    # Pull models (ollama pull is idempotent — safe to re-run)
     log "Pulling mistral LLM (this may take several minutes)..."
     ollama pull mistral
 
-    log "Pulling nomic-embed-text model..."
+    log "Pulling nomic-embed-text embedding model..."
     ollama pull nomic-embed-text
+
+    # Verify both models are present before continuing
+    if ! ollama list | grep -q "mistral"; then
+        die "mistral model pull failed. Check network and retry." 1
+    fi
+    if ! ollama list | grep -q "nomic-embed-text"; then
+        die "nomic-embed-text model pull failed. Check network and retry." 1
+    fi
 
     log "Models ready."
 }
