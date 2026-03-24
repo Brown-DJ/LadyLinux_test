@@ -33,12 +33,23 @@ class AptPackageBackend:
         return payload
 
     def install(self, package: str) -> dict:
+        """Package installation is disabled.
+
+        apt-get requires root privileges. The ladylinux service user does
+        not have sudo rights and privilege escalation is not configured.
+        Install packages manually or via a privileged session.
+        """
         pkg = validate_package_name(package)
-        result = run_command(["apt-get", "install", "-y", pkg], timeout=120)
-        payload = result.model_dump()
-        payload["manager"] = self.name
-        payload["package"] = pkg
-        return payload
+        return {
+            "ok": False,
+            "manager": self.name,
+            "package": pkg,
+            "stdout": "",
+            "stderr": "Package installation is not available through the API. "
+                      "Install packages manually with: sudo apt-get install <package>",
+            "returncode": 1,
+            "not_implemented": True,
+        }
 
 
 backend = AptPackageBackend()

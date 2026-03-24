@@ -1,8 +1,17 @@
 from __future__ import annotations
 
 import shutil
+import time
 
 from api_layer.utils.command_runner import run_command
+
+# ---------------------------------------------------------------------------
+# In-memory cache for top_usage — scanning / is expensive.
+# Cache result for TOP_USAGE_TTL seconds before running du again.
+# ---------------------------------------------------------------------------
+_TOP_USAGE_CACHE: dict | None = None
+_TOP_USAGE_CACHE_AT: float = 0.0
+TOP_USAGE_TTL: int = 60  # seconds
 
 
 def storage_summary() -> dict:
@@ -45,7 +54,26 @@ def storage_mounts() -> dict:
 
 
 def top_usage() -> dict:
-    result = run_command(["du", "-x", "-h", "-d", "1", "/"])
+    """Return per-directory disk usage for /.
+
+    Result is cached in memory for TOP_USAGE_TTL seconds to avoid
+    repeated expensive du scans. A 10-second timeout prevents the API
+    worker from blocking on a slow filesystem.
+    """
+    global _TOP_USAGE_CACHE, _TOP_USAGE_CACHE_AT
+
+    now = time.monotonic()
+    if _TOP_USAGE_CACHE is not None and (now - _TOP_USAGE_CACHE_AT) < TOP_USAGE_TTL:
+        return _TOP_USAGE_CACHE
+
+    result = run_command(["du", "-x", "-h", "-d", "1", "/"], timeout=10)
     payload = result.model_dump()
     payload["entries"] = result.stdout.splitlines()
+    payload["cached"] = False
+    payload["cache_ttl"] = TOP_USAGE_TTL
+
+    _TOP_USAGE_CACHE = {**payload, "cached": False}
+    _TOP_USAGE_CACHE_AT = now
+
+    # Return a copy marked as fresh on first fetch, cached on subsequent hits
     return payload

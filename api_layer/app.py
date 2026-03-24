@@ -127,6 +127,29 @@ def _error_payload(
 def classify_prompt(message: str) -> Literal["system", "rag", "chat"]:
     text = message.lower().strip()
 
+    # Question-phrase pre-check: if the prompt is clearly asking for an
+    # explanation or understanding, route to RAG before command keywords
+    # are evaluated. This prevents "how does the network work" from
+    # misfiring to a tool call just because "network" is a command word.
+    question_phrases = (
+        "how does",
+        "how do",
+        "how is",
+        "how are",
+        "why does",
+        "why is",
+        "why are",
+        "what is",
+        "what are",
+        "what does",
+        "explain",
+        "tell me about",
+        "describe",
+    )
+
+    if any(text.startswith(phrase) or f" {phrase}" in text for phrase in question_phrases):
+        return "rag"
+
     command_words = (
         "service",
         "restart",
@@ -138,15 +161,11 @@ def classify_prompt(message: str) -> Literal["system", "rag", "chat"]:
     )
 
     knowledge_words = (
-        "explain",
-        "why",
-        "how",
         "architecture",
         "documentation",
         "docs",
     )
 
-    # System-intent prompts should stay out of the RAG path.
     if any(x in text for x in command_words):
         return "system"
 

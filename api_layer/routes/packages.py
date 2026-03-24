@@ -26,7 +26,12 @@ def installed_packages(q: str = Query(..., min_length=1, max_length=128)) -> dic
 
 @router.post("/install")
 def install_package(payload: PackageInstallRequest) -> dict:
-    try:
-        return package_service.install_package(payload.package)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    raise HTTPException(
+        status_code=501,
+        detail={
+            "error": "not_implemented",
+            "message": "Package installation is not available through the API. "
+                       "The service account does not have the required privileges. "
+                       "Install packages manually with: sudo apt-get install <package>",
+        },
+    )
