@@ -12,34 +12,10 @@
   <link href="/static/css/style.css" rel="stylesheet">
 </head>
 <body data-page="firewall">
-  <!-- Shared top navigation shell for all active pages -->
-  <nav class="navbar navbar-expand-lg ll-topbar mb-4">
-    <div class="container">
-      <a class="navbar-brand d-flex align-items-center gap-2" href="/">
-        <span class="ll-logo" aria-hidden="true">LL</span>
-        <span class="fw-semibold">Lady Linux</span>
-      </a>
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#llMainNav" aria-controls="llMainNav" aria-expanded="false" aria-label="Toggle navigation">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-      <div class="collapse navbar-collapse" id="llMainNav">
-        <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-2">
-          <li class="nav-item">
-            <button class="btn btn-link nav-link" type="button" aria-label="Notifications"><i class="bi bi-bell"></i></button>
-          </li>
-          <li class="nav-item">
-            <a href="/os" class="nav-link" aria-label="System Settings"><i class="bi bi-gear"></i></a>
-          </li>
-        </ul>
-      </div>
-    </div>
-  </nav>
+  {% include "nav.html" %}
 
   {% include "controls.html" %}
   {% include "lady_panel.html" %}
-
-  <!-- Hidden nav loader target kept for script compatibility -->
-  <nav id="nav-container" class="d-none" aria-hidden="true"></nav>
 
   <main class="container pb-4">
     {% include "context_nav.html" %}
@@ -50,10 +26,10 @@
           <div class="card-body">
             <div class="d-flex align-items-center justify-content-between mb-3">
               <h1 class="h5 mb-0">Firewall Status</h1>
-              <span class="badge text-bg-secondary" id="firewallStatusValue">Unknown</span>
+              <span class="badge text-bg-secondary" id="firewallPageStatusValue">Unknown</span>
             </div>
-            <p class="text-muted" id="firewallStatusMeta">Awaiting assistant action.</p>
-            <div id="firewallResponse" class="response-area p-3">Use the assistant dock to check or change firewall state.</div>
+            <p class="text-muted" id="firewallPageStatusMeta">Awaiting assistant action.</p>
+            <div id="firewallPageResponse" class="response-area p-3">Use the assistant dock to check or change firewall state.</div>
           </div>
         </section>
       </div>
@@ -101,7 +77,7 @@
             </div>
 
             <!-- JSON snapshot id retained for existing action script updates -->
-            <pre id="firewallJSON" class="response-area p-3 mb-0">{
+            <pre id="firewallPageJSON" class="response-area p-3 mb-0">{
   "status": "unknown",
   "detail": "No firewall action has been run yet."
 }</pre>

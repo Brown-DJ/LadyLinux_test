@@ -44,7 +44,7 @@
     .route-row { font-family: monospace; font-size: 0.78rem; }
 
     /* keep firewall styles scoped */
-    #firewallResponse, #firewallJSON {
+    #networkFirewallResponse, #networkFirewallJSON {
       background: var(--bg-main);
       border: 1px solid var(--border-color);
       border-radius: var(--radius-small);
@@ -53,35 +53,10 @@
   </style>
 </head>
 <body data-page="network">
-
-  <nav class="navbar navbar-expand-lg ll-topbar mb-4">
-    <div class="container">
-      <a class="navbar-brand d-flex align-items-center gap-2" href="/">
-        <span class="ll-logo" aria-hidden="true">LL</span>
-        <span class="fw-semibold">Lady Linux</span>
-      </a>
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#llMainNav"
-              aria-controls="llMainNav" aria-expanded="false" aria-label="Toggle navigation">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-      <div class="collapse navbar-collapse" id="llMainNav">
-        <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-2">
-          <li class="nav-item">
-            <button class="btn btn-link nav-link" type="button" aria-label="Notifications">
-              <i class="bi bi-bell"></i>
-            </button>
-          </li>
-          <li class="nav-item">
-            <a href="/os" class="nav-link" aria-label="System Settings"><i class="bi bi-gear"></i></a>
-          </li>
-        </ul>
-      </div>
-    </div>
-  </nav>
+  {% include "nav.html" %}
 
   {% include "controls.html" %}
   {% include "lady_panel.html" %}
-  <nav id="nav-container" class="d-none" aria-hidden="true"></nav>
 
   <main class="container pb-5">
     {% include "context_nav.html" %}
@@ -270,10 +245,10 @@
               <div class="card-body">
                 <div class="d-flex align-items-center justify-content-between mb-3">
                   <h2 class="h5 mb-0">Firewall Status</h2>
-                  <span class="badge text-bg-secondary" id="firewallStatusValue">Unknown</span>
+                  <span class="badge text-bg-secondary" id="networkFirewallStatusValue">Unknown</span>
                 </div>
-                <p class="text-muted" id="firewallStatusMeta">Loading…</p>
-                <div id="firewallResponse" class="response-area p-3">
+                <p class="text-muted" id="networkFirewallStatusMeta">Loading…</p>
+                <div id="networkFirewallResponse" class="response-area p-3">
                   Use the assistant dock to check or change firewall state.
                 </div>
               </div>
@@ -307,7 +282,7 @@
                     </tbody>
                   </table>
                 </div>
-                <pre id="firewallJSON" class="response-area p-3 mb-0"></pre>
+                <pre id="networkFirewallJSON" class="response-area p-3 mb-0"></pre>
               </div>
             </section>
           </div>
@@ -505,10 +480,10 @@
 
     /* ── Firewall ── */
     async function loadFirewall() {
-      const statusBadge = document.getElementById("firewallStatusValue");
-      const statusMeta  = document.getElementById("firewallStatusMeta");
+      const statusBadge = document.getElementById("networkFirewallStatusValue");
+      const statusMeta  = document.getElementById("networkFirewallStatusMeta");
       const rulesBody   = document.getElementById("firewallRulesBody");
-      const jsonPre     = document.getElementById("firewallJSON");
+      const jsonPre     = document.getElementById("networkFirewallJSON");
       try {
         const [sRes, rRes] = await Promise.all([
           fetch("/api/firewall/status"),
