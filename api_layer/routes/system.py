@@ -11,6 +11,8 @@ from api_layer.services import system_service
 from api_layer.services import users_service
 from api_layer.utils.command_runner import run_command
 
+# Absolute path to the git refresh script.
+# Must match the NOPASSWD entry in /etc/sudoers.d/ladylinux-refresh exactly.
 _REFRESH_SCRIPT = "/opt/ladylinux/app/scripts/refresh_git.sh"
 _SUDO = shutil.which("sudo") or "/usr/bin/sudo"
 
@@ -21,6 +23,7 @@ class HostnameRequest(BaseModel):
 
 class TimezoneRequest(BaseModel):
     timezone: str
+
 
 router = APIRouter(prefix="/api/system", tags=["system"])
 
@@ -109,15 +112,31 @@ def set_timezone(body: TimezoneRequest) -> dict:
 
 @router.post("/github/refresh")
 def github_refresh(branch: str = "main") -> dict:
-    """Trigger refresh_git.sh as a background process for the given branch."""
+    """
+    Trigger refresh_git.sh fully detached from the FastAPI process group.
+
+    Problem: refresh_git.sh calls `systemctl stop ladylinux-api` which kills
+    this FastAPI process. With the original Popen using stdout=PIPE, the child
+    inherits the parent's process group and receives SIGHUP when the parent
+    dies — causing the script to abort before git_sync or service_start run.
+
+    Fix: start_new_session=True calls setsid() on the child, placing it in a
+    new session and process group. It becomes immune to SIGHUP from the parent
+    and runs to completion independently.
+
+    stdio is set to DEVNULL rather than PIPE so no file descriptors remain
+    open between the parent and child after fork.
+    """
     if not re.match(r'^[a-zA-Z0-9_\-/]+$', branch):
         raise HTTPException(status_code=400, detail="Invalid branch name")
     try:
         process = subprocess.Popen(
             [_SUDO, _REFRESH_SCRIPT, branch],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
+            stdout=subprocess.DEVNULL,  # no pipe to parent — fully detached
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,     # setsid() — child survives parent death
+            close_fds=True,             # close all inherited file descriptors
         )
         return {
             "ok": True,
@@ -126,8 +145,12 @@ def github_refresh(branch: str = "main") -> dict:
             "message": f"Refresh started for branch '{branch}'",
         }
     except FileNotFoundError:
-        raise HTTPException(status_code=500,
-            detail="refresh_git.sh not found at expected path")
+        raise HTTPException(
+            status_code=500,
+            detail="refresh_git.sh not found at expected path",
+        )
     except PermissionError:
-        raise HTTPException(status_code=403,
-            detail="Permission denied. Add sudoers rule for refresh_git.sh")
+        raise HTTPException(
+            status_code=403,
+            detail="Permission denied. Add sudoers rule for refresh_git.sh",
+        )
