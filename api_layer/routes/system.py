@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+import re
+import shutil
+import subprocess
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from api_layer.services import system_service
 from api_layer.services import users_service
 from api_layer.utils.command_runner import run_command
+
+_REFRESH_SCRIPT = "/opt/ladylinux/app/scripts/refresh_git.sh"
+_SUDO = shutil.which("sudo") or "/usr/bin/sudo"
 
 
 class HostnameRequest(BaseModel):
@@ -98,3 +105,29 @@ def set_timezone(body: TimezoneRequest) -> dict:
         raise HTTPException(status_code=400, detail="Invalid timezone")
     result = run_command(["sudo", "timedatectl", "set-timezone", tz])
     return {"ok": result.ok, "timezone": tz, "stderr": result.stderr}
+
+
+@router.post("/github/refresh")
+def github_refresh(branch: str = "main") -> dict:
+    """Trigger refresh_git.sh as a background process for the given branch."""
+    if not re.match(r'^[a-zA-Z0-9_\-/]+$', branch):
+        raise HTTPException(status_code=400, detail="Invalid branch name")
+    try:
+        process = subprocess.Popen(
+            [_SUDO, _REFRESH_SCRIPT, branch],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        return {
+            "ok": True,
+            "pid": process.pid,
+            "branch": branch,
+            "message": f"Refresh started for branch '{branch}'",
+        }
+    except FileNotFoundError:
+        raise HTTPException(status_code=500,
+            detail="refresh_git.sh not found at expected path")
+    except PermissionError:
+        raise HTTPException(status_code=403,
+            detail="Permission denied. Add sudoers rule for refresh_git.sh")

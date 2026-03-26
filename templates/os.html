@@ -449,6 +449,30 @@
                       <span>Suggestions Enabled</span>
                     </label>
                   </div>
+
+                  <div class="settings-group" id="githubSyncGroup">
+                    <h3 class="d-flex align-items-center justify-content-between">
+                      GitHub
+                      <span id="githubSyncStatus" class="badge bg-secondary" style="font-size:0.7rem">idle</span>
+                    </h3>
+
+                    <label class="form-label mt-2" style="font-size:0.8rem">Branch</label>
+                    <input type="text" id="githubBranch" class="form-control form-control-sm mb-3"
+                           value="main" placeholder="main">
+
+                    <button type="button" class="btn btn-outline-secondary btn-sm w-100"
+                            id="githubRefreshBtn">
+                      <i class="bi bi-arrow-clockwise me-1"></i>Sync from GitHub
+                    </button>
+
+                    <div id="githubRefreshLog" class="mt-3 d-none"
+                         style="background:var(--bg-main);border:1px solid var(--border-color);
+                                border-radius:var(--ui-radius-small);padding:0.6rem;
+                                font-family:monospace;font-size:0.75rem;
+                                max-height:120px;overflow-y:auto;white-space:pre-wrap;
+                                color:var(--text-muted);">
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -549,6 +573,61 @@ async function loadSystemSettings() {
       .catch(() => { timezoneEl.value = "unavailable"; });
   }
 }
+
+// ── GitHub Sync button ────────────────────────────────────────────────────────
+(function initGithubRefresh() {
+  const btn = document.getElementById("githubRefreshBtn");
+  const log = document.getElementById("githubRefreshLog");
+  const status = document.getElementById("githubSyncStatus");
+  const branchInput = document.getElementById("githubBranch");
+  if (!btn) return;
+
+  btn.addEventListener("click", async () => {
+    const branch = branchInput?.value?.trim() || "main";
+
+    btn.disabled = true;
+    status.textContent = "running";
+    status.className = "badge bg-warning text-dark";
+    log.classList.remove("d-none");
+    log.textContent = `Starting sync for branch '${branch}'...\n`;
+
+    try {
+      const res = await fetch(`/api/system/github/refresh?branch=${encodeURIComponent(branch)}`, {
+        method: "POST",
+      });
+      const data = await res.json();
+
+      if (data.ok) {
+        log.textContent += `${data.message}\nPID: ${data.pid}\n`;
+        log.textContent += "Refresh running in background. Service will restart when complete.\n";
+        status.textContent = "syncing";
+        status.className = "badge bg-info text-dark";
+
+        setTimeout(() => {
+          log.textContent += "\nService restarting — page may disconnect briefly.\n";
+          status.textContent = "restarting";
+          status.className = "badge bg-warning text-dark";
+        }, 30000);
+
+        setTimeout(() => {
+          status.textContent = "done";
+          status.className = "badge bg-success";
+          btn.disabled = false;
+        }, 45000);
+      } else {
+        log.textContent += `Error: ${data.detail || "Unknown error"}\n`;
+        status.textContent = "error";
+        status.className = "badge bg-danger";
+        btn.disabled = false;
+      }
+    } catch (err) {
+      log.textContent += `Request failed: ${err.message}\n`;
+      status.textContent = "error";
+      status.className = "badge bg-danger";
+      btn.disabled = false;
+    }
+  });
+})();
 
 // Load storage when tab becomes active; load settings on any settings tab show
 document.getElementById("storage-tab")?.addEventListener("shown.bs.tab", loadStoragePartitions);

@@ -251,6 +251,16 @@ SUDOEOF
     chmod 0440 "$sudoers_file"
     log "Sudoers rule written: $sudoers_file"
 
+    # Allow ladylinux to run the git refresh script without a password.
+    # This enables the System Settings > GitHub panel to trigger syncs from the UI.
+    local refresh_sudoers="/etc/sudoers.d/ladylinux-refresh"
+    cat > "$refresh_sudoers" <<SUDOEOF
+# LadyLinux — allow the service account to run the refresh script as root
+$SERVICE_USER ALL=(root) NOPASSWD: /opt/ladylinux/app/scripts/refresh_git.sh
+SUDOEOF
+    chmod 0440 "$refresh_sudoers"
+    log "Sudoers rule written: $refresh_sudoers"
+
     # Ensure home dir exists with correct ownership
     mkdir -p /home/ladylinux
     chown "$SERVICE_USER":"$SERVICE_GROUP" /home/ladylinux
