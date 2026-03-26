@@ -19,7 +19,7 @@ function updateOverviewStatus(key, value) {
 let currentServicesData = [];
 let currentSortKey = "service";
 let currentSortDirection = "asc";
-let currentServiceFilter = "managed";
+let currentServiceFilter = "relevant";
 
 const STATUS_SORT_PRIORITY = {
   running: 0,
@@ -131,14 +131,66 @@ function normalizeServices(services) {
   }));
 }
 
-// Managed mode intentionally stays heuristic for now. It keeps the default
-// view focused on Lady Linux and common app services without requiring a new
-// backend classification model.
-function isManagedService(service) {
-  const name = String(service?.name || "").toLowerCase();
-  const allowlist = ["ollama", "docker", "postgres", "redis", "nginx"];
+// Suppressed services — known false-positive failures, boot artifacts, LiveCD
+// remnants that are always dead and carry no operational meaning.
+const SERVICE_SUPPRESS_LIST = new Set([
+  "casper", "casper-md5check", "oem-config", "cloud-init-local",
+  "plymouth-start", "plymouth-quit", "plymouth-quit-wait",
+  "plymouth-read-write", "plymouth-halt", "plymouth-poweroff",
+  "plymouth-reboot", "plymouth-switch-root",
+  "initrd-cleanup", "initrd-parse-etc", "initrd-switch-root",
+  "initrd-udevadm-cleanup-db",
+  "systemd-pcrphase", "systemd-pcrphase-initrd", "systemd-pcrphase-sysinit",
+  "systemd-pcrmachine", "systemd-hibernate", "systemd-hibernate-resume",
+  "systemd-hybrid-sleep", "systemd-suspend", "systemd-suspend-then-hibernate",
+  "systemd-soft-reboot", "systemd-reboot", "systemd-halt", "systemd-poweroff",
+  "systemd-bsod", "systemd-firstboot", "systemd-battery-check",
+  "rescue", "emergency",
+]);
 
-  return name.startsWith("ladylinux-") || allowlist.some((entry) => name === entry || name.startsWith(`${entry}-`));
+// Relevant: services a sysadmin actually cares about on this machine.
+function isRelevantService(service) {
+  const name = String(service?.name || "").toLowerCase();
+
+  if (SERVICE_SUPPRESS_LIST.has(name)) return false;
+
+  // Lady Linux own stack
+  if (name.startsWith("ladylinux-")) return true;
+
+  // AI / infra
+  if (["ollama", "docker", "postgres", "redis", "nginx",
+       "ssh", "sshd"].includes(name)) return true;
+
+  // Networking
+  if (["networkmanager", "wpa_supplicant", "systemd-resolved",
+       "systemd-networkd", "networkd-dispatcher",
+       "openvpn", "wireguard"].includes(name)) return true;
+
+  // Security / firewall
+  if (["ufw", "apparmor", "auditd", "polkit", "fail2ban"].includes(name)) return true;
+
+  // Core system services
+  if (["cron", "rsyslog", "systemd-journald", "systemd-logind",
+       "systemd-timesyncd", "systemd-udevd", "dbus",
+       "irqbalance", "fwupd"].includes(name)) return true;
+
+  // Display / session
+  if (["lightdm", "gdm", "sddm", "user@1000",
+       "getty@tty1"].includes(name)) return true;
+
+  // Hardware / power / storage
+  if (["udisks2", "upower", "bluetooth", "cups",
+       "cups-browsed", "thermald", "tlp"].includes(name)) return true;
+
+  // VM tools (relevant since Lady Linux runs in VMware)
+  if (["open-vm-tools", "vgauth"].includes(name)) return true;
+
+  return false;
+}
+
+// Active: only services currently running — useful for quick health checks.
+function isActiveService(service) {
+  return String(service?.status || "").toLowerCase() === "running";
 }
 
 function formatServiceUptime(seconds) {
@@ -199,11 +251,11 @@ function getSortedServices(rows) {
 }
 
 function getVisibleServices(rows) {
-  if (currentServiceFilter === "all") {
-    return rows;
-  }
-
-  return rows.filter((service) => isManagedService(service));
+  if (currentServiceFilter === "all") return rows;
+  if (currentServiceFilter === "active") return rows.filter(isActiveService);
+  if (currentServiceFilter === "relevant") return rows.filter(isRelevantService);
+  // fallback
+  return rows.filter(isRelevantService);
 }
 
 function getSortIconClass(sortKey) {
