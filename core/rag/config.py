@@ -11,11 +11,14 @@ from pathlib import Path
 from core.rag.domain_router import detect_domain_from_path
 
 # Qdrant
-# For Sprint 1 we run Qdrant in-memory via the Python client.
-# Set QDRANT_MODE=server to switch to a Docker/remote instance later.
-QDRANT_MODE = os.getenv("QDRANT_MODE", "memory")  # "memory" | "server"
+# QDRANT_MODE controls the client backend:
+#   "memory" — in-process, wiped on restart (dev/test only)
+#   "local"  — embedded on-disk persistence via qdrant-client (default for prod)
+#   "server" — remote Qdrant server (Docker / dedicated instance)
+QDRANT_MODE = os.getenv("QDRANT_MODE", "local")  # "memory" | "local" | "server"
 QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
 QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
+QDRANT_PATH = os.getenv("QDRANT_PATH", "/var/lib/ladylinux/qdrant")
 COLLECTION_NAME = os.getenv("QDRANT_COLLECTION", "ladylinux")
 
 # Embedding model (Ollama)

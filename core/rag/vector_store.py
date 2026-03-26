@@ -5,7 +5,10 @@ Description: Wraps the qdrant-client SDK to manage the Qdrant collection:
              creating it on first run, upserting new embeddings with metadata
              payloads, and performing similarity searches given a query vector.
 
-Sprint 1: runs Qdrant **in-memory** (no server required).
+Persistence modes (set via QDRANT_MODE env var):
+  memory — in-process, wiped on restart (dev/test only)
+  local  — embedded on-disk via qdrant-client path= (default for prod)
+  server — remote Qdrant server (Docker / dedicated instance)
 """
 
 import hashlib
@@ -26,6 +29,7 @@ from core.rag.config import (
     COLLECTION_NAME,
     QDRANT_HOST,
     QDRANT_MODE,
+    QDRANT_PATH,
     QDRANT_PORT,
     VECTOR_DIM,
 )
@@ -43,9 +47,13 @@ def _get_client() -> QdrantClient:
         if QDRANT_MODE == "memory":
             log.info("Initialising Qdrant client in **in-memory** mode")
             _client = QdrantClient(":memory:")
-        else:
+        elif QDRANT_MODE == "server":
             log.info("Connecting to Qdrant server at %s:%s", QDRANT_HOST, QDRANT_PORT)
             _client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
+        else:
+            # "local" mode — embedded on-disk persistence, no server needed
+            log.info("Initialising Qdrant client in **local** mode (path=%s)", QDRANT_PATH)
+            _client = QdrantClient(path=QDRANT_PATH)
     return _client
 
 
