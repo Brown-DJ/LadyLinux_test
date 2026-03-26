@@ -30,7 +30,7 @@ require_root() {
 stop_services() {
     log "Stopping LadyLinux services"
     systemctl stop "$API_SERVICE" || true
-    systemctl stop "$LLM_SERVICE" || true   # ollama.service
+    # Ollama left running — no need to restart for a git sync
     pkill -f "uvicorn" || true
     sleep 2                                 # give ports time to free
 }
