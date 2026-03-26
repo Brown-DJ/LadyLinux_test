@@ -19,14 +19,17 @@
 
   <main class="container pb-4">
     {% include "context_nav.html" %}
-    <div class="row g-4">
-      <div class="col-12">
+    <div class="row g-4" id="dashboard-sortable">
+      <div class="col-12" data-widget-id="ai-console">
         <!-- 1) AI Console -->
         <section class="card ll-dashboard-card ll-console">
           <div class="card-body">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
               <h1 class="h3 mb-0">AI Console</h1>
               <span class="chat-status" id="chatStatus" data-state="idle">idle</span>
+              <span class="ll-drag-handle ms-auto me-2" title="Drag to reorder">
+                <i class="bi bi-grip-vertical"></i>
+              </span>
             </div>
 
             <div class="mb-3 p-3 rounded-3 ll-console-prompt">
@@ -57,8 +60,11 @@
         </section>
       </div>
 
-      <div class="col-12">
+      <div class="col-12" data-widget-id="metric-cards">
         <!-- 2) System Overview -->
+        <div class="ll-widget-drag-bar">
+          <span class="ll-drag-handle" title="Drag to reorder"><i class="bi bi-grip-vertical"></i></span>
+        </div>
         <section class="row g-3">
           <div class="col-12 col-md-4">
             <article class="card ll-dashboard-card ll-metric-card h-100">
@@ -97,10 +103,13 @@
       </div>
 
       <!-- 3) Suggested Actions -->
-      <div class="col-12 col-lg-6">
+      <div class="col-12 col-lg-6" data-widget-id="ask-panel">
         <section class="card ll-dashboard-card h-100">
           <div class="card-body">
-            <h2 class="h5 mb-3">Suggested Actions</h2>
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <h2 class="h5 mb-0">Suggested Actions</h2>
+              <span class="ll-drag-handle" title="Drag to reorder"><i class="bi bi-grip-vertical"></i></span>
+            </div>
             <div class="list-group ll-action-list ask-list">
               <button type="button" class="list-group-item list-group-item-action ask-item" data-prompt="optimize system performance">Optimize system performance</button>
               <button type="button" class="list-group-item list-group-item-action ask-item" data-prompt="clean up log files">Clean up log files</button>
@@ -111,10 +120,13 @@
       </div>
 
       <!-- 4) Recent Activity -->
-      <div class="col-12 col-lg-6">
+      <div class="col-12 col-lg-6" data-widget-id="activity">
         <section class="card ll-dashboard-card h-100">
           <div class="card-body">
-            <h2 class="h5 mb-3">Recent Activity</h2>
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <h2 class="h5 mb-0">Recent Activity</h2>
+              <span class="ll-drag-handle" title="Drag to reorder"><i class="bi bi-grip-vertical"></i></span>
+            </div>
             <div id="systemActivity" class="response-area activity-feed">
               <ul class="activity-log">
                 <li><span class="activity-entry"><i class="bi bi-file-earmark-text"></i> Config file edited</span></li>
@@ -126,8 +138,11 @@
         </section>
       </div>
 
-      <div class="col-12">
+      <div class="col-12" data-widget-id="module-buttons">
         <!-- 5) Module Buttons -->
+        <div class="ll-widget-drag-bar">
+          <span class="ll-drag-handle" title="Drag to reorder"><i class="bi bi-grip-vertical"></i></span>
+        </div>
         <section class="row g-3">
           <div class="col-12 col-md-4">
             <a href="/os" class="card ll-dashboard-card ll-module-card text-decoration-none h-100">
@@ -169,6 +184,8 @@
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="/static/js/chat.js"></script>
   <script src="/static/js/ladyWidget.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
+  <script src="/static/js/dashboard_dnd.js"></script>
   <script type="module" src="/static/js/dashboard.js"></script>
 </body>
 </html>

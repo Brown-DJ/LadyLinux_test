@@ -68,3 +68,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
 window.toggleFullscreen = toggleFullscreen;
 window.toggleTheme = toggleTheme;
+
+// ── Nav Collapse Toggle ──────────────────────────────
+(function initNavCollapse() {
+  const STORAGE_KEY = "lady-nav-collapsed";
+  const btn = document.getElementById("navCollapseBtn");
+  if (!btn) return;
+
+  // Restore saved state on load
+  if (localStorage.getItem(STORAGE_KEY) === "true") {
+    document.body.classList.add("nav-collapsed");
+  }
+
+  btn.addEventListener("click", () => {
+    const isCollapsed = document.body.classList.toggle("nav-collapsed");
+    localStorage.setItem(STORAGE_KEY, String(isCollapsed));
+  });
+})();
