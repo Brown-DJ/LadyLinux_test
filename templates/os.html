@@ -68,19 +68,19 @@
 
         <!-- System page section tabs -->
         <ul class="nav nav-tabs flex-nowrap overflow-auto" id="systemTabs" role="tablist">
-          <li class="nav-item" role="presentation">
+          <li class="nav-item" role="presentation" data-tab-id="metrics">
             <button class="nav-link active" id="metrics-tab" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#metrics-pane" aria-controls="metrics-pane" aria-selected="true">System Metrics</button>
           </li>
-          <li class="nav-item" role="presentation">
+          <li class="nav-item" role="presentation" data-tab-id="services">
             <button class="nav-link" id="services-tab" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#services-pane" aria-controls="services-pane" aria-selected="false">Services</button>
           </li>
-          <li class="nav-item" role="presentation">
+          <li class="nav-item" role="presentation" data-tab-id="storage">
             <button class="nav-link" id="storage-tab" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#storage-pane" aria-controls="storage-pane" aria-selected="false">Storage</button>
           </li>
-          <li class="nav-item" role="presentation">
+          <li class="nav-item" role="presentation" data-tab-id="appearance">
             <button class="nav-link" id="appearance-tab" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#appearance-pane" aria-controls="appearance-pane" aria-selected="false">Appearance</button>
           </li>
-          <li class="nav-item" role="presentation">
+          <li class="nav-item" role="presentation" data-tab-id="settings">
             <button class="nav-link" id="settings-tab" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#settings-pane" aria-controls="settings-pane" aria-selected="false">System Settings</button>
           </li>
         </ul>
@@ -474,6 +474,8 @@ function checkRagStatus() {
 checkRagStatus();
 </script>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
+<script src="/static/js/dnd.js"></script>
 <script src="/static/js/chat.js"></script>
 <script src="/static/js/ladyWidget.js"></script>
 </body>
