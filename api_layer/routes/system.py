@@ -16,6 +16,18 @@ from api_layer.utils.command_runner import run_command
 _REFRESH_SCRIPT = "/opt/ladylinux/app/scripts/refresh_git.sh"
 _SUDO = shutil.which("sudo") or "/usr/bin/sudo"
 
+# Minimal clean environment passed to the refresh subprocess.
+# FastAPI runs with a stripped systemd env — no guarantee that systemctl,
+# git, lsof, etc. are on PATH. Passing this explicitly avoids silent failures
+# caused by set -Eeuo pipefail in the script exiting on command-not-found.
+_REFRESH_ENV = {
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "HOME": "/root",
+    "LANG": "en_US.UTF-8",
+    "SYSTEMD_PAGER": "",        # prevent systemctl invoking a pager
+    "GIT_TERMINAL_PROMPT": "0", # prevent git hanging on auth prompts
+}
+
 
 class HostnameRequest(BaseModel):
     hostname: str
@@ -113,30 +125,31 @@ def set_timezone(body: TimezoneRequest) -> dict:
 @router.post("/github/refresh")
 def github_refresh(branch: str = "main") -> dict:
     """
-    Trigger refresh_git.sh fully detached from the FastAPI process group.
+    Spawn refresh_git.sh fully detached from the FastAPI process group.
 
-    Problem: refresh_git.sh calls `systemctl stop ladylinux-api` which kills
-    this FastAPI process. With the original Popen using stdout=PIPE, the child
-    inherits the parent's process group and receives SIGHUP when the parent
-    dies — causing the script to abort before git_sync or service_start run.
+    Two problems solved here:
 
-    Fix: start_new_session=True calls setsid() on the child, placing it in a
-    new session and process group. It becomes immune to SIGHUP from the parent
-    and runs to completion independently.
+    1. Process group isolation: refresh_git.sh stops ladylinux-api as part of
+       its flow, which kills this FastAPI process. start_new_session=True calls
+       setsid() on the child so it's in its own session — immune to SIGHUP when
+       the parent dies.
 
-    stdio is set to DEVNULL rather than PIPE so no file descriptors remain
-    open between the parent and child after fork.
+    2. Stripped environment: FastAPI runs under systemd with a minimal env.
+       Without an explicit PATH, systemctl/git/lsof are not found and
+       set -Eeuo pipefail in the script causes silent exit. env=_REFRESH_ENV
+       passes a complete known-good environment to the subprocess.
     """
     if not re.match(r'^[a-zA-Z0-9_\-/]+$', branch):
         raise HTTPException(status_code=400, detail="Invalid branch name")
     try:
         process = subprocess.Popen(
             [_SUDO, _REFRESH_SCRIPT, branch],
-            stdout=subprocess.DEVNULL,  # no pipe to parent — fully detached
+            stdout=subprocess.DEVNULL,  # fully detached — no pipe to parent
             stderr=subprocess.DEVNULL,
             stdin=subprocess.DEVNULL,
-            start_new_session=True,     # setsid() — child survives parent death
+            start_new_session=True,     # setsid() — survives parent death
             close_fds=True,             # close all inherited file descriptors
+            env=_REFRESH_ENV,           # explicit env — not inherited from FastAPI
         )
         return {
             "ok": True,

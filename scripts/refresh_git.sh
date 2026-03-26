@@ -1,175 +1,197 @@
 #!/usr/bin/env bash
+# =============================================================================
+# refresh_git.sh — LadyLinux git sync + service restart
+#
+# Usage:  sudo /opt/ladylinux/app/scripts/refresh_git.sh [branch]
+#
+# Called by: api_layer/routes/system.py  POST /api/system/github/refresh
+# Called by: manual terminal invocation
+#
+# Design constraints:
+#   - Must work when spawned as a fully detached subprocess (no TTY, no env)
+#   - Must NOT use usermod — ladylinux has a locked password, PAM blocks it
+#   - Must NOT use sudo -u — inherits parent restrictions in detached context
+#   - All git/pip ops run as root; fix_permissions() realigns ownership after
+#   - set -Eeuo pipefail: any unguarded failure exits immediately
+# =============================================================================
 set -Eeuo pipefail
 
-# ── Must match install_ladylinux.sh exactly ───────────────────────────────────
-REPO_URL="https://github.com/Brown-DJ/LadyLinux_test.git"   # FIX 1: was missing entirely
+# ── Force a complete known environment ────────────────────────────────────────
+# When spawned from FastAPI via subprocess.Popen the inherited env is stripped.
+# systemctl, git, lsof, curl etc. may not be on PATH without this.
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+export HOME="/root"
+export LANG="en_US.UTF-8"
+export SYSTEMD_PAGER=""          # prevent systemctl from invoking a pager
+export GIT_TERMINAL_PROMPT="0"   # prevent git from hanging on auth prompts
+
+# ── Configuration — must match install_ladylinux.sh exactly ──────────────────
+REPO_URL="https://github.com/Brown-DJ/LadyLinux_test.git"
 BRANCH="${1:-main}"
 
 APP_DIR="/opt/ladylinux/app"
 VENV_DIR="/opt/ladylinux/venv"
 SERVICE_USER="ladylinux"
-SERVICE_GROUP="ladylinux"                                    # FIX 3: installer uses a named group
+SERVICE_GROUP="ladylinux"
 
 API_SERVICE="ladylinux-api.service"
-LLM_SERVICE="ollama.service"   # Must match install_ladylinux.sh
+LLM_SERVICE="ollama.service"
 API_PORT="8000"
 
-ENV_FILE="/etc/ladylinux/ladylinux.env"                      # FIX 10: installer writes this; reference it
-
+# ── Logging helpers ───────────────────────────────────────────────────────────
 log()  { echo "[refresh] $*"; }
 warn() { echo "[refresh][WARN] $*" >&2; }
 die()  { echo "[refresh][ERROR] $*" >&2; exit 1; }
 
-# ── FIX 2: require_root() must run FIRST — original called chown before this ──
+# ── Root check ────────────────────────────────────────────────────────────────
 require_root() {
-    if [[ "$EUID" -ne 0 ]]; then
-        die "Run with sudo"
-    fi
+    # Must be first — all operations below require root
+    [[ "${EUID}" -eq 0 ]] || die "Run with sudo"
 }
 
+# ── Stop API service only — leave Ollama running ─────────────────────────────
+# Stopping Ollama forces a slow model reload on restart, which causes the
+# validate_api() health check to time out. Leave it running across git syncs.
 stop_services() {
-    log "Stopping LadyLinux services"
-    systemctl stop "$API_SERVICE" || true
-    # Ollama left running — no need to restart for a git sync
-    pkill -f "uvicorn" || true
-    sleep 2                                 # give ports time to free
+    log "Stopping API service"
+    systemctl stop "${API_SERVICE}" || true
+
+    # Belt-and-suspenders: kill any orphaned uvicorn process on the port
+    pkill -f "uvicorn" 2>/dev/null || true
+
+    # Give the port time to free before git ops begin
+    sleep 2
 }
 
+# ── Git sync ──────────────────────────────────────────────────────────────────
+# Runs as root. Ownership is corrected by fix_permissions() afterward.
+# No usermod / sudo -u — ladylinux has a locked account; both fail in a
+# detached process context spawned from FastAPI.
 sync_repo() {
     log "Updating repository"
 
-    # FIX 6: ladylinux user has shell=/usr/sbin/nologin after install.
-    # Temporarily restore /bin/bash so git commands work, same as installer does.
-    usermod -s /bin/bash "$SERVICE_USER"
+    # Register safe.directory for both root and the service user so git
+    # doesn't refuse to operate on a directory owned by another user
+    git config --global --add safe.directory "${APP_DIR}" 2>/dev/null || true
 
-    # FIX 8: safe.directory must be set AFTER the shell is restored to /bin/bash,
-    # otherwise sudo -u ladylinux is rejected by nologin and the config is never written.
-    # Also set it for root so the final rev-parse (which runs as root) works too.
-    sudo -u "$SERVICE_USER" git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
-    git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
+    cd "${APP_DIR}"
 
-    cd "$APP_DIR"
-
-    # FIX 1: validate the remote URL matches, correct it if not
+    # Ensure remote URL is correct — correct it silently if not
     local current_remote
-    current_remote="$(sudo -u "$SERVICE_USER" git remote get-url origin 2>/dev/null || true)"
-    if [[ "$current_remote" != "$REPO_URL" ]]; then
-        log "Correcting remote origin to $REPO_URL"
-        if sudo -u "$SERVICE_USER" git remote | grep -Fxq origin; then
-            sudo -u "$SERVICE_USER" git remote set-url origin "$REPO_URL"
+    current_remote="$(git remote get-url origin 2>/dev/null || true)"
+    if [[ "${current_remote}" != "${REPO_URL}" ]]; then
+        log "Correcting remote origin → ${REPO_URL}"
+        if git remote | grep -Fxq origin; then
+            git remote set-url origin "${REPO_URL}"
         else
-            sudo -u "$SERVICE_USER" git remote add origin "$REPO_URL"
+            git remote add origin "${REPO_URL}"
         fi
     fi
 
-    sudo -u "$SERVICE_USER" git fetch --prune origin
+    git fetch --prune origin
 
-    # Validate branch exists before hard-reset (mirrors installer guard)
-    if ! sudo -u "$SERVICE_USER" git show-ref --verify --quiet "refs/remotes/origin/$BRANCH"; then
-        usermod -s /usr/sbin/nologin "$SERVICE_USER"
-        die "Branch '$BRANCH' not found on remote. Aborting before reset."
-    fi
+    # Guard: abort before destructive reset if the branch doesn't exist
+    git show-ref --verify --quiet "refs/remotes/origin/${BRANCH}" \
+        || die "Branch '${BRANCH}' not found on remote. Aborting."
 
-    sudo -u "$SERVICE_USER" git checkout -f "$BRANCH" 2>/dev/null || true
-    sudo -u "$SERVICE_USER" git reset --hard "origin/$BRANCH"
-    sudo -u "$SERVICE_USER" git clean -fd
+    git checkout -f "${BRANCH}" 2>/dev/null || true
+    git reset --hard "origin/${BRANCH}"
+    git clean -fd
 
-    # FIX 6: restore nologin shell after git ops, same as installer
-    usermod -s /usr/sbin/nologin "$SERVICE_USER"
-
-    log "Repo now at: $(git -C "$APP_DIR" rev-parse --short HEAD) ($BRANCH)"
+    log "Repo now at: $(git rev-parse --short HEAD) (${BRANCH})"
 }
 
+# ── Venv check ────────────────────────────────────────────────────────────────
 repair_venv() {
     log "Checking Python environment"
 
-    if [[ ! -f "$VENV_DIR/bin/python" ]]; then
-        log "Broken or missing venv — rebuilding"
-
-        rm -rf "$VENV_DIR"
-        mkdir -p "$VENV_DIR"
-        # FIX 3/4: use SERVICE_GROUP, not SERVICE_USER:SERVICE_USER
-        chown -R "$SERVICE_USER:$SERVICE_GROUP" "$VENV_DIR"
-
-        # FIX 5: installer tries python3.12 → 3.11 → python3; match that priority
-        local python_bin=""
-        for candidate in python3.12 python3.11 python3; do
-            if command -v "$candidate" >/dev/null 2>&1; then
-                python_bin="$candidate"
-                break
-            fi
-        done
-        [[ -n "$python_bin" ]] || die "No Python 3 interpreter found."
-
-        # FIX 6: venv creation needs a real shell on the service user
-        usermod -s /bin/bash "$SERVICE_USER"
-        sudo -u "$SERVICE_USER" "$python_bin" -m venv "$VENV_DIR"
-        usermod -s /usr/sbin/nologin "$SERVICE_USER"
+    # Only rebuild if venv is missing or broken — skip on normal syncs
+    if [[ -f "${VENV_DIR}/bin/python" ]]; then
+        return 0
     fi
+
+    log "Venv missing or broken — rebuilding"
+    rm -rf "${VENV_DIR}"
+    mkdir -p "${VENV_DIR}"
+
+    # Match installer's Python priority: 3.12 → 3.11 → 3
+    local python_bin=""
+    for candidate in python3.12 python3.11 python3; do
+        if command -v "${candidate}" >/dev/null 2>&1; then
+            python_bin="${candidate}"
+            break
+        fi
+    done
+    [[ -n "${python_bin}" ]] || die "No Python 3 interpreter found."
+
+    "${python_bin}" -m venv "${VENV_DIR}"
 }
 
+# ── Dependencies ──────────────────────────────────────────────────────────────
 install_dependencies() {
     log "Installing dependencies"
 
-    # FIX 11: original ran the pip upgrade as root, then install as service user.
-    # Both steps must run as the service user so the venv stays correctly owned.
-    usermod -s /bin/bash "$SERVICE_USER"
+    "${VENV_DIR}/bin/pip" install --upgrade pip wheel setuptools --quiet
 
-    sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install --upgrade pip wheel setuptools --quiet
-
-    if [[ -f "$APP_DIR/requirements.txt" ]]; then
-        sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install -r "$APP_DIR/requirements.txt" --quiet
+    if [[ -f "${APP_DIR}/requirements.txt" ]]; then
+        "${VENV_DIR}/bin/pip" install -r "${APP_DIR}/requirements.txt" --quiet
     else
-        warn "No requirements.txt found — installing default runtime stack"
-        sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install \
+        warn "No requirements.txt — installing default runtime stack"
+        "${VENV_DIR}/bin/pip" install \
             fastapi uvicorn requests jinja2 python-multipart pydantic --quiet
     fi
-
-    usermod -s /usr/sbin/nologin "$SERVICE_USER"
 }
 
+# ── Permissions ───────────────────────────────────────────────────────────────
 fix_permissions() {
-    # FIX 9: installer runs a full fix_permissions step; refresher was skipping it entirely.
-    # After a git clean + venv rebuild, ownership can drift — realign it.
     log "Fixing ownership and permissions"
-    chown -R "$SERVICE_USER:$SERVICE_GROUP" "$APP_DIR"
-    chown -R "$SERVICE_USER:$SERVICE_GROUP" "$VENV_DIR"
-    chown -R "$SERVICE_USER:$SERVICE_GROUP" /var/lib/ladylinux
 
-    # Re-run dos2unix on any .sh files pulled in by git sync
+    # Realign ownership after git clean + potential venv rebuild
+    chown -R "${SERVICE_USER}:${SERVICE_GROUP}" "${APP_DIR}"
+    chown -R "${SERVICE_USER}:${SERVICE_GROUP}" "${VENV_DIR}"
+
+    # Ensure runtime dirs exist and are owned correctly
+    mkdir -p /var/lib/ladylinux
+    chown -R "${SERVICE_USER}:${SERVICE_GROUP}" /var/lib/ladylinux 2>/dev/null || true
+
+    # Normalize line endings + ensure all scripts are executable
     if command -v dos2unix >/dev/null 2>&1; then
-        find "$APP_DIR" -name "*.sh" -type f | while read -r f; do
-            dos2unix "$f" 2>/dev/null || true
-            chmod +x "$f"
+        find "${APP_DIR}" -name "*.sh" -type f | while read -r f; do
+            dos2unix "${f}" 2>/dev/null || true
+            chmod +x "${f}"
         done
     else
-        find "$APP_DIR" -name "*.sh" -type f -exec chmod +x {} \;
+        find "${APP_DIR}" -name "*.sh" -type f -exec chmod +x {} \;
     fi
 }
 
+# ── Service restart ───────────────────────────────────────────────────────────
 restart_services() {
     log "Reloading systemd"
     systemctl daemon-reload
 
-    log "Ensuring $LLM_SERVICE is running"
-    # ollama.service is managed by the Ollama installer — we just ensure it's up.
-    # Do NOT write a second unit; that causes a port 11434 conflict.
-    systemctl start "$LLM_SERVICE" || warn "Could not start $LLM_SERVICE"
+    # Ensure Ollama is up — it was left running but confirm it
+    # Use start (not restart) so a healthy Ollama is never interrupted
+    log "Ensuring ${LLM_SERVICE} is running"
+    systemctl start "${LLM_SERVICE}" 2>/dev/null \
+        || warn "Could not start ${LLM_SERVICE} — API may start without LLM"
 
     log "Restarting API service"
-    systemctl restart "$API_SERVICE"
+    systemctl restart "${API_SERVICE}" \
+        || die "Failed to restart ${API_SERVICE}"
 }
 
+# ── Health check ──────────────────────────────────────────────────────────────
 validate_api() {
-    log "Waiting for API on port $API_PORT"
+    log "Waiting for API on port ${API_PORT}"
     sleep 3
 
     local attempts=15
     local ready=0
+
     while (( attempts > 0 )); do
-        # FIX 12: installer uses lsof OR ss; use both for robustness
-        if lsof -i :"$API_PORT" >/dev/null 2>&1 || \
-           ss -tlnp 2>/dev/null | grep -q ":$API_PORT "; then
+        if lsof -i :"${API_PORT}" >/dev/null 2>&1 || \
+           ss -tlnp 2>/dev/null | grep -q ":${API_PORT} "; then
             ready=1
             break
         fi
@@ -177,26 +199,28 @@ validate_api() {
         (( attempts-- ))
     done
 
-    if [[ "$ready" -ne 1 ]]; then
-        # FIX 12: original did exit 1 here — match installer's warn-and-continue
-        warn "Port $API_PORT not listening after timeout."
-        warn "  journalctl -u $API_SERVICE -n 50 --no-pager"
-        warn "  journalctl -u $LLM_SERVICE -n 20 --no-pager"
+    if [[ "${ready}" -ne 1 ]]; then
+        # Warn and continue — don't exit 1, the service may still be starting
+        warn "Port ${API_PORT} not listening after timeout."
+        warn "  Check: journalctl -u ${API_SERVICE} -n 50 --no-pager"
         return 0
     fi
 
-    log "Port $API_PORT is open."
-    curl --silent --fail --max-time 5 "http://127.0.0.1:$API_PORT/" >/dev/null 2>&1 \
+    log "Port ${API_PORT} is open."
+
+    # HTTP sanity check — failure is non-fatal, service may still be booting
+    curl --silent --fail --max-time 5 "http://127.0.0.1:${API_PORT}/" \
+        >/dev/null 2>&1 \
         && log "HTTP health check: OK" \
-        || warn "Process listening but HTTP health check failed — may still be starting."
+        || warn "Port open but HTTP check failed — may still be starting."
 }
 
+# ── Main ──────────────────────────────────────────────────────────────────────
 main() {
-    # FIX 2: root check is the absolute first thing — original called chown before this
     require_root
 
-    # FIX 2 (continued): APP_DIR ownership reset now lives here, safely after root check
-    chown -R "$SERVICE_USER:$SERVICE_GROUP" "$APP_DIR" || true
+    # Ensure APP_DIR is accessible before any operation
+    chown -R "${SERVICE_USER}:${SERVICE_GROUP}" "${APP_DIR}" 2>/dev/null || true
 
     stop_services
     sync_repo
@@ -206,7 +230,9 @@ main() {
     restart_services
     validate_api
 
-    log "Refresh complete. Branch: $BRANCH  Commit: $(git -C "$APP_DIR" rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
+    local commit
+    commit="$(git -C "${APP_DIR}" rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
+    log "Refresh complete. Branch: ${BRANCH}  Commit: ${commit}"
 }
 
 main "$@"
