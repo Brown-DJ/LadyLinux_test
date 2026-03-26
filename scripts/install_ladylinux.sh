@@ -627,15 +627,15 @@ fi
 URL="http://localhost:8000"
 
 # Open browser
-if command -v chromium-browser >/dev/null 2>&1; then
+if command -v chromium >/dev/null 2>&1; then
+    chromium --app="$URL" --class=LadyLinuxApp &
+elif command -v chromium-browser >/dev/null 2>&1; then
     chromium-browser --app="$URL" --class=LadyLinuxApp &
 elif command -v xdg-open >/dev/null 2>&1; then
     xdg-open "$URL" &
 else
     echo "Please open your browser and visit: $URL"
 fi
-
-echo "LadyLinux launched at $URL"
 LAUNCHEOF
 
     chmod +x "$LAUNCH_SCRIPT"
