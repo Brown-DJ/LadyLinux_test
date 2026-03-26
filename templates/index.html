@@ -62,42 +62,49 @@
 
       <div class="col-12" data-widget-id="metric-cards">
         <!-- 2) System Overview -->
-        <div class="ll-widget-drag-bar">
-          <span class="ll-drag-handle" title="Drag to reorder"><i class="bi bi-grip-vertical"></i></span>
-        </div>
-        <section class="row g-3">
-          <div class="col-12 col-md-4">
-            <article class="card ll-dashboard-card ll-metric-card h-100">
-              <div class="card-body">
-                <h2 class="h6 text-muted">CPU Usage</h2>
-                <p id="cpuLoad" class="display-6 fw-semibold mb-3">--%</p>
-                <div class="progress ll-metric-bar" role="progressbar" aria-label="CPU usage" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-                  <div id="cpuProgress" class="progress-bar" style="width: 0%"></div>
-                </div>
+        <section class="card ll-dashboard-card">
+          <div class="card-body pb-2">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <h2 class="h6 text-muted mb-0">Live Metrics</h2>
+              <span class="ll-drag-handle" title="Drag to reorder">
+                <i class="bi bi-grip-vertical"></i>
+              </span>
+            </div>
+            <div class="row g-3">
+              <div class="col-12 col-md-4">
+                <article class="card ll-dashboard-card ll-metric-card h-100">
+                  <div class="card-body">
+                    <h2 class="h6 text-muted">CPU Usage</h2>
+                    <p id="cpuLoad" class="display-6 fw-semibold mb-3">--%</p>
+                    <div class="progress ll-metric-bar" role="progressbar" aria-label="CPU usage" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                      <div id="cpuProgress" class="progress-bar" style="width: 0%"></div>
+                    </div>
+                  </div>
+                </article>
               </div>
-            </article>
-          </div>
-          <div class="col-12 col-md-4">
-            <article class="card ll-dashboard-card ll-metric-card h-100">
-              <div class="card-body">
-                <h2 class="h6 text-muted">Memory Usage</h2>
-                <p id="memoryUsage" class="display-6 fw-semibold mb-3">--%</p>
-                <div class="progress ll-metric-bar" role="progressbar" aria-label="Memory usage" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-                  <div id="memoryProgress" class="progress-bar" style="width: 0%"></div>
-                </div>
+              <div class="col-12 col-md-4">
+                <article class="card ll-dashboard-card ll-metric-card h-100">
+                  <div class="card-body">
+                    <h2 class="h6 text-muted">Memory Usage</h2>
+                    <p id="memoryUsage" class="display-6 fw-semibold mb-3">--%</p>
+                    <div class="progress ll-metric-bar" role="progressbar" aria-label="Memory usage" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                      <div id="memoryProgress" class="progress-bar" style="width: 0%"></div>
+                    </div>
+                  </div>
+                </article>
               </div>
-            </article>
-          </div>
-          <div class="col-12 col-md-4">
-            <article class="card ll-dashboard-card ll-metric-card h-100">
-              <div class="card-body">
-                <h2 class="h6 text-muted">Disk Space</h2>
-                <p id="diskUsage" class="display-6 fw-semibold mb-3">--%</p>
-                <div class="progress ll-metric-bar" role="progressbar" aria-label="Disk usage" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-                  <div id="diskProgress" class="progress-bar" style="width: 0%"></div>
-                </div>
+              <div class="col-12 col-md-4">
+                <article class="card ll-dashboard-card ll-metric-card h-100">
+                  <div class="card-body">
+                    <h2 class="h6 text-muted">Disk Space</h2>
+                    <p id="diskUsage" class="display-6 fw-semibold mb-3">--%</p>
+                    <div class="progress ll-metric-bar" role="progressbar" aria-label="Disk usage" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                      <div id="diskProgress" class="progress-bar" style="width: 0%"></div>
+                    </div>
+                  </div>
+                </article>
               </div>
-            </article>
+            </div>
           </div>
         </section>
       </div>
@@ -161,10 +168,10 @@
             </a>
           </div>
           <div class="col-12 col-md-4">
-            <a href="/firewall" class="card ll-dashboard-card ll-module-card text-decoration-none h-100">
+            <a href="/network" class="card ll-dashboard-card ll-module-card text-decoration-none h-100">
               <div class="card-body text-center">
-                <i class="bi bi-shield-lock fs-2 d-block mb-2"></i>
-                <span class="h5 mb-0">Firewall</span>
+                <i class="bi bi-globe fs-2 d-block mb-2"></i>
+                <span class="h5 mb-0">Network</span>
               </div>
             </a>
           </div>

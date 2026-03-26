@@ -69,19 +69,22 @@ document.addEventListener("DOMContentLoaded", () => {
 window.toggleFullscreen = toggleFullscreen;
 window.toggleTheme = toggleTheme;
 
-// ── Nav Collapse Toggle ──────────────────────────────
-(function initNavCollapse() {
-  const STORAGE_KEY = "lady-nav-collapsed";
-  const btn = document.getElementById("navCollapseBtn");
-  if (!btn) return;
+// ── Context Nav Collapse Toggle ──────────────────────────────
+(function initContextNavCollapse() {
+  const STORAGE_KEY = "lady-context-nav-collapsed";
+  const btn = document.getElementById("contextNavToggle");
+  const links = document.getElementById("contextNavLinks");
+  if (!btn || !links) return;
 
-  // Restore saved state on load
+  // Restore saved state
   if (localStorage.getItem(STORAGE_KEY) === "true") {
-    document.body.classList.add("nav-collapsed");
+    links.classList.add("context-nav-collapsed");
+    btn.classList.add("context-nav-is-collapsed");
   }
 
   btn.addEventListener("click", () => {
-    const isCollapsed = document.body.classList.toggle("nav-collapsed");
-    localStorage.setItem(STORAGE_KEY, String(isCollapsed));
+    const isNowCollapsed = links.classList.toggle("context-nav-collapsed");
+    btn.classList.toggle("context-nav-is-collapsed", isNowCollapsed);
+    localStorage.setItem(STORAGE_KEY, String(isNowCollapsed));
   });
 })();

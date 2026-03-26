@@ -1096,27 +1096,37 @@ html[data-high-contrast="true"] .response-area {
 }
 
 /* =====================================================
-   NAV COLLAPSE - desktop sidebar toggle
+   CONTEXT NAV COLLAPSE
    ===================================================== */
-.ll-nav-collapse-toggle {
-  color: var(--text-muted);
-  padding: 0.25rem 0.4rem;
-  line-height: 1;
-  transition: color var(--transition-speed);
-}
-.ll-nav-collapse-toggle:hover {
-  color: var(--accent);
+.top-context-nav-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-/* When body has .nav-collapsed, shrink the navbar text labels */
-body.nav-collapsed .ll-topbar .navbar-brand span.fw-semibold,
-body.nav-collapsed .ll-topbar .nav-link-label {
+.ll-context-nav-toggle {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: var(--ui-radius-small);
+  color: var(--text-muted);
+  padding: 0.2rem 0.45rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: color var(--transition-speed), border-color var(--transition-speed);
+  flex-shrink: 0;
+}
+.ll-context-nav-toggle:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Collapsed state hides the link row */
+#contextNavLinks.context-nav-collapsed {
   display: none;
 }
-body.nav-collapsed .ll-topbar .container {
-  justify-content: center;
-}
-body.nav-collapsed #navCollapseIcon {
+
+/* Flip icon when collapsed */
+.context-nav-is-collapsed #contextNavIcon {
   transform: scaleX(-1);
 }
 
