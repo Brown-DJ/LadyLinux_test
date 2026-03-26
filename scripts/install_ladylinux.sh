@@ -134,7 +134,6 @@ install_system_packages() {
         dos2unix
         lsof
         avahi-daemon
-        chromium-browser
         python3
         python3-venv
         python3-pip
@@ -172,6 +171,46 @@ install_system_packages() {
 #===============================================================================
 # STEP 3 — SERVICE USER + DIRECTORY LAYOUT
 #===============================================================================
+
+install_chromium() {
+    section "Step 2b â€” Chromium browser"
+
+    # Already installed â€” nothing to do
+    if command -v chromium >/dev/null 2>&1 || \
+       command -v chromium-browser >/dev/null 2>&1; then
+        log "Chromium already installed: OK"
+        return 0
+    fi
+
+    log "Installing Chromium..."
+
+    # Try the correct apt package name first (Mint/Debian/Ubuntu)
+    # On Ubuntu 22.04+ chromium-browser is a snap stub â€” use chromium instead
+    if apt-get install -y chromium 2>/dev/null; then
+        log "Chromium installed via apt (chromium): OK"
+        return 0
+    fi
+
+    # Fallback: try the old package name
+    if apt-get install -y chromium-browser 2>/dev/null; then
+        # Verify it's not just the snap stub
+        if command -v chromium-browser >/dev/null 2>&1 && \
+           ! chromium-browser --version 2>&1 | grep -qi "snap"; then
+            log "Chromium installed via apt (chromium-browser): OK"
+            return 0
+        fi
+    fi
+
+    # Fallback: snap
+    if command -v snap >/dev/null 2>&1; then
+        log "Trying snap install for Chromium..."
+        snap install chromium && log "Chromium installed via snap: OK" && return 0
+    fi
+
+    warn "Chromium could not be installed automatically."
+    warn "Install it manually:  sudo apt install chromium"
+    warn "The app will still work â€” open http://localhost:8000 in any browser."
+}
 
 create_user_and_dirs() {
     section "Step 3 — Service user + directory layout"
@@ -380,10 +419,24 @@ build_venv() {
         run_as_service "$pip_bin" install -r requirements.txt --quiet
     elif [[ -f "pyproject.toml" ]]; then
         log "pyproject.toml found — installing default runtime stack..."
-        run_as_service "$pip_bin" install fastapi uvicorn requests jinja2 python-multipart pydantic --quiet
+        run_as_service "$pip_bin" install \
+            "fastapi==0.115.6" "starlette==0.41.3" "uvicorn==0.32.1" \
+            "requests==2.32.3" "jinja2==3.1.4" \
+            "python-multipart==0.0.12" "pydantic>=2.0" --quiet
     else
         log "No dependency manifest found — installing default runtime stack..."
-        run_as_service "$pip_bin" install fastapi uvicorn requests jinja2 python-multipart pydantic --quiet
+        run_as_service "$pip_bin" install \
+            "fastapi==0.115.6" "starlette==0.41.3" "uvicorn==0.32.1" \
+            "requests==2.32.3" "jinja2==3.1.4" \
+            "python-multipart==0.0.12" "pydantic>=2.0" --quiet
+    fi
+
+    # Guard: verify starlette is not 1.0.0 (breaks Jinja2 template cache)
+    local installed_starlette=""
+    installed_starlette="$(run_as_service "$pip_bin" show starlette 2>/dev/null | grep '^Version' | awk '{print $2}')"
+    if [[ "$installed_starlette" == "1.0.0" ]]; then
+        warn "starlette 1.0.0 detected â€” forcing downgrade to 0.41.3"
+        run_as_service "$pip_bin" install "starlette==0.41.3" "fastapi==0.115.6" --quiet
     fi
 
     popd >/dev/null
@@ -700,6 +753,7 @@ print_access_urls() {
 main() {
     preflight
     install_system_packages
+    install_chromium
     create_user_and_dirs
     set_hostname
     sync_repo
