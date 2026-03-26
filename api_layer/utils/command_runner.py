@@ -25,6 +25,8 @@ ALLOWED_COMMANDS = {
     "useradd",  # User creation flows routed through controlled endpoints.
     "who",  # Logged-in user inspection.
     "tail",  # Log file reading for the logs viewer.
+    "hostnamectl",  # Hostname read/write for system settings endpoints.
+    "timedatectl",  # Timezone read/write for system settings endpoints.
 }
 
 

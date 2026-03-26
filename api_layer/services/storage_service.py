@@ -3,6 +3,8 @@ from __future__ import annotations
 import shutil
 import time
 
+import psutil
+
 from api_layer.utils.command_runner import run_command
 
 # ---------------------------------------------------------------------------
@@ -12,6 +14,25 @@ from api_layer.utils.command_runner import run_command
 _TOP_USAGE_CACHE: dict | None = None
 _TOP_USAGE_CACHE_AT: float = 0.0
 TOP_USAGE_TTL: int = 60  # seconds
+
+
+def get_disk_partitions() -> dict:
+    partitions = []
+    for part in psutil.disk_partitions(all=False):
+        try:
+            usage = psutil.disk_usage(part.mountpoint)
+            partitions.append({
+                "device": part.device,
+                "mountpoint": part.mountpoint,
+                "fstype": part.fstype,
+                "total": usage.total,
+                "used": usage.used,
+                "free": usage.free,
+                "percent": usage.percent,
+            })
+        except PermissionError:
+            continue
+    return {"ok": True, "partitions": partitions}
 
 
 def storage_summary() -> dict:

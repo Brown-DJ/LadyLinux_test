@@ -11,6 +11,8 @@ let devShortcutBound = false;
 let chatInitialized = false;
 let pendingConfirmation = null;
 let systemActivity = [];
+let conversationHistory = [];
+const MAX_HISTORY_TURNS = 10;
 // Store backend metadata from the most recent /ask_rag request for Dev Mode diagnostics.
 let lastRagMeta = {
   model: "mistral",
@@ -544,10 +546,13 @@ function executeAction(actionName, params, options = {}) {
 
 /* Shared backend transport for all UI chat surfaces */
 async function sendPrompt(prompt) {
+  // Add user turn to history before sending so backend sees full context
+  conversationHistory.push({ role: "user", content: prompt });
+
   const response = await fetch("/api/prompt/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, context: "ui" }),
+    body: JSON.stringify({ prompt, messages: conversationHistory, context: "ui" }),
   });
 
   if (!response.ok) {
@@ -672,6 +677,12 @@ async function sendPrompt(prompt) {
 
   if (finalPayload === null) {
     throw new Error("Stream ended without a response");
+  }
+
+  // Append assistant turn and cap history to avoid context overflow
+  conversationHistory.push({ role: "assistant", content: finalPayload });
+  if (conversationHistory.length > MAX_HISTORY_TURNS * 2) {
+    conversationHistory = conversationHistory.slice(-MAX_HISTORY_TURNS * 2);
   }
 
   return finalPayload;

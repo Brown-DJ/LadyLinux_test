@@ -95,6 +95,8 @@ SYSTEM_PROVIDER = SystemProvider()
 
 class PromptRequest(BaseModel):
     prompt: str
+    messages: list[ChatMessage] = []
+    context: str = "ui"
 
 
 class ChatMessage(BaseModel):
@@ -500,6 +502,35 @@ def _ollama_stream(prompt: str, model: str = "mistral"):
                 break
 
 
+def _ollama_stream_chat(messages: list[dict], model: str = "mistral"):
+    """Call Ollama /api/chat with streaming, yielding text tokens.
+
+    Used when conversation history is available — /api/chat preserves
+    multi-turn context natively. The system prompt is prepended as the
+    first message by the caller.
+    """
+    ensure_model()
+    with requests.post(
+        "http://127.0.0.1:11434/api/chat",
+        json={"model": model, "messages": messages, "stream": True},
+        stream=True,
+        timeout=120,
+    ) as resp:
+        resp.raise_for_status()
+        for raw_line in resp.iter_lines():
+            if not raw_line:
+                continue
+            try:
+                chunk = json.loads(raw_line)
+            except json.JSONDecodeError:
+                continue
+            token = chunk.get("message", {}).get("content", "")
+            if token:
+                yield token
+            if chunk.get("done", False):
+                break
+
+
 def rag_collection_is_empty() -> bool:
     """Check whether Qdrant already contains vectors for startup seeding."""
     try:
@@ -747,11 +778,14 @@ async def prompt(req: PromptRequest):
     return await ask_rag(req)
 
 
-def _stream_llm_response(prompt: str, route: str, handle_fn):
+def _stream_llm_response(prompt: str, route: str, handle_fn, history: list[dict] | None = None):
     """Shared generator for RAG and chat streaming routes.
 
     Calls handle_fn to get the system prompt string, then streams Ollama
     tokens as NDJSON events, finishing with a done event.
+
+    When history is provided, uses /api/chat (multi-turn) with the system
+    prompt prepended as a system message. Falls back to /api/generate otherwise.
     """
     try:
         system_prompt, context_results, domain = handle_fn(prompt)
@@ -767,8 +801,14 @@ def _stream_llm_response(prompt: str, route: str, handle_fn):
     retrieved_chunks = len(context_results) if context_results else 0
 
     try:
-        for token in _ollama_stream(system_prompt):
-            yield json.dumps({"type": "token", "text": token}) + "\n"
+        if history:
+            # Prepend system prompt then replay full conversation history
+            messages = [{"role": "system", "content": system_prompt}] + history
+            for token in _ollama_stream_chat(messages):
+                yield json.dumps({"type": "token", "text": token}) + "\n"
+        else:
+            for token in _ollama_stream(system_prompt):
+                yield json.dumps({"type": "token", "text": token}) + "\n"
     except requests.RequestException as exc:
         yield json.dumps({
             "type": "error",
@@ -852,6 +892,7 @@ async def prompt_stream(req: PromptRequest):
     """
 
     prompt = req.prompt
+    history = [m.model_dump() for m in req.messages] if req.messages else None
 
     def generate():
         # ── Command kernel fast path ──────────────────────────────────────────
@@ -894,13 +935,13 @@ async def prompt_stream(req: PromptRequest):
         # ── RAG streaming ─────────────────────────────────────────────────────
         if route == "rag":
             log_action("assistant:rag", prompt[:120], "streaming")
-            yield from _stream_llm_response(prompt, "rag", _build_rag_system_prompt)
+            yield from _stream_llm_response(prompt, "rag", _build_rag_system_prompt, history)
             return
 
         # ── Chat streaming ────────────────────────────────────────────────────
         if route == "chat":
             log_action("assistant:chat", prompt[:120], "streaming")
-            yield from _stream_llm_response(prompt, "chat", _build_chat_system_prompt)
+            yield from _stream_llm_response(prompt, "chat", _build_chat_system_prompt, history)
             return
 
         # ── Unknown route ─────────────────────────────────────────────────────

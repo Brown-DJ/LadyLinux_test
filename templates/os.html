@@ -246,19 +246,8 @@
             <div class="card ll-dashboard-card">
               <div class="card-body">
                 <h2 class="h5 mb-3">Storage</h2>
-                <div class="row g-3">
-                  <div class="col-12 col-md-6">
-                    <div class="p-3 rounded-3 ll-console-prompt">
-                      <div class="fw-semibold">Root Partition</div>
-                      <div class="text-muted small">72% used</div>
-                    </div>
-                  </div>
-                  <div class="col-12 col-md-6">
-                    <div class="p-3 rounded-3 ll-console-prompt">
-                      <div class="fw-semibold">Logs Volume</div>
-                      <div class="text-muted small">41% used</div>
-                    </div>
-                  </div>
+                <div class="row g-3" id="storage-partitions">
+                  <div class="col-12 text-muted small">Loading partitions…</div>
                 </div>
               </div>
             </div>
@@ -407,12 +396,9 @@
                   <div class="settings-group">
                     <h3>General</h3>
                     <label for="hostname">Hostname</label>
-                    <input type="text" id="hostname" value="loading...">
+                    <input type="text" id="hostname" value="loading…" autocomplete="off">
                     <label for="timezone">Timezone</label>
-                    <select id="timezone">
-                      <option>UTC</option>
-                      <option>America/New_York</option>
-                    </select>
+                    <input type="text" id="timezone" value="loading…" autocomplete="off">
                   </div>
 
                   <div class="settings-group">
@@ -508,5 +494,70 @@ checkRagStatus();
 <script src="/static/js/dnd.js"></script>
 <script src="/static/js/chat.js"></script>
 <script src="/static/js/ladyWidget.js"></script>
+<script>
+// ── Storage partitions ───────────────────────────────────────────────────────
+function formatBytes(bytes) {
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let v = Number(bytes), i = 0;
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+  return `${v >= 10 ? Math.round(v) : v.toFixed(1)} ${units[i]}`;
+}
+
+async function loadStoragePartitions() {
+  const container = document.getElementById("storage-partitions");
+  if (!container) return;
+  try {
+    const res = await fetch("/api/storage/partitions");
+    const data = await res.json();
+    if (!data.ok || !data.partitions?.length) {
+      container.innerHTML = '<div class="col-12 text-muted small">No partition data available.</div>';
+      return;
+    }
+    container.innerHTML = data.partitions.map((p) => `
+      <div class="col-12 col-md-6">
+        <div class="p-3 rounded-3 ll-console-prompt">
+          <div class="fw-semibold">${p.mountpoint}</div>
+          <div class="text-muted small">${p.device} &mdash; ${p.fstype}</div>
+          <div class="progress ll-metric-bar mt-2 mb-1" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(p.percent)}">
+            <div class="progress-bar" style="width:${Math.round(p.percent)}%"></div>
+          </div>
+          <div class="text-muted small">${Math.round(p.percent)}% used &mdash; ${formatBytes(p.used)} / ${formatBytes(p.total)} &mdash; ${formatBytes(p.free)} free</div>
+        </div>
+      </div>
+    `).join("");
+  } catch (e) {
+    container.innerHTML = '<div class="col-12 text-muted small">Failed to load partitions.</div>';
+  }
+}
+
+// ── System settings population ───────────────────────────────────────────────
+async function loadSystemSettings() {
+  const hostnameEl = document.getElementById("hostname");
+  const timezoneEl = document.getElementById("timezone");
+
+  if (hostnameEl) {
+    fetch("/api/system/hostname")
+      .then((r) => r.json())
+      .then((d) => { if (d.hostname) hostnameEl.value = d.hostname; })
+      .catch(() => { hostnameEl.value = "unavailable"; });
+  }
+
+  if (timezoneEl) {
+    fetch("/api/system/timezone")
+      .then((r) => r.json())
+      .then((d) => { if (d.timezone) timezoneEl.value = d.timezone; })
+      .catch(() => { timezoneEl.value = "unavailable"; });
+  }
+}
+
+// Load storage when tab becomes active; load settings on any settings tab show
+document.getElementById("storage-tab")?.addEventListener("shown.bs.tab", loadStoragePartitions);
+document.getElementById("settings-tab")?.addEventListener("shown.bs.tab", loadSystemSettings);
+
+// Also load storage immediately if storage pane is the default active tab
+if (document.getElementById("storage-pane")?.classList.contains("active")) {
+  loadStoragePartitions();
+}
+</script>
 </body>
 </html>

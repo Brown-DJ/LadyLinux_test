@@ -1,9 +1,19 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from api_layer.services import system_service
 from api_layer.services import users_service
+from api_layer.utils.command_runner import run_command
+
+
+class HostnameRequest(BaseModel):
+    hostname: str
+
+
+class TimezoneRequest(BaseModel):
+    timezone: str
 
 router = APIRouter(prefix="/api/system", tags=["system"])
 
@@ -58,3 +68,33 @@ def get_system_user(name: str):
 @router.post("/user/{name}/refresh")
 def refresh_system_user(name: str):
     return users_service.refresh_user(name)
+
+
+@router.get("/hostname")
+def get_hostname() -> dict:
+    result = run_command(["hostnamectl", "--static"])
+    return {"ok": result.ok, "hostname": result.stdout.strip(), "stderr": result.stderr}
+
+
+@router.post("/hostname")
+def set_hostname(body: HostnameRequest) -> dict:
+    name = body.hostname.strip()
+    if not name or len(name) > 253:
+        raise HTTPException(status_code=400, detail="Invalid hostname")
+    result = run_command(["sudo", "hostnamectl", "set-hostname", name])
+    return {"ok": result.ok, "hostname": name, "stderr": result.stderr}
+
+
+@router.get("/timezone")
+def get_timezone() -> dict:
+    result = run_command(["timedatectl", "show", "--property=Timezone", "--value"])
+    return {"ok": result.ok, "timezone": result.stdout.strip(), "stderr": result.stderr}
+
+
+@router.post("/timezone")
+def set_timezone(body: TimezoneRequest) -> dict:
+    tz = body.timezone.strip()
+    if not tz:
+        raise HTTPException(status_code=400, detail="Invalid timezone")
+    result = run_command(["sudo", "timedatectl", "set-timezone", tz])
+    return {"ok": result.ok, "timezone": tz, "stderr": result.stderr}

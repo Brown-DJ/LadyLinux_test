@@ -140,6 +140,63 @@
       "method": "GET",
       "endpoint": "/api/system/status",
       "parameters": {}
+    },
+    {
+      "name": "get_disk_partitions",
+      "description": "List all disk partitions with device, mountpoint, filesystem type, total/used/free bytes, and percent used",
+      "method": "GET",
+      "endpoint": "/api/storage/partitions",
+      "parameters": {}
+    },
+    {
+      "name": "get_system_settings",
+      "description": "Get the system hostname",
+      "method": "GET",
+      "endpoint": "/api/system/hostname",
+      "parameters": {}
+    },
+    {
+      "name": "get_logs",
+      "description": "Get recent system journal logs. Optional lines parameter (1-500, default 100)",
+      "method": "GET",
+      "endpoint": "/api/logs/recent",
+      "parameters": {
+        "lines": "integer"
+      }
+    },
+    {
+      "name": "get_error_logs",
+      "description": "Get recent system error logs filtered to error/warning level",
+      "method": "GET",
+      "endpoint": "/api/logs/errors",
+      "parameters": {
+        "lines": "integer"
+      }
+    },
+    {
+      "name": "search_packages",
+      "description": "Search apt packages by name or keyword. Returns matching packages and descriptions",
+      "method": "GET",
+      "endpoint": "/api/packages/search",
+      "parameters": {
+        "q": "string"
+      }
+    },
+    {
+      "name": "installed_packages",
+      "description": "Check whether a specific package is installed. Pass package name as q",
+      "method": "GET",
+      "endpoint": "/api/packages/installed",
+      "parameters": {
+        "q": "string"
+      }
+    },
+    {
+      "name": "get_network_status",
+      "description": "List all network interfaces with IP addresses, state, and connection info",
+      "method": "GET",
+      "endpoint": "/api/network/interfaces",
+      "parameters": {}
     }
   ]
 }
