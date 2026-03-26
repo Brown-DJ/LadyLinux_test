@@ -57,7 +57,7 @@ LOGS_DIR="$VAR_DIR/logs"
 
 API_PORT="8000"
 API_SERVICE="ladylinux-api.service"
-LLM_SERVICE="ladylinux-llm.service"
+LLM_SERVICE="ollama.service"   # Change this if swapping LLM backends
 
 LAUNCH_SCRIPT="/usr/local/bin/launch_ladylinux.sh"
 DESKTOP_FILE="/usr/share/applications/ladylinux.desktop"
@@ -543,27 +543,13 @@ install_ollama_and_models() {
 write_systemd_units() {
     section "Step 9 — Systemd service units"
 
-    # ── ladylinux-llm.service ──────────────────────────────────────────────────
-    log "Writing $LLM_SERVICE..."
-    cat > "/etc/systemd/system/$LLM_SERVICE" <<LLMEOF
-[Unit]
-Description=LadyLinux LLM Runtime (Ollama / Mistral)
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-User=root
-ExecStart=/usr/local/bin/ollama serve
-Restart=on-failure
-RestartSec=5
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=ladylinux-llm
-
-[Install]
-WantedBy=multi-user.target
-LLMEOF
+    # ── LLM backend service ────────────────────────────────────────────────────
+    # LLM_SERVICE points to ollama.service, which is already created and started
+    # by the Ollama installer (curl | sh) in Step 8. We do NOT write a second
+    # unit — doing so causes a port 11434 conflict and a restart loop.
+    # To swap LLM backends, update LLM_SERVICE in the config section at the top.
+    log "Ensuring $LLM_SERVICE is enabled (installed by Ollama in Step 8)..."
+    systemctl enable "$LLM_SERVICE" 2>/dev/null || true
 
     # ── ladylinux-api.service ──────────────────────────────────────────────────
     log "Writing $API_SERVICE..."
@@ -571,8 +557,7 @@ LLMEOF
 [Unit]
 Description=LadyLinux FastAPI Server
 After=network-online.target $LLM_SERVICE
-Wants=network-online.target
-Requires=$LLM_SERVICE
+Wants=network-online.target $LLM_SERVICE
 
 [Service]
 Type=simple
@@ -593,7 +578,6 @@ WantedBy=multi-user.target
 APIEOF
 
     systemctl daemon-reload
-    systemctl enable "$LLM_SERVICE"
     systemctl enable "$API_SERVICE"
     log "Systemd units written and enabled."
 }
@@ -670,7 +654,7 @@ DESKTOPEOF
 start_and_validate() {
     section "Step 11 — Start services + validation"
 
-    log "Starting $LLM_SERVICE..."
+    log "Ensuring $LLM_SERVICE is running..."
     systemctl start "$LLM_SERVICE" || warn "Could not start $LLM_SERVICE — check: journalctl -u $LLM_SERVICE"
 
     log "Starting $API_SERVICE..."

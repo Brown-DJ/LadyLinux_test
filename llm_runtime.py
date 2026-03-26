@@ -1,29 +1,29 @@
-import subprocess
 import threading
+import requests
 
 MODEL_NAME = "mistral"
-model_loaded = False
-model_load_attempted = False
+OLLAMA_BASE_URL = "http://127.0.0.1:11434"
+
+model_verified = False
 lock = threading.Lock()
 
-
 def ensure_model() -> None:
-    global model_loaded, model_load_attempted
-
-    if model_loaded or model_load_attempted:
+    """Verify the model is available in Ollama. No-op after first successful check."""
+    global model_verified
+    if model_verified:
         return
-
     with lock:
-        if model_loaded or model_load_attempted:
+        if model_verified:
             return
-
-        model_load_attempted = True
-        result = subprocess.run(
-            ["ollama", "run", MODEL_NAME],
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=False,
-        )
-        if result.returncode == 0:
-            model_loaded = True
+        try:
+            response = requests.get(
+                f"{OLLAMA_BASE_URL}/api/tags",
+                timeout=5,
+            )
+            if response.ok:
+                models = [m.get("name", "") for m in response.json().get("models", [])]
+                if any(MODEL_NAME in m for m in models):
+                    model_verified = True
+        except Exception:
+            # Ollama not reachable — let the caller's request fail naturally
+            pass
