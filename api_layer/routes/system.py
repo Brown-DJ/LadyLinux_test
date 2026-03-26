@@ -124,32 +124,19 @@ def set_timezone(body: TimezoneRequest) -> dict:
 
 @router.post("/github/refresh")
 def github_refresh(branch: str = "main") -> dict:
-    """
-    Spawn refresh_git.sh fully detached from the FastAPI process group.
-
-    Two problems solved here:
-
-    1. Process group isolation: refresh_git.sh stops ladylinux-api as part of
-       its flow, which kills this FastAPI process. start_new_session=True calls
-       setsid() on the child so it's in its own session — immune to SIGHUP when
-       the parent dies.
-
-    2. Stripped environment: FastAPI runs under systemd with a minimal env.
-       Without an explicit PATH, systemctl/git/lsof are not found and
-       set -Eeuo pipefail in the script causes silent exit. env=_REFRESH_ENV
-       passes a complete known-good environment to the subprocess.
-    """
+    """Spawn refresh_git.sh detached with explicit environment."""
     if not re.match(r'^[a-zA-Z0-9_\-/]+$', branch):
         raise HTTPException(status_code=400, detail="Invalid branch name")
     try:
+        log_file = open("/tmp/refresh_api.log", "w")  # temp debug log
         process = subprocess.Popen(
             [_SUDO, _REFRESH_SCRIPT, branch],
-            stdout=subprocess.DEVNULL,  # fully detached — no pipe to parent
-            stderr=subprocess.DEVNULL,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
             stdin=subprocess.DEVNULL,
-            start_new_session=True,     # setsid() — survives parent death
-            close_fds=True,             # close all inherited file descriptors
-            env=_REFRESH_ENV,           # explicit env — not inherited from FastAPI
+            start_new_session=True,
+            close_fds=True,
+            env=_REFRESH_ENV,
         )
         return {
             "ok": True,
@@ -158,12 +145,6 @@ def github_refresh(branch: str = "main") -> dict:
             "message": f"Refresh started for branch '{branch}'",
         }
     except FileNotFoundError:
-        raise HTTPException(
-            status_code=500,
-            detail="refresh_git.sh not found at expected path",
-        )
+        raise HTTPException(status_code=500, detail="refresh_git.sh not found")
     except PermissionError:
-        raise HTTPException(
-            status_code=403,
-            detail="Permission denied. Add sudoers rule for refresh_git.sh",
-        )
+        raise HTTPException(status_code=403, detail="Permission denied")
