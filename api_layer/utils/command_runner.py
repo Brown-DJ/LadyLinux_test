@@ -19,6 +19,7 @@ ALLOWED_COMMANDS = {
     "nft",  # nftables firewall inspection/management compatibility.
     "passwd",  # Password management flows routed through controlled endpoints.
     "ss",  # Socket and listening-port inspection.
+    "sudo",  # Privilege escalation for commands with NOPASSWD sudoers rules.
     "systemctl",  # Service lifecycle and status management.
     "ufw",  # UFW firewall inspection and control.
     "useradd",  # User creation flows routed through controlled endpoints.

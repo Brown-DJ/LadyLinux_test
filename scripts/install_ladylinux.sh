@@ -241,6 +241,16 @@ create_user_and_dirs() {
     usermod -aG systemd-journal "$SERVICE_USER" 2>/dev/null || true
     log "Added $SERVICE_USER to systemd-journal group."
 
+    # Allow ladylinux to run ufw without a password.
+    # ufw requires root — this sudoers rule grants the minimum necessary access.
+    local sudoers_file="/etc/sudoers.d/ladylinux-ufw"
+    cat > "$sudoers_file" <<SUDOEOF
+# LadyLinux — allow the service user to query and manage ufw without a password
+$SERVICE_USER ALL=(root) NOPASSWD: /usr/sbin/ufw status, /usr/sbin/ufw status verbose, /usr/sbin/ufw status numbered, /usr/sbin/ufw reload
+SUDOEOF
+    chmod 0440 "$sudoers_file"
+    log "Sudoers rule written: $sudoers_file"
+
     # Ensure home dir exists with correct ownership
     mkdir -p /home/ladylinux
     chown "$SERVICE_USER":"$SERVICE_GROUP" /home/ladylinux
