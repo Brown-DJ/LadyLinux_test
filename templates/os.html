@@ -94,9 +94,14 @@
               The global status strip provides the quick-glance snapshot. These cards stay focused on deeper inspection details for each subsystem.
             </p>
             <div class="ll-os-metric-grid">
-              <div class="card ll-dashboard-card ll-os-metric-card h-100" id="cpu-panel">
+              <div class="card ll-dashboard-card ll-os-metric-card h-100" id="cpu-panel" data-metric-id="cpu">
                 <div class="card-body">
-                  <h2 class="h6">CPU</h2>
+                  <div class="d-flex align-items-center justify-content-between mb-1">
+                    <h2 class="h6 mb-0">CPU</h2>
+                    <span class="ll-drag-handle ll-metric-drag-handle" title="Drag to reorder">
+                      <i class="bi bi-grip-vertical"></i>
+                    </span>
+                  </div>
                   <div class="metric-skeleton metric-skeleton-value skeleton"></div>
                   <div class="metric-value ll-os-detail-value" id="cpuLoadOS"></div>
                   <canvas id="cpu-graph" class="mini-graph"></canvas>
@@ -107,9 +112,14 @@
                   <div class="metric-meta" id="cpuMetaOS"></div>
                 </div>
               </div>
-              <div class="card ll-dashboard-card ll-os-metric-card h-100" id="memory-panel">
+              <div class="card ll-dashboard-card ll-os-metric-card h-100" id="memory-panel" data-metric-id="memory">
                 <div class="card-body">
-                  <h2 class="h6">Memory</h2>
+                  <div class="d-flex align-items-center justify-content-between mb-1">
+                    <h2 class="h6 mb-0">Memory</h2>
+                    <span class="ll-drag-handle ll-metric-drag-handle" title="Drag to reorder">
+                      <i class="bi bi-grip-vertical"></i>
+                    </span>
+                  </div>
                   <div class="metric-skeleton metric-skeleton-value skeleton"></div>
                   <div class="metric-value ll-os-detail-value" id="memoryUsageOS"></div>
                   <canvas id="memory-graph" class="mini-graph"></canvas>
@@ -120,9 +130,14 @@
                   <div class="metric-meta" id="memoryMetaOS"></div>
                 </div>
               </div>
-              <div class="card ll-dashboard-card ll-os-metric-card h-100" id="disk-panel">
+              <div class="card ll-dashboard-card ll-os-metric-card h-100" id="disk-panel" data-metric-id="disk">
                 <div class="card-body">
-                  <h2 class="h6">Disk</h2>
+                  <div class="d-flex align-items-center justify-content-between mb-1">
+                    <h2 class="h6 mb-0">Disk</h2>
+                    <span class="ll-drag-handle ll-metric-drag-handle" title="Drag to reorder">
+                      <i class="bi bi-grip-vertical"></i>
+                    </span>
+                  </div>
                   <div class="metric-skeleton metric-skeleton-value skeleton"></div>
                   <div class="metric-value ll-os-detail-value" id="diskUsageOS"></div>
                   <canvas id="disk-graph" class="mini-graph"></canvas>
@@ -133,18 +148,28 @@
                   <div class="metric-meta" id="diskMetaOS"></div>
                 </div>
               </div>
-              <div class="card ll-dashboard-card ll-os-metric-card h-100" id="process-panel">
+              <div class="card ll-dashboard-card ll-os-metric-card h-100" id="process-panel" data-metric-id="processes">
                 <div class="card-body">
-                  <h2 class="h6">Processes</h2>
+                  <div class="d-flex align-items-center justify-content-between mb-1">
+                    <h2 class="h6 mb-0">Processes</h2>
+                    <span class="ll-drag-handle ll-metric-drag-handle" title="Drag to reorder">
+                      <i class="bi bi-grip-vertical"></i>
+                    </span>
+                  </div>
                   <div class="metric-skeleton metric-skeleton-value skeleton"></div>
                   <div class="metric-value" id="processCountOS"></div>
                   <div class="metric-skeleton metric-skeleton-meta skeleton"></div>
                   <div class="metric-meta" id="processMetaOS"></div>
                 </div>
               </div>
-              <div class="card ll-dashboard-card ll-os-metric-card h-100" id="network-panel">
+              <div class="card ll-dashboard-card ll-os-metric-card h-100" id="network-panel" data-metric-id="network">
                 <div class="card-body d-flex flex-column justify-content-between">
-                  <h2 class="h6">Network</h2>
+                  <div class="d-flex align-items-center justify-content-between mb-1">
+                    <h2 class="h6 mb-0">Network</h2>
+                    <span class="ll-drag-handle ll-metric-drag-handle" title="Drag to reorder">
+                      <i class="bi bi-grip-vertical"></i>
+                    </span>
+                  </div>
                   <div class="metric-value" id="networkRxOSQuick" style="font-size:0.95rem">
                     <span class="text-muted" style="font-size:0.75rem">RX</span>
                     <strong id="networkRxOS"></strong>
@@ -156,9 +181,14 @@
                   </div>
                 </div>
               </div>
-              <div class="card ll-dashboard-card ll-os-metric-card h-100" id="system-panel">
+              <div class="card ll-dashboard-card ll-os-metric-card h-100" id="system-panel" data-metric-id="system">
                 <div class="card-body">
-                  <h2 class="h6">System</h2>
+                  <div class="d-flex align-items-center justify-content-between mb-1">
+                    <h2 class="h6 mb-0">System</h2>
+                    <span class="ll-drag-handle ll-metric-drag-handle" title="Drag to reorder">
+                      <i class="bi bi-grip-vertical"></i>
+                    </span>
+                  </div>
                   <div class="metric-skeleton metric-skeleton-value skeleton"></div>
                   <div class="metric-value ll-os-detail-value" id="uptimeOS"></div>
                   <div class="metric-skeleton metric-skeleton-meta skeleton"></div>

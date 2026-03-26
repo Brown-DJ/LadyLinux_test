@@ -590,12 +590,17 @@ function applyTemporaryTheme(themeConfig) {
 }
 
 function applyAndSaveCustomTheme(slotKey, themeConfig, activityMessage) {
+  // Store config in memory and localStorage so it survives page refresh
   THEMES[slotKey] = themeConfig;
   localStorage.setItem(slotKey, JSON.stringify(themeConfig));
   localStorage.setItem(ACTIVE_CUSTOM_SLOT_KEY, slotKey);
   activeCustomSlot = slotKey;
   loadCustomPreview(slotKey);
-  applyTheme(slotKey);
+
+  // Apply locally — bypass remote API because custom slots are frontend-only.
+  // Calling applyTheme(slotKey) would POST to /api/theme/custom-1/apply which
+  // the backend doesn't know about and returns nothing useful.
+  applyTheme(themeConfig, { persist: true, remote: false });
   return true;
 }
 
@@ -649,8 +654,22 @@ function applyThemeInstructionFromText(text) {
 
 function restoreTheme() {
   const saved = localStorage.getItem(THEME_SELECTION_STORAGE_KEY) || "softcore";
+
+  // Hydrate custom slots from localStorage before attempting restore.
+  // Without this, custom-1..4 are missing from THEMES on page load.
+  ["custom-1", "custom-2", "custom-3", "custom-4"].forEach((slot) => {
+    if (!THEMES[slot]) {
+      const raw = localStorage.getItem(slot);
+      if (raw) {
+        try { THEMES[slot] = JSON.parse(raw); } catch (_) {}
+      }
+    }
+  });
+
   if (saved && THEMES[saved]) {
-    applyTheme(saved, { remote: false });
+    // Custom slots must bypass remote API — backend doesn't store them
+    const isCustomSlot = saved.startsWith("custom-");
+    applyTheme(saved, { remote: !isCustomSlot });
     return;
   }
 
@@ -713,8 +732,12 @@ function initCustomThemes() {
       activeCustomSlot = key;
       localStorage.setItem(ACTIVE_CUSTOM_SLOT_KEY, key);
       populateCustomThemeModal(key);
-      const modal = new bootstrap.Modal(document.getElementById("customThemeModal"));
-      modal.show();
+      // Modal only exists on pages that include customThemeModal — guard against null
+      const modalEl = document.getElementById("customThemeModal");
+      if (modalEl) {
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+      }
     });
   });
 

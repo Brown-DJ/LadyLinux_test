@@ -80,3 +80,41 @@
     },
   });
 })();
+
+/* ── Metric Card Order (os.html > System Metrics pane) ── */
+(function initMetricCardsDnD() {
+  const STORAGE_KEY = "lady-metric-cards-order";
+  const grid = document.querySelector(".ll-os-metric-grid");
+  if (!grid || typeof Sortable === "undefined") return;
+
+  // Restore saved card order before metrics data loads into them.
+  // Cards are direct children of the grid — safe to reorder by appending.
+  function restoreOrder() {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (!saved) return;
+    try {
+      const order = JSON.parse(saved);
+      order.forEach((metricId) => {
+        const el = grid.querySelector(`[data-metric-id="${metricId}"]`);
+        if (el) grid.appendChild(el);
+      });
+    } catch (e) {
+      console.warn("DnD: could not restore metric card order", e);
+    }
+  }
+
+  restoreOrder();
+
+  Sortable.create(grid, {
+    animation: 180,
+    handle: ".ll-metric-drag-handle",
+    ghostClass: "ll-drag-ghost",
+    chosenClass: "ll-drag-chosen",
+    dragClass: "ll-dragging",
+    onEnd() {
+      const order = [...grid.querySelectorAll("[data-metric-id]")]
+        .map((el) => el.getAttribute("data-metric-id"));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(order));
+    },
+  });
+})();

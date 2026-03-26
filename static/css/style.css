@@ -1167,3 +1167,9 @@ html[data-high-contrast="true"] .response-area {
 [data-widget-id]:hover > .ll-widget-drag-bar {
   opacity: 1;
 }
+
+/* Metric card drag ghost — scoped to grid layout */
+.ll-os-metric-grid .ll-drag-ghost {
+  opacity: 0.35;
+  border-style: dashed !important;
+}
