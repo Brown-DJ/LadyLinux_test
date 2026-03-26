@@ -15,6 +15,8 @@
 #   - set -Eeuo pipefail: any unguarded failure exits immediately
 # =============================================================================
 set -Eeuo pipefail
+# Redirect all output to log file — survives FastAPI process death
+exec > /tmp/refresh_api.log 2>&1
 
 # ── Force a complete known environment ────────────────────────────────────────
 # When spawned from FastAPI via subprocess.Popen the inherited env is stripped.
