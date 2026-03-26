@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import shutil
+
 from api_layer.utils.command_runner import run_command
+
+# Resolve full path at import time — the ladylinux service user's PATH
+# does not include /usr/sbin, so bare "ufw" fails with FileNotFoundError.
+_UFW = shutil.which("ufw") or "/usr/sbin/ufw"
 
 
 def firewall_status() -> dict:
-    result = run_command(["ufw", "status", "verbose"])
+    result = run_command([_UFW, "status", "verbose"])
     status = "unknown"
     if "Status: active" in result.stdout:
         status = "active"
@@ -17,7 +23,7 @@ def firewall_status() -> dict:
 
 
 def firewall_rules() -> dict:
-    result = run_command(["ufw", "status", "numbered"])
+    result = run_command([_UFW, "status", "numbered"])
     rules = [line.strip() for line in result.stdout.splitlines() if line.strip().startswith("[")]
     payload = result.model_dump()
     payload["rules"] = rules
@@ -25,7 +31,7 @@ def firewall_rules() -> dict:
 
 
 def firewall_rule(rule_id: str) -> dict:
-    result = run_command(["ufw", "status", "numbered"])
+    result = run_command([_UFW, "status", "numbered"])
     rules = [line.strip() for line in result.stdout.splitlines() if line.strip().startswith("[")]
     payload = result.model_dump()
     payload["rule_id"] = str(rule_id)
@@ -38,7 +44,7 @@ def firewall_rule(rule_id: str) -> dict:
 
 
 def firewall_reload() -> dict:
-    result = run_command(["ufw", "reload"])
+    result = run_command([_UFW, "reload"])
     payload = result.model_dump()
     payload["reloaded"] = result.ok
     return payload

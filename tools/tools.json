@@ -2,10 +2,12 @@
   "tools": [
     {
       "name": "system_services",
-      "description": "List systemd services and status",
+      "description": "List systemd services and status. Optional filter: 'all' | 'running' | 'active' | 'dead' | 'failed'",
       "method": "GET",
       "endpoint": "/api/system/services",
-      "parameters": {}
+      "parameters": {
+        "filter": "string"
+      }
     },
     {
       "name": "system_service",
