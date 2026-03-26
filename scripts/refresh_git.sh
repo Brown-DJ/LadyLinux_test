@@ -11,7 +11,7 @@ SERVICE_USER="ladylinux"
 SERVICE_GROUP="ladylinux"                                    # FIX 3: installer uses a named group
 
 API_SERVICE="ladylinux-api.service"
-LLM_SERVICE="ladylinux-llm.service"
+LLM_SERVICE="ollama.service"   # Must match install_ladylinux.sh
 API_PORT="8000"
 
 ENV_FILE="/etc/ladylinux/ladylinux.env"                      # FIX 10: installer writes this; reference it
@@ -30,11 +30,9 @@ require_root() {
 stop_services() {
     log "Stopping LadyLinux services"
     systemctl stop "$API_SERVICE" || true
-    systemctl stop "$LLM_SERVICE" || true
-    systemctl stop ollama || true          # kill the system ollama if running
+    systemctl stop "$LLM_SERVICE" || true   # ollama.service
     pkill -f "uvicorn" || true
-    pkill -f "ollama serve" || true        # kill any orphaned ollama process
-    sleep 2                                # give port 11434 time to free
+    sleep 2                                 # give ports time to free
 }
 
 sync_repo() {
@@ -153,11 +151,10 @@ restart_services() {
     log "Reloading systemd"
     systemctl daemon-reload
 
-    log "Restarting LLM service"
-    # FIX 7: installer runs Ollama as root under ladylinux-llm.service (User=root).
-    # Restarting that unit is correct; the original refresher was also doing this,
-    # but without the daemon-reload first — now fixed above.
-    systemctl restart "$LLM_SERVICE"
+    log "Ensuring $LLM_SERVICE is running"
+    # ollama.service is managed by the Ollama installer — we just ensure it's up.
+    # Do NOT write a second unit; that causes a port 11434 conflict.
+    systemctl start "$LLM_SERVICE" || warn "Could not start $LLM_SERVICE"
 
     log "Restarting API service"
     systemctl restart "$API_SERVICE"

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import subprocess
 from typing import Iterable
 
@@ -36,7 +37,7 @@ def run_command(command: Iterable[str], timeout: int = 15) -> CommandResult:
     if not cmd:
         return CommandResult(ok=False, stdout="", stderr="Empty command", returncode=2)
 
-    binary = cmd[0].strip().lower()
+    binary = os.path.basename(cmd[0]).strip().lower()
     if binary not in ALLOWED_COMMANDS:
         return CommandResult(
             ok=False,
