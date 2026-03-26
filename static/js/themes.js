@@ -652,7 +652,24 @@ function applyThemeInstructionFromText(text) {
   return true;
 }
 
-function restoreTheme() {
+async function restoreTheme() {
+  // Step 1: Ask the backend what theme is active — shared state visible to
+  // every device that connects, not just the host browser's localStorage.
+  try {
+    const res = await fetch("/api/theme/active");
+    if (res.ok) {
+      const data = await res.json();
+      const backendTheme = data?.theme?.name || data?.active_theme;
+      if (backendTheme) {
+        applyTheme(backendTheme, { remote: false, persist: true });
+        return;
+      }
+    }
+  } catch (_) {
+    // Backend unreachable — fall through to localStorage
+  }
+
+  // Step 2: localStorage fallback — used by host browser or offline loads
   const saved = localStorage.getItem(THEME_SELECTION_STORAGE_KEY) || "softcore";
 
   // Hydrate custom slots from localStorage before attempting restore.
@@ -775,7 +792,7 @@ function loadCustomPreview(slotKey) {
 
 async function initThemes() {
   await loadThemes();
-  restoreTheme();
+  await restoreTheme();
   initThemePicker();
   initCustomThemes();
 }
