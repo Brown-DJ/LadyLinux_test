@@ -31,7 +31,16 @@ echo "[refresh] stopping service"
 systemctl stop "$SERVICE_NAME" || true
 
 echo "[refresh] pulling latest changes"
-cd "$APP_ROOT"
+
+cd "$APP_ROOT" || {
+  echo "[refresh][ERROR] failed to cd into $APP_ROOT"
+  exit 1
+}
+
+echo "[debug] user=$(whoami)"
+echo "[debug] pwd=$(pwd)"
+echo "[debug] repo status:"
+git status || true
 
 git fetch --prune origin
 
@@ -40,13 +49,15 @@ if ! git show-ref --verify --quiet "refs/remotes/origin/$BRANCH"; then
   exit 1
 fi
 
-git checkout -f "$BRANCH" >/dev/null 2>&1 || true
+git checkout -f "$BRANCH"
 git reset --hard "origin/$BRANCH"
 
 chown -R ladylinux:ladylinux "$APP_ROOT" || true
 
 echo "[refresh] starting service"
 systemctl start "$SERVICE_NAME"
+
+echo "[refresh] commit: $(git rev-parse --short HEAD)"
 
 # Clear trap if everything succeeded cleanly
 trap - EXIT
