@@ -821,8 +821,10 @@ def _stream_llm_response(prompt: str, route: str, handle_fn, history: list[dict]
 
     try:
         if history:
-            # Prepend system prompt then replay full conversation history
-            messages = [{"role": "system", "content": system_prompt}] + history
+            # Hard cap at 4 messages (2 exchanges) — each extra turn adds
+            # ~13-17s of first-token latency on 4-core CPU-only Mistral 7B.
+            trimmed = history[-4:] if len(history) > 4 else history
+            messages = [{"role": "system", "content": system_prompt}] + trimmed
             for token in _ollama_stream_chat(messages):
                 yield json.dumps({"type": "token", "text": token}) + "\n"
         else:
@@ -850,49 +852,39 @@ def _build_rag_system_prompt(prompt: str) -> tuple[str, list[dict], str]:
     live_block = _build_live_state_block(prompt)
     context_results = retrieve(prompt, domain=domain)
     context_text = build_context_block(context_results)
-    system_prompt = f"""
-SYSTEM CAPABILITIES
-{CAPABILITY_BLOCK}
+
+    # Stripped-down RAG prompt for CPU-only inference.
+    # Removed: CAPABILITY_BLOCK, full rules list, _command_hint_block().
+    # Mistral only needs the question + live state + retrieved context to answer.
+    # Full scaffolding can be restored when GPU inference is available.
+    system_prompt = f"""You are Lady Linux, a Linux system assistant. Answer concisely using the context below.
 
 LIVE SYSTEM STATE
-{live_block or "No live system data was requested for this question."}
+{live_block or "No live data available."}
+
+RELEVANT CONTEXT
+{context_text or "No relevant context found."}
 
 USER QUESTION
 {prompt}
 
-Rules:
-- Prefer LIVE SYSTEM STATE when the question asks about current runtime conditions.
-- Prefer information found inside RELEVANT PROJECT FILES for project and documentation questions.
-- If not present, respond with "Information not found in system context."
-- Do not invent configuration or runtime state.
-- Do not invent tools, shell commands, or undocumented endpoints.
-- Do not generate CSS variables, UI override commands, or direct UI modification payloads.
-- UI customization is handled only by the deterministic UI intent parser.
+Rules: Use context above. Do not invent state or commands. Keep answers brief."""
 
-{_command_hint_block()}
-
-RELEVANT PROJECT FILES
-{context_text or "No relevant Lady Linux project context was retrieved."}
-"""
     return system_prompt, context_results, domain
 
 
 def _build_chat_system_prompt(prompt: str) -> tuple[str, list[dict], str]:
     live_block = _build_live_state_block(prompt)
-    chat_prompt = f"""
-You are Lady Linux, a Linux assistant. Keep responses concise and accurate.
-Use LIVE SYSTEM STATE first when the question is about current runtime status.
-If a live system action is required, tell the user to use the appropriate
-command — do not emit JSON or structured payloads.
-Do not generate CSS variables, UI override commands, or theme modification payloads.
-UI customization is handled only by the deterministic UI intent parser.
+
+    # Minimal chat prompt — live state + question only.
+    # No RAG context injected here; chat route handles conversational queries.
+    chat_prompt = f"""You are Lady Linux, a Linux assistant. Be concise.
 
 LIVE SYSTEM STATE
-{live_block or "No live system data was requested for this question."}
+{live_block or "No live data available."}
 
-User question:
-{prompt}
-"""
+User: {prompt}"""
+
     return chat_prompt, [], "chat"
 
 

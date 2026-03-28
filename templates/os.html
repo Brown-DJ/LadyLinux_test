@@ -576,8 +576,8 @@ async function loadSystemSettings() {
 
 // ── GitHub Sync button ────────────────────────────────────────────────────────
 (function initGithubRefresh() {
-  const btn = document.getElementById("githubRefreshBtn");
-  const log = document.getElementById("githubRefreshLog");
+  const btn    = document.getElementById("githubRefreshBtn");
+  const log    = document.getElementById("githubRefreshLog");
   const status = document.getElementById("githubSyncStatus");
   const branchInput = document.getElementById("githubBranch");
   if (!btn) return;
@@ -591,8 +591,11 @@ async function loadSystemSettings() {
     log.classList.remove("d-none");
     log.textContent = `Starting sync for branch '${branch}'...\n`;
 
+    // Remove any previous reload prompt so it doesn't stack on re-sync
+    document.getElementById("githubReloadPrompt")?.remove();
+
     try {
-      const res = await fetch(`/api/system/github/refresh?branch=${encodeURIComponent(branch)}`, {
+      const res  = await fetch(`/api/system/github/refresh?branch=${encodeURIComponent(branch)}`, {
         method: "POST",
       });
       const data = await res.json();
@@ -600,31 +603,42 @@ async function loadSystemSettings() {
       if (data.ok) {
         log.textContent += `${data.message}\nPID: ${data.pid}\n`;
         log.textContent += "Refresh running in background. Service will restart when complete.\n";
-        status.textContent = "syncing";
-        status.className = "badge bg-info text-dark";
 
-        setTimeout(() => {
-          log.textContent += "\nService restarting — page may disconnect briefly.\n";
-          status.textContent = "restarting";
-          status.className = "badge bg-warning text-dark";
-        }, 30000);
+        // Prompt the user to reload once the service has had time to restart.
+        // The script exits fast; uvicorn restart takes ~5-10s on this hardware.
+        // We show the prompt at 15s — conservative for a 4-core CPU-only VM.
+        status.textContent = "syncing";
+        status.className   = "badge bg-info text-dark";
 
         setTimeout(() => {
           status.textContent = "done";
-          status.className = "badge bg-success";
-          btn.disabled = false;
-        }, 45000);
+          status.className   = "badge bg-success";
+          btn.disabled       = false;
+
+          // Append inline reload prompt below the log box
+          log.textContent += "\nRefresh page to apply changes.";
+
+          // Inject a visible reload button below the log box
+          const prompt = document.createElement("button");
+          prompt.id          = "githubReloadPrompt";
+          prompt.type        = "button";
+          prompt.className   = "btn btn-sm btn-outline-success w-100 mt-2";
+          prompt.innerHTML   = '<i class="bi bi-arrow-clockwise me-1"></i>Refresh Page to Apply';
+          prompt.addEventListener("click", () => window.location.reload());
+          log.insertAdjacentElement("afterend", prompt);
+        }, 15000); // 15s — enough for service restart on CPU-only VM
+
       } else {
         log.textContent += `Error: ${data.detail || "Unknown error"}\n`;
         status.textContent = "error";
-        status.className = "badge bg-danger";
-        btn.disabled = false;
+        status.className   = "badge bg-danger";
+        btn.disabled       = false;
       }
     } catch (err) {
       log.textContent += `Request failed: ${err.message}\n`;
       status.textContent = "error";
-      status.className = "badge bg-danger";
-      btn.disabled = false;
+      status.className   = "badge bg-danger";
+      btn.disabled       = false;
     }
   });
 })();

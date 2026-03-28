@@ -27,9 +27,12 @@ OLLAMA_EMBED_URL = f"{OLLAMA_BASE_URL}/api/embeddings"
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
 VECTOR_DIM = int(os.getenv("VECTOR_DIM", "768"))  # nomic-embed-text -> 768
 
-# Chunking
-CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "512"))      # characters per chunk
-CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "64"))  # overlap between chunks
+# Chunking — reduced for CPU-only inference
+# 512-char chunks at 5 results = ~2500 chars of RAG context injected per query
+# 256-char chunks at 3 results = ~768 chars — roughly 3x less for Mistral to process
+# Note: changing CHUNK_SIZE requires re-seeding Qdrant.
+CHUNK_SIZE    = int(os.getenv("CHUNK_SIZE",    "256"))   # was 512
+CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "32"))    # was 64
 
 # Retrieval
 # Reduced from 5 → 3 for CPU-only testing. Each extra chunk adds ~200-400 tokens
