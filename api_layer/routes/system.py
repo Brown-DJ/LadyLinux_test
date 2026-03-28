@@ -130,26 +130,22 @@ def github_refresh(branch: str = "main") -> dict:
     command = [_SUDO, _REFRESH_SCRIPT, branch]
 
     try:
-        subprocess.run(
+        subprocess.Popen(
             command,
-            check=True,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            close_fds=True,
             env=_REFRESH_ENV,
         )
         return {
             "status": "ok",
-            "message": f"Refresh completed for branch '{branch}'",
+            "message": f"Refresh started for branch '{branch}'",
         }
     except FileNotFoundError:
         return {"status": "error", "message": "refresh_git.sh not found"}
     except PermissionError:
         return {"status": "error", "message": "Permission denied"}
-    except subprocess.CalledProcessError as exc:
-        return {
-            "status": "error",
-            "message": f"Refresh failed (exit {exc.returncode})",
-        }
 
 
 @router.get("/github/refresh/log")
