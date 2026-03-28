@@ -15,7 +15,13 @@
 #   - set -Eeuo pipefail: any unguarded failure exits immediately
 # =============================================================================
 set -Eeuo pipefail
-# Redirect all output to log file — survives FastAPI process death
+
+# ── Root check ────────────────────────────────────────────────────────────────
+# Call before exec redirect so the error prints to the terminal, not the log.
+[[ "${EUID}" -eq 0 ]] || { echo "[refresh][ERROR] Run with sudo" >&2; exit 1; }
+
+# ── Redirect output to log AFTER confirming we are root ───────────────────────
+# /tmp/refresh_api.log may be owned by a prior user — root can always overwrite.
 exec > /tmp/refresh_api.log 2>&1
 
 # ── Force a complete known environment ────────────────────────────────────────
@@ -24,8 +30,8 @@ exec > /tmp/refresh_api.log 2>&1
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 export HOME="/root"
 export LANG="en_US.UTF-8"
-export SYSTEMD_PAGER=""          # prevent systemctl from invoking a pager
-export GIT_TERMINAL_PROMPT="0"   # prevent git from hanging on auth prompts
+export SYSTEMD_PAGER=""
+export GIT_TERMINAL_PROMPT="0"
 
 # ── Configuration — must match install_ladylinux.sh exactly ──────────────────
 REPO_URL="https://github.com/Brown-DJ/LadyLinux_test.git"
@@ -44,12 +50,6 @@ API_PORT="8000"
 log()  { echo "[refresh] $*"; }
 warn() { echo "[refresh][WARN] $*" >&2; }
 die()  { echo "[refresh][ERROR] $*" >&2; exit 1; }
-
-# ── Root check ────────────────────────────────────────────────────────────────
-require_root() {
-    # Must be first — all operations below require root
-    [[ "${EUID}" -eq 0 ]] || die "Run with sudo"
-}
 
 # ── Stop API service only — leave Ollama running ─────────────────────────────
 # Stopping Ollama forces a slow model reload on restart, which causes the
@@ -219,8 +219,6 @@ validate_api() {
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 main() {
-    require_root
-
     # Ensure APP_DIR is accessible before any operation
     chown -R "${SERVICE_USER}:${SERVICE_GROUP}" "${APP_DIR}" 2>/dev/null || true
 
