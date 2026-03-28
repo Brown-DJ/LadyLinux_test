@@ -136,6 +136,7 @@ def github_refresh(branch: str = "main") -> dict:
             stderr=subprocess.DEVNULL,
             stdin=subprocess.DEVNULL,
             close_fds=True,
+            start_new_session=True,
             env=_REFRESH_ENV,
         )
         return {
