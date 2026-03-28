@@ -13,31 +13,29 @@ ensure_logs() {
   chmod -R 775 "$LOG_DIR" || true
   touch "$LOG_FILE" || true
   chmod 664 "$LOG_FILE" || true
-
-  # Fix: use >> redirect directly instead of exec — exec exits on failure
-  # under set -e when the file descriptor can't be opened cleanly as root.
-  # All subsequent echo/git output goes to the log via tee or direct append.
+  # Redirect via brace block below — no exec needed
 }
 
 ensure_logs
 
-# Fix: redirect entire script output to log after ensure_logs succeeds.
-# Using a subshell wrapper avoids exec's silent-exit-on-failure behavior.
+# All output after this point is captured to the log file.
+# Brace block avoids exec's silent-exit-on-failure under set -e.
 {
 
 echo "[refresh] starting branch=${BRANCH}"
 
+# Trap ensures the service is restarted even if the script exits early
 trap 'echo "[refresh] EXIT — forcing restart"; systemctl start "$SERVICE_NAME" >/dev/null 2>&1 || true' EXIT
 
-sleep 2  # allow API request to finish cleanly
+sleep 2  # allow the triggering API request to finish cleanly
 
 echo "[refresh] stopping service"
 systemctl stop "$SERVICE_NAME" || true
 
 echo "[refresh] pulling latest changes"
 
-# Fix: add safe.directory so git accepts the ladylinux-owned repo when
-# refresh_git.sh runs as root via sudo. Without this, git refuses entirely.
+# Required: git refuses to operate on a repo owned by a different user (ladylinux)
+# when this script runs as root. safe.directory must be set before any git command.
 git config --global --add safe.directory "$APP_ROOT" 2>/dev/null || true
 
 cd "$APP_ROOT" || {
@@ -60,6 +58,7 @@ fi
 git checkout -f "$BRANCH"
 git reset --hard "origin/$BRANCH"
 
+# Restore ownership after git overwrites files as root
 chown -R ladylinux:ladylinux "$APP_ROOT" || true
 
 echo "[refresh] starting service"
@@ -67,8 +66,9 @@ systemctl start "$SERVICE_NAME"
 
 echo "[refresh] commit: $(git rev-parse --short HEAD)"
 
+# Clear trap — clean exit, no forced restart needed
 trap - EXIT
 
 echo "[refresh] refresh complete"
 
-} >> "$LOG_FILE" 2>&1  # all output from the block goes to log; no exec needed
+} >> "$LOG_FILE" 2>&1
