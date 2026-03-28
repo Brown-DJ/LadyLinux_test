@@ -167,3 +167,21 @@ def github_refresh(branch: str = "main") -> dict:
         raise HTTPException(status_code=500, detail="refresh_git.sh not found")
     except PermissionError:
         raise HTTPException(status_code=403, detail="Permission denied")
+
+
+@router.get("/github/refresh/log")
+def get_refresh_log():
+    log_path = "/var/lib/ladylinux/logs/refresh_api.log"
+
+    try:
+        with open(log_path, "r") as f:
+            return {
+                "ok": True,
+                "log": f.read()
+            }
+    except FileNotFoundError:
+        return {
+            "ok": False,
+            "log": "",
+            "error": "Log file not found"
+        }

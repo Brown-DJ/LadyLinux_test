@@ -20,6 +20,9 @@ set -Eeuo pipefail
 # Call before exec redirect so the error prints to the terminal, not the log.
 [[ "${EUID}" -eq 0 ]] || { echo "[refresh][ERROR] Run with sudo" >&2; exit 1; }
 
+mkdir -p /var/lib/ladylinux/logs
+chown -R ladylinux:ladylinux /var/lib/ladylinux 2>/dev/null || true
+
 # ── Redirect output to log AFTER confirming we are root ───────────────────────
 # /tmp/refresh_api.log may be owned by a prior user — root can always overwrite.
 exec > /var/lib/ladylinux/logs/refresh_api.log 2>&1
@@ -153,7 +156,7 @@ fix_permissions() {
     chown -R "${SERVICE_USER}:${SERVICE_GROUP}" "${VENV_DIR}"
 
     # Ensure runtime dirs exist and are owned correctly
-    mkdir -p /var/lib/ladylinux
+    mkdir -p /var/lib/ladylinux/logs
     chown -R "${SERVICE_USER}:${SERVICE_GROUP}" /var/lib/ladylinux 2>/dev/null || true
 
     # Normalize line endings + ensure all scripts are executable
