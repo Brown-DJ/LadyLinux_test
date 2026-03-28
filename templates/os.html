@@ -600,7 +600,7 @@ async function loadSystemSettings() {
       });
       const data = await res.json();
 
-      if (data.ok) {
+      if (data.status === "ok") {
         log.textContent += `${data.message}\nPID: ${data.pid}\n`;
         log.textContent += "Refresh running in background. Service will restart when complete.\n";
 
