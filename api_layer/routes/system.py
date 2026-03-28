@@ -128,7 +128,7 @@ def github_refresh(branch: str = "main") -> dict:
     if not re.match(r'^[a-zA-Z0-9_\-/]+$', branch):
         raise HTTPException(status_code=400, detail="Invalid branch name")
     try:
-        log_file = open("/tmp/refresh_api.log", "w")  # temp debug log
+        log_file = open("/var/lib/ladylinux/logs/refresh_api.log", "w")
         process = subprocess.Popen(
             [_SUDO, _REFRESH_SCRIPT, branch],
             stdout=log_file,

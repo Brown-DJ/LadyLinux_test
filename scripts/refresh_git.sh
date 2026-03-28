@@ -22,7 +22,7 @@ set -Eeuo pipefail
 
 # ── Redirect output to log AFTER confirming we are root ───────────────────────
 # /tmp/refresh_api.log may be owned by a prior user — root can always overwrite.
-exec > /tmp/refresh_api.log 2>&1
+exec > /var/lib/ladylinux/logs/refresh_api.log 2>&1
 
 # ── Force a complete known environment ────────────────────────────────────────
 # When spawned from FastAPI via subprocess.Popen the inherited env is stripped.
