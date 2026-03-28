@@ -124,17 +124,36 @@ def set_timezone(body: TimezoneRequest) -> dict:
 
 @router.post("/github/refresh")
 def github_refresh(branch: str = "main") -> dict:
-    """Spawn refresh_git.sh detached with explicit environment."""
+    """Spawn refresh_git.sh as a detached transient systemd unit.
+
+    Using systemd-run places the script in its own cgroup, completely
+    outside ladylinux-api.service. When the API service stops itself
+    during the refresh, systemd cannot kill this process because it
+    belongs to a separate transient unit scope.
+
+    Previously used subprocess.Popen with start_new_session=True, which
+    is insufficient — systemd kills all processes in the service cgroup
+    on stop, regardless of session boundaries.
+    """
     if not re.match(r'^[a-zA-Z0-9_\-/]+$', branch):
         raise HTTPException(status_code=400, detail="Invalid branch name")
+
+    _SYSTEMD_RUN = shutil.which("systemd-run") or "/usr/bin/systemd-run"
+
     try:
-        log_file = open("/var/lib/ladylinux/logs/refresh_api.log", "w")
         process = subprocess.Popen(
-            [_SUDO, _REFRESH_SCRIPT, branch],
-            stdout=log_file,
-            stderr=subprocess.STDOUT,
+            [
+                _SYSTEMD_RUN,
+                "--unit=ladylinux-refresh",   # named unit for easy tracking
+                "--scope",                     # scope = detached cgroup
+                "--no-block",                  # don't wait for completion
+                _SUDO,
+                _REFRESH_SCRIPT,
+                branch,
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
             stdin=subprocess.DEVNULL,
-            start_new_session=True,
             close_fds=True,
             env=_REFRESH_ENV,
         )
