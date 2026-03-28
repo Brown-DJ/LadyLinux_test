@@ -124,49 +124,32 @@ def set_timezone(body: TimezoneRequest) -> dict:
 
 @router.post("/github/refresh")
 def github_refresh(branch: str = "main") -> dict:
-    """Spawn refresh_git.sh as a detached transient systemd unit.
-
-    Using systemd-run places the script in its own cgroup, completely
-    outside ladylinux-api.service. When the API service stops itself
-    during the refresh, systemd cannot kill this process because it
-    belongs to a separate transient unit scope.
-
-    Previously used subprocess.Popen with start_new_session=True, which
-    is insufficient — systemd kills all processes in the service cgroup
-    on stop, regardless of session boundaries.
-    """
     if not re.match(r'^[a-zA-Z0-9_\-/]+$', branch):
         raise HTTPException(status_code=400, detail="Invalid branch name")
 
-    _SYSTEMD_RUN = shutil.which("systemd-run") or "/usr/bin/systemd-run"
+    command = [_SUDO, _REFRESH_SCRIPT, branch]
 
     try:
-        process = subprocess.Popen(
-            [
-                _SYSTEMD_RUN,
-                "--unit=ladylinux-refresh",   # named unit for easy tracking
-                "--scope",                     # scope = detached cgroup
-                "--no-block",                  # don't wait for completion
-                _SUDO,
-                _REFRESH_SCRIPT,
-                branch,
-            ],
+        subprocess.run(
+            command,
+            check=True,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            stdin=subprocess.DEVNULL,
-            close_fds=True,
             env=_REFRESH_ENV,
         )
         return {
-            "ok": True,
-            "pid": process.pid,
-            "branch": branch,
-            "message": f"Refresh started for branch '{branch}'",
+            "status": "ok",
+            "message": f"Refresh completed for branch '{branch}'",
         }
     except FileNotFoundError:
-        raise HTTPException(status_code=500, detail="refresh_git.sh not found")
+        return {"status": "error", "message": "refresh_git.sh not found"}
     except PermissionError:
-        raise HTTPException(status_code=403, detail="Permission denied")
+        return {"status": "error", "message": "Permission denied"}
+    except subprocess.CalledProcessError as exc:
+        return {
+            "status": "error",
+            "message": f"Refresh failed (exit {exc.returncode})",
+        }
 
 
 @router.get("/github/refresh/log")
