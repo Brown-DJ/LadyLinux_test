@@ -138,10 +138,29 @@ _QUESTION_OPENER = re.compile(
     re.IGNORECASE,
 )
 
+# Matches conversational/self-referential queries that depend on history,
+# NOT on document retrieval — must run before _QUESTION_OPENER to intercept
+# questions like "what was my first message" before they fall into rag.
+_CONVERSATIONAL_REF = re.compile(
+    r"\b(my (first|last|previous|earlier) message"
+    r"|what (did|have) i (say|said|ask|asked|tell|told)"
+    r"|do you remember"
+    r"|you (said|told|mentioned)"
+    r"|earlier (you|i|we)"
+    r"|our (conversation|chat|discussion)"
+    r"|what (were|was) (we|i) (talking|asking|discussing))\b",
+    re.IGNORECASE,
+)
+
 
 def classify_prompt(message: str) -> Literal["system", "rag", "chat"]:
     text = message.strip()
     text_lower = text.lower()
+
+    # Conversational self-reference — must precede _QUESTION_OPENER.
+    # These prompts require conversation history to answer, not doc retrieval.
+    if _CONVERSATIONAL_REF.search(text_lower):
+        return "chat"
 
     # Interrogative structure check — covers all standard English question
     # forms including "is my system connected", "are my services running",

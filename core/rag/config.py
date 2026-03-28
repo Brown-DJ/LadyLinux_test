@@ -32,7 +32,10 @@ CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "512"))      # characters per chunk
 CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "64"))  # overlap between chunks
 
 # Retrieval
-TOP_K = int(os.getenv("TOP_K", "5"))
+# Reduced from 5 → 3 for CPU-only testing. Each extra chunk adds ~200-400 tokens
+# to the Mistral prompt, directly increasing inference time on a 4-core VM.
+# Raise back to 5 once a GPU is available.
+TOP_K = int(os.getenv("TOP_K", "3"))
 
 # File safety limits
 MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE", str(1 * 1024 * 1024)))  # 1 MB
