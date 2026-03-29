@@ -16,7 +16,16 @@ from typing import Any
 
 from api_layer.services.firewall_service import firewall_reload, firewall_status
 from api_layer.services.network_service import network_interfaces
-from api_layer.services.service_manager import list_services, restart_service
+from api_layer.services.network_service import wifi_disable, wifi_enable, wifi_status
+from api_layer.services.service_manager import (
+    disable_service,
+    enable_service,
+    list_services,
+    restart_service,
+    start_service,
+    stop_service,
+)
+from api_layer.services.system_info_service import get_datetime, get_uptime
 from api_layer.services.system_service import get_status
 from api_layer.services.theme_service import apply_theme
 from api_layer.services.users_service import list_users
@@ -32,6 +41,10 @@ class ToolRouter:
         self.tools = {
             "system_services": list_services,
             "system_service_restart": restart_service,
+            "system_service_stop": stop_service,
+            "system_service_start": start_service,
+            "system_service_enable": enable_service,
+            "system_service_disable": disable_service,
             "firewall_status": firewall_status,
             "firewall_reload": firewall_reload,
             "system_users": list_users,
@@ -39,12 +52,21 @@ class ToolRouter:
             "set_theme": apply_theme,
             "theme_apply": apply_theme,
             "system_status": get_status,
+            "system_datetime": get_datetime,
+            "system_uptime": get_uptime,
+            "wifi_status": wifi_status,
+            "wifi_enable": wifi_enable,
+            "wifi_disable": wifi_disable,
         }
 
         # Deterministic tool schema keeps command execution predictable.
         self.schemas: dict[str, dict[str, str]] = {
             "system_services": {},
             "system_service_restart": {"name": "string"},
+            "system_service_stop": {"name": "string"},
+            "system_service_start": {"name": "string"},
+            "system_service_enable": {"name": "string"},
+            "system_service_disable": {"name": "string"},
             "firewall_status": {},
             "firewall_reload": {},
             "system_users": {},
@@ -52,6 +74,11 @@ class ToolRouter:
             "set_theme": {"theme": "string"},
             "theme_apply": {"theme": "string"},
             "system_status": {},
+            "system_datetime": {},
+            "system_uptime": {},
+            "wifi_status": {},
+            "wifi_enable": {},
+            "wifi_disable": {},
         }
 
     def list_tool_names(self):
@@ -150,6 +177,38 @@ class ToolRouter:
                 "message": f"{tool_name.replace('_', ' ').title()} retrieved",
                 "data": raw_result,
             }
+
+        if tool_name in (
+            "system_service_stop",
+            "system_service_start",
+            "system_service_enable",
+            "system_service_disable",
+        ):
+            action_key = tool_name.replace("system_service_", "")
+            name = parameters.get("name", "")
+            ok = bool(raw_result.get("ok", raw_result.get(action_key, False))) if isinstance(raw_result, dict) else True
+            message = f"{name} {action_key} successfully" if ok else f"Failed to {action_key} {name}"
+            return {"ok": ok, "message": message, "data": raw_result}
+
+        if tool_name in ("system_datetime", "system_uptime"):
+            return {
+                "ok": bool(raw_result.get("ok", True)) if isinstance(raw_result, dict) else True,
+                "message": f"{tool_name.replace('_', ' ').title()} retrieved",
+                "data": raw_result,
+            }
+
+        if tool_name == "wifi_status":
+            return {
+                "ok": bool(raw_result.get("ok", True)) if isinstance(raw_result, dict) else True,
+                "message": "WiFi status retrieved",
+                "data": raw_result,
+            }
+
+        if tool_name in ("wifi_enable", "wifi_disable"):
+            ok = bool(raw_result.get("ok", False)) if isinstance(raw_result, dict) else True
+            action = "enabled" if tool_name == "wifi_enable" else "disabled"
+            message = raw_result.get("message", f"WiFi {action}" if ok else f"Failed to {action.replace('d', '')} WiFi")
+            return {"ok": ok, "message": message, "data": raw_result}
 
         return {
             "ok": True,

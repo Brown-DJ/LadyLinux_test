@@ -169,3 +169,47 @@ def restart_service(name: str) -> dict:
     payload["service"] = service_name
     payload["restarted"] = result.ok
     return payload
+
+
+def stop_service(name: str) -> dict:
+    """Stop a systemd service unit by name."""
+    service_name = validate_service_name(name)
+    unit = f"{service_name}.service" if not service_name.endswith(".service") else service_name
+    result = run_command(["systemctl", "stop", unit])
+    payload = result.model_dump()
+    payload["service"] = service_name
+    payload["stopped"] = result.ok
+    return payload
+
+
+def start_service(name: str) -> dict:
+    """Start a systemd service unit by name."""
+    service_name = validate_service_name(name)
+    unit = f"{service_name}.service" if not service_name.endswith(".service") else service_name
+    result = run_command(["systemctl", "start", unit])
+    payload = result.model_dump()
+    payload["service"] = service_name
+    payload["started"] = result.ok
+    return payload
+
+
+def enable_service(name: str) -> dict:
+    """Enable a systemd service to start at boot."""
+    service_name = validate_service_name(name)
+    unit = f"{service_name}.service" if not service_name.endswith(".service") else service_name
+    result = run_command(["systemctl", "enable", unit])
+    payload = result.model_dump()
+    payload["service"] = service_name
+    payload["enabled"] = result.ok
+    return payload
+
+
+def disable_service(name: str) -> dict:
+    """Disable a systemd service from starting at boot."""
+    service_name = validate_service_name(name)
+    unit = f"{service_name}.service" if not service_name.endswith(".service") else service_name
+    result = run_command(["systemctl", "disable", unit])
+    payload = result.model_dump()
+    payload["service"] = service_name
+    payload["disabled"] = result.ok
+    return payload

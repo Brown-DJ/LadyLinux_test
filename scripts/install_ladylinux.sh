@@ -261,6 +261,15 @@ SUDOEOF
     chmod 0440 "$refresh_sudoers"
     log "Sudoers rule written: $refresh_sudoers"
 
+    # Allow ladylinux to toggle WiFi via nmcli without a password.
+    local wifi_sudoers="/etc/sudoers.d/ladylinux-wifi"
+    cat > "$wifi_sudoers" <<SUDOEOF
+# LadyLinux — allow wifi toggle without password
+$SERVICE_USER ALL=(root) NOPASSWD: /usr/bin/nmcli radio wifi on, /usr/bin/nmcli radio wifi off
+SUDOEOF
+    chmod 0440 "$wifi_sudoers"
+    log "Sudoers rule written: $wifi_sudoers"
+
     # Ensure home dir exists with correct ownership
     mkdir -p /home/ladylinux
     chown "$SERVICE_USER":"$SERVICE_GROUP" /home/ladylinux

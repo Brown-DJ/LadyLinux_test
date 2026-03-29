@@ -60,6 +60,24 @@ def network_interface(name: str) -> dict:
     return payload
 
 
+def wifi_status() -> dict:
+    """Return WiFi radio status via nmcli (read-only, no sudo needed)."""
+    result = run_command(["nmcli", "radio", "wifi"])
+    return {"ok": result.ok, "status": result.stdout.strip()}
+
+
+def wifi_enable() -> dict:
+    """Turn WiFi radio on."""
+    result = run_command(["sudo", "nmcli", "radio", "wifi", "on"])
+    return {"ok": result.ok, "message": "WiFi enabled" if result.ok else result.stderr}
+
+
+def wifi_disable() -> dict:
+    """Turn WiFi radio off."""
+    result = run_command(["sudo", "nmcli", "radio", "wifi", "off"])
+    return {"ok": result.ok, "message": "WiFi disabled" if result.ok else result.stderr}
+
+
 def restart_interface(name: str) -> dict:
     down = run_command(["ip", "link", "set", "dev", name, "down"])
     up = run_command(["ip", "link", "set", "dev", name, "up"])
