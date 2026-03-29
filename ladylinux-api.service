@@ -51,6 +51,7 @@ ExecStart=/opt/ladylinux/venv/bin/uvicorn api_layer:app \
 
 Restart=on-failure
 RestartSec=5
+KillMode=process
 
 # FIX 3: ProtectHome=true blocks /home/ladylinux (.gitconfig lives there).
 # Downgrade to read-only so git config written by refresh_git.sh is accessible
