@@ -51,16 +51,22 @@ Rules:
 
 def classify_semantic(prompt: str) -> dict[str, list[str] | str]:
     """
-    Run a fast semantic classification pre-pass on the user prompt.
+    Semantic pre-pass for prompt classification and topic detection.
 
-    Returns a dict with:
-      - topics: list[str] — Tier 2 data topics to inject (subset of _VALID_TOPICS)
-      - route: str — prompt route (system/rag/chat)
+    DEMO MODE (CPU-only): Pre-pass is disabled. Ollama on CPU cannot handle
+    concurrent classification + inference without unacceptable latency.
+    Keyword fallback in intent_classifier.py handles topic detection.
+    Baseline live state block is always injected regardless.
 
-    Never raises — returns safe defaults on any failure so the main
-    pipeline is never blocked by classifier errors.
+    FULL MODE (GPU): Re-enable by removing the early return below.
+    Requires a vision-capable model (Llama 3.2 11B+) for screen awareness,
+    or Llama 3.1 8B+ for reliable tool calling and classification accuracy.
     """
-    try:
+    # CPU demo mode — skip pre-pass, return safe defaults immediately
+    return {"topics": [], "route": "chat"}
+
+    # ── GPU path (unreachable until re-enabled) ───────────────────────────
+    try:  # noqa: unreachable
         response = requests.post(
             _OLLAMA_URL,
             json={
