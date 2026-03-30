@@ -141,6 +141,8 @@ install_system_packages() {
         python3.12-venv
         systemd
         build-essential
+        xdotool      # screen agent: active window title + PID detection
+        wmctrl       # screen agent: fallback window detection
     )
 
     log "Installing required packages: ${PACKAGES[*]}"
