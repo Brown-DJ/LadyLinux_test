@@ -51,19 +51,11 @@ Rules:
 
 def classify_semantic(prompt: str) -> dict[str, list[str] | str]:
     """
-    Semantic pre-pass for prompt classification and topic detection.
-
-    DEMO MODE (CPU-only): Pre-pass is disabled. Ollama on CPU cannot handle
-    concurrent classification + inference without unacceptable latency.
-    Keyword fallback in intent_classifier.py handles topic detection.
-    Baseline live state block is always injected regardless.
-
-    FULL MODE (GPU): Re-enable by removing the early return below.
-    Requires a vision-capable model (Llama 3.2 11B+) for screen awareness,
-    or Llama 3.1 8B+ for reliable tool calling and classification accuracy.
+    Semantic pre-pass disabled in CPU/demo mode.
+    Re-enable when GPU inference is available.
+    See full implementation below early return.
     """
-    # CPU demo mode — skip pre-pass, return safe defaults immediately
-    return {"topics": [], "route": "chat"}
+    return {"topics": [], "route": "chat"}  # CPU demo mode
 
     # ── GPU path (unreachable until re-enabled) ───────────────────────────
     try:  # noqa: unreachable
