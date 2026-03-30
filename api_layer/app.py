@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 import json
 import logging
+from pathlib import Path
 import re
 import threading
 import time
@@ -39,6 +40,8 @@ from core.rag.vector_store import COLLECTION_NAME, client, ensure_collection
 from llm_runtime import ensure_model
 from core.command.command_kernel import evaluate_prompt
 from core.command.tool_router import ToolRouter, ToolRouterError
+
+_SCREEN_STATE_FILE = Path("/var/lib/ladylinux/data/screen_state.json")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -297,13 +300,83 @@ When a request matches a command, respond with JSON:
 """
 
 
-def _build_live_state_block(query: str, precomputed_topics: list[str] | None = None) -> str:
-    """
-    Build the LIVE SYSTEM STATE block for prompt injection.
+# Page → description map mirrors the frontend PAGE_CONTEXT_MAP.
+# Gives Mistral enough detail to pre-select relevant data and tailor answers.
+_PAGE_DESCRIPTIONS = {
+    "dashboard":       "Main dashboard — overview widgets, recent activity, quick actions.",
+    "system-monitor":  "System monitor — tabs for metrics, services, storage, appearance, settings.",
+    "network-manager": "Network manager — interfaces, firewall rules, routing table.",
+    "user-manager":    "User manager — local Linux user accounts and groups.",
+    "log-viewer":      "Log viewer — journald output and system log files.",
+    "unknown":         "Page unknown.",
+}
 
-    Accepts precomputed_topics from a prior classify_semantic() call to avoid
-    running Ollama twice per request. If not provided, falls back to keyword
-    detection for backwards compatibility.
+# Page → Tier 2 topics to always inject when on that page, regardless of
+# prompt wording. Supplements semantic/keyword detection.
+_PAGE_DEFAULT_TOPICS = {
+    "system-monitor":  ["processes", "services", "memory", "disk"],
+    "network-manager": ["network"],
+    "dashboard":       ["services", "memory"],
+    "user-manager":    [],
+    "log-viewer":      [],
+}
+
+
+def _read_screen_state() -> str | None:
+    """
+    Read the latest screen state written by screen_agent.py.
+    Returns None if the file doesn't exist or is stale (> 30s old).
+    Stale check prevents Mistral from reasoning about outdated window state
+    if the agent stopped running.
+    """
+    try:
+        if not _SCREEN_STATE_FILE.exists():
+            return None
+
+        # Stale guard — if file hasn't been updated in 30s, agent is likely dead
+        age = time.time() - _SCREEN_STATE_FILE.stat().st_mtime
+        if age > 30:
+            return None
+
+        state = json.loads(_SCREEN_STATE_FILE.read_text(encoding="utf-8"))
+
+        window = state.get("active_window", {})
+        terminals = state.get("open_terminals", [])
+
+        lines = []
+
+        title = window.get("title")
+        app = window.get("app")
+        if title or app:
+            lines.append(f"active_window: {title or 'unknown'} (app: {app or 'unknown'})")
+
+        if terminals:
+            for t in terminals[:5]:  # cap output — Mistral doesn't need 10 terminal entries
+                cwd = t.get("cwd") or "unknown"
+                name = t.get("name") or "terminal"
+                lines.append(f"open_terminal: {name} in {cwd}")
+
+        return "\n".join(lines) if lines else None
+
+    except Exception as exc:
+        logger.debug("Screen state read failed: %s", exc)
+        return None
+
+
+def _build_live_state_block(
+    query: str,
+    precomputed_topics: list[str] | None = None,
+    page_context: str = "unknown",
+) -> str:
+    """
+    Build the LIVE SYSTEM STATE block injected into every prompt.
+
+    Three data sources combined:
+    - Tier 1: unconditional baseline (always, cheap)
+    - Tier 2a: page-default topics — data relevant to the current page
+      regardless of prompt wording (e.g. on system-monitor, always include
+      services and memory even if the user says "anything look off?")
+    - Tier 2b: query-detected topics from semantic/keyword detection
     """
     # ── Tier 1: unconditional baseline ────────────────────────────────────
     try:
@@ -335,17 +408,30 @@ def _build_live_state_block(query: str, precomputed_topics: list[str] | None = N
         logger.warning("Baseline status collection failed: %s", exc)
         baseline = "Baseline system data unavailable."
 
-    sections = [f"[LIVE BASELINE]\n{baseline}"]
+    # Page context header — tells Mistral where the user is and what's visible
+    page_desc = _PAGE_DESCRIPTIONS.get(page_context, _PAGE_DESCRIPTIONS["unknown"])
+    sections = [
+        f"[CURRENT PAGE: {page_context.upper()}]\n{page_desc}",
+        f"[LIVE BASELINE]\n{baseline}",
+    ]
 
-    # ── Tier 2: semantic topics ────────────────────────────────────────────
-    topics = precomputed_topics if precomputed_topics is not None else detect_live_topics(query)
-    if topics:
+    screen = _read_screen_state()
+    if screen:
+        sections.append(f"[LIVE SCREEN]\n{screen}")
+
+    # ── Tier 2: merge page-default topics + query-detected topics ─────────
+    page_topics = _PAGE_DEFAULT_TOPICS.get(page_context, [])
+    query_topics = precomputed_topics if precomputed_topics is not None else detect_live_topics(query)
+    # Deduplicate while preserving order: page topics first, then query extras
+    all_topics = list(dict.fromkeys(page_topics + query_topics))
+
+    if all_topics:
         try:
-            snapshots = SYSTEM_PROVIDER.snapshot(topics)
+            snapshots = SYSTEM_PROVIDER.snapshot(all_topics)
             for topic, content in snapshots.items():
                 sections.append(f"[LIVE {topic.upper()}]\n{content}")
         except Exception as exc:  # noqa: BLE001
-            logger.warning("Topic snapshot failed for %s: %s", topics, exc)
+            logger.warning("Topic snapshot failed for %s: %s", all_topics, exc)
 
     return "\n\n".join(sections)
 
@@ -520,7 +606,7 @@ def _ollama_generate(prompt: str, model: str = "mistral") -> str:
     response = requests.post(
         OLLAMA_URL,
         json={"model": model, "prompt": prompt, "stream": False},
-        timeout=120,
+        timeout=None,  # uncapped — CPU-only Mistral 7B with live state injection can exceed 3min under VM resource constraints
     )
     response.raise_for_status()
 
@@ -556,7 +642,7 @@ def _ollama_stream(prompt: str, model: str = "mistral"):
         OLLAMA_URL,
         json={"model": model, "prompt": prompt, "stream": True},
         stream=True,
-        timeout=120,
+        timeout=None,  # uncapped — VM CPU inference has no reliable upper bound
     ) as resp:
         resp.raise_for_status()
         for raw_line in resp.iter_lines():
@@ -585,7 +671,7 @@ def _ollama_stream_chat(messages: list[dict], model: str = "mistral"):
         "http://127.0.0.1:11434/api/chat",
         json={"model": model, "messages": messages, "stream": True},
         stream=True,
-        timeout=120,
+        timeout=None,  # uncapped — matches _ollama_stream policy
     ) as resp:
         resp.raise_for_status()
         for raw_line in resp.iter_lines():
@@ -899,9 +985,9 @@ def _stream_llm_response(prompt: str, route: str, handle_fn, history: list[dict]
     }) + "\n"
 
 
-def _build_rag_system_prompt(prompt: str, precomputed_topics: list[str] | None = None) -> tuple[str, list[dict], str]:
+def _build_rag_system_prompt(prompt: str, page_context: str = "unknown", precomputed_topics: list[str] | None = None) -> tuple[str, list[dict], str]:
     domain = classify_rag_domain(prompt)
-    live_block = _build_live_state_block(prompt, precomputed_topics)
+    live_block = _build_live_state_block(prompt, precomputed_topics=precomputed_topics, page_context=page_context)
     context_results = retrieve(prompt, domain=domain)
     context_text = build_context_block(context_results)
 
@@ -925,8 +1011,8 @@ Rules: Use context above. Do not invent state or commands. Keep answers brief.""
     return system_prompt, context_results, domain
 
 
-def _build_chat_system_prompt(prompt: str, precomputed_topics: list[str] | None = None) -> tuple[str, list[dict], str]:
-    live_block = _build_live_state_block(prompt, precomputed_topics)
+def _build_chat_system_prompt(prompt: str, page_context: str = "unknown", precomputed_topics: list[str] | None = None) -> tuple[str, list[dict], str]:
+    live_block = _build_live_state_block(prompt, precomputed_topics=precomputed_topics, page_context=page_context)
 
     # Minimal chat prompt — live state + question only.
     # No RAG context injected here; chat route handles conversational queries.
@@ -955,6 +1041,7 @@ async def prompt_stream(req: PromptRequest):
     """
 
     prompt = req.prompt
+    page_context = req.context  # real page name e.g. "system-monitor", sent by chat.js
     history = [m.model_dump() for m in req.messages] if req.messages else None
 
     def generate():
@@ -977,7 +1064,7 @@ async def prompt_stream(req: PromptRequest):
         route = classify_prompt(prompt, precomputed_route=classification["route"])
         topics = classification["topics"]
 
-        logger.info(f"[STREAM ROUTER] semantic route={route} topics={topics}")
+        logger.info(f"[STREAM ROUTER] semantic route={route} page={page_context} topics={topics}")
 
         # ── Tool route ────────────────────────────────────────────────────────
         if route == "system":
@@ -1005,7 +1092,7 @@ async def prompt_stream(req: PromptRequest):
             log_action("assistant:rag", prompt[:120], "streaming")
             yield from _stream_llm_response(
                 prompt, "rag",
-                lambda p: _build_rag_system_prompt(p, precomputed_topics=topics),
+                lambda p: _build_rag_system_prompt(p, page_context=page_context, precomputed_topics=topics),
                 history,
             )
             return
@@ -1015,7 +1102,7 @@ async def prompt_stream(req: PromptRequest):
             log_action("assistant:chat", prompt[:120], "streaming")
             yield from _stream_llm_response(
                 prompt, "chat",
-                lambda p: _build_chat_system_prompt(p, precomputed_topics=topics),
+                lambda p: _build_chat_system_prompt(p, page_context=page_context, precomputed_topics=topics),
                 history,
             )
             return
@@ -1088,7 +1175,7 @@ async def api_chat(req: ChatRequest):
             "messages": outbound_messages,
             "stream": False,
         },
-        timeout=120,
+        timeout=None,  # uncapped — matches rest of pipeline
     )
     response.raise_for_status()
     return response.json()

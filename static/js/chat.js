@@ -552,7 +552,19 @@ async function sendPrompt(prompt) {
   const response = await fetch("/api/prompt/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, messages: conversationHistory, context: "ui" }),
+    body: JSON.stringify({
+      prompt,
+      messages: conversationHistory,
+      // Derive page context from current URL path so the backend knows where
+      // the user is and can inject page-relevant live data automatically.
+      context: ({
+        "/":        "dashboard",
+        "/os":      "system-monitor",
+        "/network": "network-manager",
+        "/users":   "user-manager",
+        "/logs":    "log-viewer",
+      })[window.location.pathname] ?? "unknown",
+    }),
   });
 
   if (!response.ok) {
