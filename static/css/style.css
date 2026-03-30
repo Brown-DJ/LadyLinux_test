@@ -378,10 +378,26 @@ pre.response-area {
 
 .chat-response-stream {
   min-height: 8rem;
-  max-height: 12rem;
+  max-height: none;           /* removed fixed cap — user controls height */
   overflow-y: auto;
   margin-bottom: 0.75rem;
   padding: 0.875rem;
+
+  /* Enable vertical resize handle at the bottom edge */
+  resize: vertical;
+
+  /* Explicit height gives the browser an anchor to resize from */
+  height: 12rem;
+
+  /* Visual affordance — subtle bottom border so the resize handle is visible */
+  border-bottom: 2px solid color-mix(in srgb, var(--accent) 40%, var(--border-color));
+  border-radius: var(--ui-radius-medium);
+  box-sizing: border-box;
+}
+
+/* Resize handle accent on hover so it's discoverable */
+.chat-response-stream:hover {
+  border-bottom-color: var(--accent);
 }
 
 .chat-confirmation {
