@@ -28,6 +28,42 @@
       }
     },
     {
+      "name": "system_service_start",
+      "description": "Start one systemd service",
+      "method": "POST",
+      "endpoint": "/api/system/service/{name}/start",
+      "parameters": {
+        "name": "string"
+      }
+    },
+    {
+      "name": "system_service_stop",
+      "description": "Stop one systemd service",
+      "method": "POST",
+      "endpoint": "/api/system/service/{name}/stop",
+      "parameters": {
+        "name": "string"
+      }
+    },
+    {
+      "name": "system_service_enable",
+      "description": "Enable one systemd service at boot",
+      "method": "POST",
+      "endpoint": "/api/system/service/{name}/enable",
+      "parameters": {
+        "name": "string"
+      }
+    },
+    {
+      "name": "system_service_disable",
+      "description": "Disable one systemd service at boot",
+      "method": "POST",
+      "endpoint": "/api/system/service/{name}/disable",
+      "parameters": {
+        "name": "string"
+      }
+    },
+    {
       "name": "firewall_status",
       "description": "Get firewall status",
       "method": "GET",

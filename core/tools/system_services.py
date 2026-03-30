@@ -88,3 +88,31 @@ def restart_service(name: str) -> dict[str, str | bool]:
     """
     result = run_command(["systemctl", "restart", f"{name}.service"])
     return {"service": name, "restarted": bool(result["ok"])}
+
+
+@router.post("/service/{name}/start")
+def start_service(name: str) -> dict[str, str | bool]:
+    """Start a service via systemctl."""
+    result = run_command(["systemctl", "start", f"{name}.service"])
+    return {"service": name, "started": bool(result["ok"])}
+
+
+@router.post("/service/{name}/stop")
+def stop_service(name: str) -> dict[str, str | bool]:
+    """Stop a service via systemctl."""
+    result = run_command(["systemctl", "stop", f"{name}.service"])
+    return {"service": name, "stopped": bool(result["ok"])}
+
+
+@router.post("/service/{name}/enable")
+def enable_service(name: str) -> dict[str, str | bool]:
+    """Enable a service to start at boot."""
+    result = run_command(["systemctl", "enable", f"{name}.service"])
+    return {"service": name, "enabled": bool(result["ok"])}
+
+
+@router.post("/service/{name}/disable")
+def disable_service(name: str) -> dict[str, str | bool]:
+    """Disable a service from starting at boot."""
+    result = run_command(["systemctl", "disable", f"{name}.service"])
+    return {"service": name, "disabled": bool(result["ok"])}

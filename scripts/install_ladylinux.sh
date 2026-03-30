@@ -261,6 +261,25 @@ SUDOEOF
     chmod 0440 "$refresh_sudoers"
     log "Sudoers rule written: $refresh_sudoers"
 
+    # Grant the service user passwordless systemctl control over any .service unit.
+    # restart was previously the only permitted action; this adds start, stop,
+    # enable, and disable to match the full set used by the service control API.
+    local systemctl_sudoers="/etc/sudoers.d/ladylinux-systemctl"
+    cat > "$systemctl_sudoers" <<SUDOEOF
+# LadyLinux — allow service user to manage systemd services without a password
+# Covers all actions used by the service control endpoints in system_services.py
+$SERVICE_USER ALL=(root) NOPASSWD: \
+    /usr/bin/systemctl start *.service, \
+    /usr/bin/systemctl stop *.service, \
+    /usr/bin/systemctl restart *.service, \
+    /usr/bin/systemctl enable *.service, \
+    /usr/bin/systemctl disable *.service, \
+    /usr/bin/systemctl status *.service, \
+    /usr/bin/systemctl daemon-reload
+SUDOEOF
+    chmod 0440 "$systemctl_sudoers"
+    log "Sudoers rule written: $systemctl_sudoers"
+
     # Allow ladylinux to toggle WiFi via nmcli without a password.
     local wifi_sudoers="/etc/sudoers.d/ladylinux-wifi"
     cat > "$wifi_sudoers" <<SUDOEOF

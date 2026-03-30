@@ -31,6 +31,7 @@ from api_layer.services.system_service import get_status
 from api_layer.utils.command_runner import run_command
 from api_layer.utils.validators import validate_service_name
 from core.command.intent_classifier import detect_live_topics
+from core.command.semantic_classifier import classify_semantic
 from core.rag.retriever import build_context_block, retrieve
 from core.rag.seed import seed
 from core.rag.system_provider import SystemProvider
@@ -153,7 +154,17 @@ _CONVERSATIONAL_REF = re.compile(
 )
 
 
-def classify_prompt(message: str) -> Literal["system", "rag", "chat"]:
+def classify_prompt(message: str, precomputed_route: str | None = None) -> Literal["system", "rag", "chat"]:
+    """
+    Route a prompt to system/rag/chat.
+
+    If precomputed_route is provided (from classify_semantic), uses it directly.
+    Falls back to the existing regex/keyword logic if not — preserving all
+    existing behaviour for non-streaming callers (/ask, /ask_rag etc).
+    """
+    if precomputed_route in ("system", "rag", "chat"):
+        return precomputed_route  # type: ignore[return-value]
+
     text = message.strip()
     text_lower = text.lower()
 
@@ -286,16 +297,57 @@ When a request matches a command, respond with JSON:
 """
 
 
-def _build_live_state_block(query: str) -> str:
-    topics = detect_live_topics(query)
-    if not topics:
-        return ""
+def _build_live_state_block(query: str, precomputed_topics: list[str] | None = None) -> str:
+    """
+    Build the LIVE SYSTEM STATE block for prompt injection.
 
-    snapshots = SYSTEM_PROVIDER.snapshot(topics)
-    if not snapshots:
-        return ""
+    Accepts precomputed_topics from a prior classify_semantic() call to avoid
+    running Ollama twice per request. If not provided, falls back to keyword
+    detection for backwards compatibility.
+    """
+    # ── Tier 1: unconditional baseline ────────────────────────────────────
+    try:
+        status = get_status()
+        uptime_sec = status.get("uptime", 0)
+        uptime_h = uptime_sec // 3600
+        uptime_m = (uptime_sec % 3600) // 60
+        uptime_str = f"{uptime_h}h {uptime_m}m" if uptime_h else f"{uptime_m}m"
+        load = status.get("load_avg") or []
+        load_str = ", ".join(f"{v:.2f}" for v in load) if load else "unavailable"
 
-    return "\n\n".join(f"[LIVE {topic.upper()}]\n{content}" for topic, content in snapshots.items())
+        baseline = (
+            f"hostname: {status.get('hostname', 'unknown')}\n"
+            f"platform: {status.get('platform', 'unknown')} {status.get('arch', '')}\n"
+            f"uptime: {uptime_str} ({uptime_sec}s)\n"
+            f"cpu_percent: {status.get('cpu_load', 'N/A')}%\n"
+            f"load_avg (1m/5m/15m): {load_str}\n"
+            f"memory_used: {status.get('memory_used', 'N/A')} / "
+            f"{status.get('memory_total', 'N/A')} bytes "
+            f"({status.get('memory_usage', 'N/A'):.1f}%)\n"
+            f"disk_used: {status.get('disk_used', 'N/A')} / "
+            f"{status.get('disk_total', 'N/A')} bytes "
+            f"({status.get('disk_usage', 'N/A'):.1f}%)\n"
+            f"process_count: {status.get('process_count', 'N/A')}\n"
+            f"network_rx_bytes: {status.get('network_rx', 'N/A')}\n"
+            f"network_tx_bytes: {status.get('network_tx', 'N/A')}"
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Baseline status collection failed: %s", exc)
+        baseline = "Baseline system data unavailable."
+
+    sections = [f"[LIVE BASELINE]\n{baseline}"]
+
+    # ── Tier 2: semantic topics ────────────────────────────────────────────
+    topics = precomputed_topics if precomputed_topics is not None else detect_live_topics(query)
+    if topics:
+        try:
+            snapshots = SYSTEM_PROVIDER.snapshot(topics)
+            for topic, content in snapshots.items():
+                sections.append(f"[LIVE {topic.upper()}]\n{content}")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Topic snapshot failed for %s: %s", topics, exc)
+
+    return "\n\n".join(sections)
 
 
 def handle_tool_prompt(prompt: str) -> dict[str, Any]:
@@ -847,9 +899,9 @@ def _stream_llm_response(prompt: str, route: str, handle_fn, history: list[dict]
     }) + "\n"
 
 
-def _build_rag_system_prompt(prompt: str) -> tuple[str, list[dict], str]:
+def _build_rag_system_prompt(prompt: str, precomputed_topics: list[str] | None = None) -> tuple[str, list[dict], str]:
     domain = classify_rag_domain(prompt)
-    live_block = _build_live_state_block(prompt)
+    live_block = _build_live_state_block(prompt, precomputed_topics)
     context_results = retrieve(prompt, domain=domain)
     context_text = build_context_block(context_results)
 
@@ -873,8 +925,8 @@ Rules: Use context above. Do not invent state or commands. Keep answers brief.""
     return system_prompt, context_results, domain
 
 
-def _build_chat_system_prompt(prompt: str) -> tuple[str, list[dict], str]:
-    live_block = _build_live_state_block(prompt)
+def _build_chat_system_prompt(prompt: str, precomputed_topics: list[str] | None = None) -> tuple[str, list[dict], str]:
+    live_block = _build_live_state_block(prompt, precomputed_topics)
 
     # Minimal chat prompt — live state + question only.
     # No RAG context injected here; chat route handles conversational queries.
@@ -918,9 +970,14 @@ async def prompt_stream(req: PromptRequest):
             }) + "\n"
             return
 
-        # ── Prompt routing ────────────────────────────────────────────────────
-        route = classify_prompt(prompt)
-        logger.info(f"[STREAM ROUTER] classified route: {route}")
+        # ── Single semantic pre-pass ──────────────────────────────────────────
+        # Runs once per request. Results flow to both routing and live state
+        # so Mistral is only called once for classification overhead.
+        classification = classify_semantic(prompt)
+        route = classify_prompt(prompt, precomputed_route=classification["route"])
+        topics = classification["topics"]
+
+        logger.info(f"[STREAM ROUTER] semantic route={route} topics={topics}")
 
         # ── Tool route ────────────────────────────────────────────────────────
         if route == "system":
@@ -946,13 +1003,21 @@ async def prompt_stream(req: PromptRequest):
         # ── RAG streaming ─────────────────────────────────────────────────────
         if route == "rag":
             log_action("assistant:rag", prompt[:120], "streaming")
-            yield from _stream_llm_response(prompt, "rag", _build_rag_system_prompt, history)
+            yield from _stream_llm_response(
+                prompt, "rag",
+                lambda p: _build_rag_system_prompt(p, precomputed_topics=topics),
+                history,
+            )
             return
 
         # ── Chat streaming ────────────────────────────────────────────────────
         if route == "chat":
             log_action("assistant:chat", prompt[:120], "streaming")
-            yield from _stream_llm_response(prompt, "chat", _build_chat_system_prompt, history)
+            yield from _stream_llm_response(
+                prompt, "chat",
+                lambda p: _build_chat_system_prompt(p, precomputed_topics=topics),
+                history,
+            )
             return
 
         # ── Unknown route ─────────────────────────────────────────────────────
