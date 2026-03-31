@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 # ── Must match install_ladylinux.sh exactly ───────────────────────────────────
 REPO_URL="https://github.com/Brown-DJ/LadyLinux_test.git"   # FIX 1: was missing entirely
-BRANCH="${1:-main}"
+BRANCH="${1:-memory-system}"
 
 APP_DIR="/opt/ladylinux/app"
 VENV_DIR="/opt/ladylinux/venv"
