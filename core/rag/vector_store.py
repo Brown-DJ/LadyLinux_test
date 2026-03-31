@@ -137,6 +137,10 @@ def upsert_chunks(chunks: list[dict], vectors: list[list[float]]) -> int:
                     "line_end": chunk.get("line_end", 0),
                     "timestamp": chunk.get("timestamp", ""),
                     "domain": chunk.get("domain", "general"),
+                    "source": chunk.get("source", "seed"),
+                    "tags": chunk.get("tags", []),
+                    "title": chunk.get("title", ""),
+                    "section": chunk.get("section", ""),
                 },
             )
         )
@@ -154,18 +158,26 @@ def search(
     query_vector: list[float],
     top_k: int = 5,
     domain: str | None = "any",
+    source: str | None = None,
 ) -> list[dict]:
     """
     Return top_k most similar chunks.
     """
     client = _get_client()
 
-    query_filter = None
+    must_conditions = []
 
     if domain and domain != "any":
-        query_filter = Filter(
-            must=[FieldCondition(key="domain", match=MatchValue(value=domain))]
+        must_conditions.append(
+            FieldCondition(key="domain", match=MatchValue(value=domain))
         )
+
+    if source:
+        must_conditions.append(
+            FieldCondition(key="source", match=MatchValue(value=source))
+        )
+
+    query_filter = Filter(must=must_conditions) if must_conditions else None
 
     # qdrant-client >= 1.16 uses query_points(); search() was removed.
     # with_vectors=False avoids returning full vectors in each hit, reducing
@@ -197,6 +209,9 @@ def search(
                 "line_end": payload.get("line_end", 0),
                 "timestamp": payload.get("timestamp", ""),
                 "domain": payload.get("domain", "general"),
+                "source": payload.get("source", "seed"),
+                "tags": payload.get("tags", []),
+                "title": payload.get("title", ""),
                 "score": hit.score,
             }
         )

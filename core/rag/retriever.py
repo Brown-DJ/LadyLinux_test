@@ -19,6 +19,7 @@ def retrieve(
     query: str,
     top_k: int | None = None,
     domain: str | None = None,
+    sources: list[str] | None = None,
 ) -> list[dict]:
     """Retrieve the most relevant chunks for a natural-language *query*.
 
@@ -47,14 +48,23 @@ def retrieve(
             break
         # k + 2 gives enough headroom for dedup without flooding the prompt.
         # On a CPU-only VM this directly reduces LLM prompt size and response time.
-        results = search(query_vector, top_k=k + 2, domain=target_domain)
-        # Score threshold: discard weak matches that add noise without signal.
-        # Cosine similarity <0.35 is typically off-topic for a focused query.
-        filtered = [
-            r for r in results
-            if _matches_domain(r, target_domain) and r.get("score", 0) >= 0.35
-        ]
-        final_results.extend(filtered)
+        if sources:
+            for src in sources:
+                results = search(query_vector, top_k=k + 2, domain=target_domain, source=src)
+                filtered = [
+                    r for r in results
+                    if _matches_domain(r, target_domain) and r.get("score", 0) >= 0.35
+                ]
+                final_results.extend(filtered)
+        else:
+            results = search(query_vector, top_k=k + 2, domain=target_domain)
+            # Score threshold: discard weak matches that add noise without signal.
+            # Cosine similarity <0.35 is typically off-topic for a focused query.
+            filtered = [
+                r for r in results
+                if _matches_domain(r, target_domain) and r.get("score", 0) >= 0.35
+            ]
+            final_results.extend(filtered)
     # Preserve order and de-duplicate by file/span.
     seen: set[tuple[str, int, int]] = set()
     deduped: list[dict] = []

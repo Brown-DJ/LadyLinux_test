@@ -148,6 +148,9 @@ def seed() -> dict:
             if not chunks:
                 continue
 
+            for chunk in chunks:
+                chunk.setdefault("source", "seed")
+
             # --- embed ---
             texts = [c["text"] for c in chunks]
             vectors = embed_texts(texts)
