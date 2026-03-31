@@ -1189,3 +1189,39 @@ html[data-high-contrast="true"] .response-area {
   opacity: 0.35;
   border-style: dashed !important;
 }
+
+/* ── Voice mic button states ─────────────────────────────────────────── */
+[data-mic-btn] {
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+
+/* Active listening: pulse accent border */
+[data-mic-btn].mic-listening {
+  background-color: var(--accent);
+  color: black;
+  border-color: var(--accent);
+  animation: mic-pulse 1s ease-in-out infinite;
+}
+
+/* Processing: muted spinner feel */
+[data-mic-btn].mic-processing {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+/* Speaking: soft accent */
+[data-mic-btn].mic-speaking {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Error: red signal */
+[data-mic-btn].mic-error {
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 50%, transparent); }
+  50%       { box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 0%, transparent); }
+}

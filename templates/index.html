@@ -55,6 +55,19 @@
               <div class="col-12 col-md-auto">
                 <button type="submit" class="btn btn-primary w-100">Send</button>
               </div>
+              <!-- Mic button: voice_client.js wires this via data-mic-btn + data-voice-source -->
+              <div class="col-12 col-md-auto">
+                <button
+                  type="button"
+                  class="btn btn-outline-secondary w-100"
+                  data-mic-btn
+                  data-voice-source="console"
+                  title="Start voice input"
+                  aria-label="Voice input"
+                >
+                  <i class="bi bi-mic"></i>
+                </button>
+              </div>
             </form>
           </div>
         </section>
@@ -191,6 +204,7 @@
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="/static/js/chat.js"></script>
   <script src="/static/js/ladyWidget.js"></script>
+  <script src="/static/js/voice_client.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
   <script src="/static/js/dnd.js"></script>
   <script type="module" src="/static/js/dashboard.js"></script>

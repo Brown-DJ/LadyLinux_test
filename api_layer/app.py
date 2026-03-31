@@ -27,6 +27,7 @@ from api_layer.routes.storage import router as storage_router
 from api_layer.routes.system import router as system_router
 from api_layer.routes.theme import router as theme_router
 from api_layer.routes.ws import router as ws_router
+from api_layer.routes.voice_ws import router as voice_ws_router
 from api_layer.routes import users as users_router
 from api_layer.services.system_service import get_status
 from api_layer.utils.command_runner import run_command
@@ -62,6 +63,7 @@ app.include_router(logs_router)
 app.include_router(packages_router)
 app.include_router(theme_router)
 app.include_router(ws_router)
+app.include_router(voice_ws_router)
 app.include_router(users_router.router)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")

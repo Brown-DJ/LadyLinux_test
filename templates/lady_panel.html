@@ -30,7 +30,19 @@
 
   <div id="lady-response"></div>
 
-  <div class="lady-input">
-    <input id="lady-input" type="text" placeholder="Ask Lady..." autocomplete="off" />
+  <!-- Wrap input + mic in a flex row -->
+  <div class="lady-input d-flex align-items-center gap-2">
+    <input id="lady-input" type="text" placeholder="Ask Lady..." autocomplete="off" style="flex:1" />
+    <!-- Mic button for widget voice — same voice_client.js handler -->
+    <button
+      type="button"
+      class="btn btn-sm btn-outline-secondary"
+      data-mic-btn
+      data-voice-source="widget"
+      title="Start voice input"
+      aria-label="Voice input"
+    >
+      <i class="bi bi-mic"></i>
+    </button>
   </div>
 </div>
