@@ -35,7 +35,7 @@ set -Eeuo pipefail
 #===============================================================================
 
 REPO_URL="https://github.com/Brown-DJ/LadyLinux_test.git"
-BRANCH="main"
+BRANCH="memory-system"
 
 SERVICE_USER="ladylinux"
 SERVICE_GROUP="ladylinux"

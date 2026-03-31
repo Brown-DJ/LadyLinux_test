@@ -11,7 +11,7 @@ VENV_DIR="$ROOT_DIR/venv"
 SCRIPTS_DIR="$ROOT_DIR/scripts"
 SERVICE_USER="ladylinux"
 API_SERVICE="ladylinux-api.service"
-LLM_SERVICE="ladylinux-llm.service"
+LLM_SERVICE="ollama.service"
 
 require_root() {
   if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
@@ -54,7 +54,7 @@ check_dependencies() {
 
 check_permissions() {
   log "Fixing ownership under $ROOT_DIR"
-  chown -R "$SERVICE_USER:$SERVICE_USER" "$ROOT_DIR"
+  chown -R "$SERVICE_USER:ladylinux" "$ROOT_DIR"
 }
 
 check_services() {

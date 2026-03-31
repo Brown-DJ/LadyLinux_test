@@ -5,7 +5,7 @@ APP_ROOT="/opt/ladylinux/app"
 SERVICE_NAME="ladylinux-api"
 LOG_DIR="/var/lib/ladylinux/logs"
 LOG_FILE="$LOG_DIR/refresh_api.log"
-BRANCH="${1:-main}"
+BRANCH="${1:-memory-system}"
 
 ensure_logs() {
   mkdir -p "$LOG_DIR"
