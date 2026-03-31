@@ -41,6 +41,8 @@ from core.rag.vector_store import COLLECTION_NAME, client, ensure_collection
 from llm_runtime import ensure_model
 from core.command.command_kernel import evaluate_prompt
 from core.command.tool_router import ToolRouter, ToolRouterError
+from core.memory.router import route as memory_route
+from core.memory.log_reader import fetch_error_lines
 
 _SCREEN_STATE_FILE = Path("/var/lib/ladylinux/data/screen_state.json")
 
@@ -987,11 +989,35 @@ def _stream_llm_response(prompt: str, route: str, handle_fn, history: list[dict]
     }) + "\n"
 
 
-def _build_rag_system_prompt(prompt: str, page_context: str = "unknown", precomputed_topics: list[str] | None = None) -> tuple[str, list[dict], str]:
+def _build_session_system_prompt(prompt: str, history: list[dict]) -> tuple[str, list[dict], str]:
+    """Build a system prompt that answers from conversation history (Phase 3)."""
+    recent = history[-10:]
+    session_context = "\n".join(
+        f"{m['role'].upper()}: {m['content']}" for m in recent
+    )
+    system_prompt = f"""You are Lady Linux, a Linux assistant. The user is referencing the conversation history.
+
+CONVERSATION HISTORY
+{session_context}
+
+User: {prompt}
+
+Answer using the conversation history above. Be concise and accurate."""
+    return system_prompt, [], "session"
+
+
+def _build_rag_system_prompt(
+    prompt: str,
+    page_context: str = "unknown",
+    precomputed_topics: list[str] | None = None,
+    log_context: str | None = None,
+) -> tuple[str, list[dict], str]:
     domain = classify_rag_domain(prompt)
     live_block = _build_live_state_block(prompt, precomputed_topics=precomputed_topics, page_context=page_context)
     context_results = retrieve(prompt, domain=domain)
     context_text = build_context_block(context_results)
+
+    log_block = f"\n\nRECENT SYSTEM LOGS\n{log_context}" if log_context else ""
 
     # Stripped-down RAG prompt for CPU-only inference.
     # Removed: CAPABILITY_BLOCK, full rules list, _command_hint_block().
@@ -1003,7 +1029,7 @@ LIVE SYSTEM STATE
 {live_block or "No live data available."}
 
 RELEVANT CONTEXT
-{context_text or "No relevant context found."}
+{context_text or "No relevant context found."}{log_block}
 
 USER QUESTION
 {prompt}
@@ -1059,12 +1085,34 @@ async def prompt_stream(req: PromptRequest):
             }) + "\n"
             return
 
+        # ── Memory router ─────────────────────────────────────────────────────
+        # Keyword-only, zero latency — runs before any LLM call.
+        memory_sources = memory_route(prompt)
+        logger.info(f"[MEMORY ROUTER] sources={memory_sources}")
+
+        # ── Session path (Phase 3) ────────────────────────────────────────────
+        # When the query references the current conversation and history exists,
+        # answer directly from session context without hitting RAG or logs.
+        if "session" in memory_sources and history:
+            log_action("assistant:session", prompt[:120], "streaming")
+            yield from _stream_llm_response(
+                prompt, "chat",
+                lambda p: _build_session_system_prompt(p, history),
+                None,
+            )
+            return
+
         # ── Single semantic pre-pass ──────────────────────────────────────────
         # Runs once per request. Results flow to both routing and live state
         # so Mistral is only called once for classification overhead.
         classification = classify_semantic(prompt)
         route = classify_prompt(prompt, precomputed_route=classification["route"])
         topics = classification["topics"]
+
+        # ── Phase 5: system_state fallback ────────────────────────────────────
+        # Trust the memory router even when keyword detection finds nothing.
+        if "system_state" in memory_sources and not topics:
+            topics = ["processes", "services"]
 
         logger.info(f"[STREAM ROUTER] semantic route={route} page={page_context} topics={topics}")
 
@@ -1089,12 +1137,22 @@ async def prompt_stream(req: PromptRequest):
                 }) + "\n"
             return
 
+        # ── Phase 4: fetch log context when router says logs are relevant ─────
+        log_context: str | None = None
+        if "logs" in memory_sources:
+            try:
+                log_context = fetch_error_lines()
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("[MEMORY ROUTER] log fetch failed: %s", exc)
+
         # ── RAG streaming ─────────────────────────────────────────────────────
         if route == "rag":
             log_action("assistant:rag", prompt[:120], "streaming")
+            _lc = log_context  # capture for closure
+            _t = topics
             yield from _stream_llm_response(
                 prompt, "rag",
-                lambda p: _build_rag_system_prompt(p, page_context=page_context, precomputed_topics=topics),
+                lambda p: _build_rag_system_prompt(p, page_context=page_context, precomputed_topics=_t, log_context=_lc),
                 history,
             )
             return
