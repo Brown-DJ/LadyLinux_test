@@ -30,6 +30,35 @@
 
   <div id="lady-response"></div>
 
+  <!-- Memory panel (collapsible) -->
+  <div class="lady-memory mt-3" style="border-top: 1px solid var(--border-color); padding-top: 0.75rem;">
+    <div class="d-flex align-items-center justify-content-between mb-2">
+      <span class="fw-semibold" style="font-size: 0.8rem; color: var(--text-muted);">What Lady Remembers</span>
+      <button
+        type="button"
+        class="btn btn-sm btn-outline-light p-0 px-1"
+        id="ladyMemoryToggle"
+        aria-expanded="true"
+        aria-controls="ladyMemoryBody"
+        title="Collapse"
+        style="line-height: 1.2;"
+      >
+        <i class="bi bi-chevron-up" id="ladyMemoryChevron"></i>
+      </button>
+    </div>
+    <div id="ladyMemoryBody">
+      <!-- stubbed: will be populated by memory system -->
+      <ul class="activity-log" id="ladyMemoryList" style="font-size: 0.8rem;">
+        <li>Asked about firewall rules on the network page</li>
+        <li>Prefers dark mode</li>
+        <li>Restarted ladylinux-api.service during last session</li>
+      </ul>
+      <button type="button" class="btn btn-sm btn-outline-light mt-2 w-100" id="ladyMemoryClearBtn">
+        <i class="bi bi-trash"></i> Clear memory
+      </button>
+    </div>
+  </div>
+
   <!-- Wrap input + mic in a flex row -->
   <div class="lady-input d-flex align-items-center gap-2">
     <input id="lady-input" type="text" placeholder="Ask Lady..." autocomplete="off" style="flex:1" />

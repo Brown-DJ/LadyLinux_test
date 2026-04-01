@@ -158,6 +158,45 @@
         </section>
       </div>
 
+      <!-- 5) Memory Panel -->
+      <div class="col-12" data-widget-id="memory-panel">
+        <section class="card ll-dashboard-card">
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <h2 class="h5 mb-0">What Lady Remembers</h2>
+              <div class="d-flex align-items-center gap-2">
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline-light"
+                  id="memoryPanelToggle"
+                  title="Collapse"
+                  aria-expanded="true"
+                  aria-controls="memoryPanelBody"
+                >
+                  <i class="bi bi-chevron-up" id="memoryChevron"></i>
+                </button>
+                <span class="ll-drag-handle" title="Drag to reorder"><i class="bi bi-grip-vertical"></i></span>
+              </div>
+            </div>
+            <div id="memoryPanelBody">
+              <!-- stubbed: will be populated by memory system -->
+              <ul class="activity-log" id="memoryList">
+                <li>Asked about firewall rules on the network page</li>
+                <li>Prefers dark mode</li>
+                <li>Restarted ladylinux-api.service during last session</li>
+                <li>Checked CPU usage trends on the System page</li>
+                <li>Requested log file cleanup on 2026-03-28</li>
+              </ul>
+              <div class="mt-3">
+                <button type="button" class="btn btn-sm btn-outline-light" id="memoryClearBtn">
+                  <i class="bi bi-trash"></i> Clear memory
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
       <div class="col-12" data-widget-id="module-buttons">
         <!-- 5) Module Buttons -->
         <div class="ll-widget-drag-bar">

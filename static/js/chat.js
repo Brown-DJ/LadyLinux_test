@@ -3,6 +3,7 @@
    ===================================================== */
 
 const SYSTEM_ACTIVITY_STORAGE_KEY = "lady-system-activity";
+const CHAT_HISTORY_STORAGE_KEY = "lady-chat-history";
 const SYSTEM_ACTIVITY_LIMIT = 20;
 const ACTION_MARKERS = ["LL_ACTION:", "LL_UI:", "json_LL_UI", "LL_THEME:"];
 const THEME_TOKEN_KEYS = ["bg-main", "bg-surface", "accent", "accent-hover", "text-mode", "text_mode"];
@@ -64,6 +65,14 @@ function persistSystemActivity() {
   }
 }
 
+function persistChatHistory() {
+  try {
+    sessionStorage.setItem(CHAT_HISTORY_STORAGE_KEY, JSON.stringify(conversationHistory));
+  } catch (err) {
+    console.error("Chat history persistence failed:", err);
+  }
+}
+
 function renderSystemActivity() {
   const { activity } = getChatElements();
   if (!activity) return;
@@ -94,6 +103,32 @@ function loadSystemActivity() {
   }
 
   renderSystemActivity();
+}
+
+function loadChatHistory() {
+  try {
+    const nav = performance.getEntriesByType("navigation")[0];
+    if (nav && nav.type === "reload") {
+      sessionStorage.removeItem(CHAT_HISTORY_STORAGE_KEY);
+      return;
+    }
+
+    const raw = sessionStorage.getItem(CHAT_HISTORY_STORAGE_KEY);
+    conversationHistory = raw ? JSON.parse(raw) : [];
+  } catch (err) {
+    conversationHistory = [];
+  }
+
+  if (!conversationHistory.length) return;
+
+  const { response } = getChatElements();
+  if (response) {
+    response.innerHTML = "";
+    for (const msg of conversationHistory) {
+      const label = msg.role === "user" ? "You" : "Lady Linux";
+      appendChatLine(label, msg.content);
+    }
+  }
 }
 
 function logSystemActivity(message) {
@@ -548,6 +583,7 @@ function executeAction(actionName, params, options = {}) {
 async function sendPrompt(prompt) {
   // Add user turn to history before sending so backend sees full context
   conversationHistory.push({ role: "user", content: prompt });
+  persistChatHistory();
 
   const response = await fetch("/api/prompt/stream", {
     method: "POST",
@@ -696,6 +732,7 @@ async function sendPrompt(prompt) {
   if (conversationHistory.length > MAX_HISTORY_TURNS * 2) {
     conversationHistory = conversationHistory.slice(-MAX_HISTORY_TURNS * 2);
   }
+  persistChatHistory();
 
   return finalPayload;
 }
@@ -805,6 +842,7 @@ function initChat() {
 
   chatInitialized = true;
   loadSystemActivity();
+  loadChatHistory();
 
   // Keep Dev Mode toggle state persistent across reloads for developer workflows.
   const devModeToggle = document.getElementById("devModeToggle");
@@ -876,6 +914,57 @@ function initChat() {
   }
 
   setChatStatus("idle");
+  initMemoryPanel();
+}
+
+function initMemoryPanel() {
+  // Dashboard memory panel
+  const toggleBtn = document.getElementById("memoryPanelToggle");
+  const chevron = document.getElementById("memoryChevron");
+  const body = document.getElementById("memoryPanelBody");
+  const clearBtn = document.getElementById("memoryClearBtn");
+  const memoryList = document.getElementById("memoryList");
+
+  if (toggleBtn && body) {
+    toggleBtn.addEventListener("click", () => {
+      const isExpanded = toggleBtn.getAttribute("aria-expanded") === "true";
+      toggleBtn.setAttribute("aria-expanded", String(!isExpanded));
+      body.style.display = isExpanded ? "none" : "";
+      if (chevron) {
+        chevron.className = isExpanded ? "bi bi-chevron-down" : "bi bi-chevron-up";
+      }
+    });
+  }
+
+  if (clearBtn && memoryList) {
+    clearBtn.addEventListener("click", () => {
+      memoryList.innerHTML = "<li class=\"text-muted fst-italic\">No memories stored.</li>";
+    });
+  }
+
+  // Lady widget memory panel
+  const ladyToggleBtn = document.getElementById("ladyMemoryToggle");
+  const ladyChevron = document.getElementById("ladyMemoryChevron");
+  const ladyBody = document.getElementById("ladyMemoryBody");
+  const ladyClearBtn = document.getElementById("ladyMemoryClearBtn");
+  const ladyMemoryList = document.getElementById("ladyMemoryList");
+
+  if (ladyToggleBtn && ladyBody) {
+    ladyToggleBtn.addEventListener("click", () => {
+      const isExpanded = ladyToggleBtn.getAttribute("aria-expanded") === "true";
+      ladyToggleBtn.setAttribute("aria-expanded", String(!isExpanded));
+      ladyBody.style.display = isExpanded ? "none" : "";
+      if (ladyChevron) {
+        ladyChevron.className = isExpanded ? "bi bi-chevron-down" : "bi bi-chevron-up";
+      }
+    });
+  }
+
+  if (ladyClearBtn && ladyMemoryList) {
+    ladyClearBtn.addEventListener("click", () => {
+      ladyMemoryList.innerHTML = "<li class=\"text-muted fst-italic\">No memories stored.</li>";
+    });
+  }
 }
 
 window.logSystemActivity = logSystemActivity;
