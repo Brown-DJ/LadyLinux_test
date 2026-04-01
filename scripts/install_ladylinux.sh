@@ -361,6 +361,13 @@ set_hostname() {
     else
         log "Current hostname is '$current_hostname' — leaving unchanged (not 'localhost')"
     fi
+
+    # ── mDNS — enables http://ladylinux.local on the local network ──
+    log "Installing avahi-daemon for mDNS local network discovery..."
+    apt-get install -y avahi-daemon >/dev/null 2>&1
+    systemctl enable avahi-daemon
+    systemctl start avahi-daemon
+    log "mDNS active — accessible at http://$(hostname).local:$API_PORT"
 }
 
 #===============================================================================

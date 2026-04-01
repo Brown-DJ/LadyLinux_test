@@ -151,9 +151,14 @@ restart_services() {
     log "Reloading systemd"
     systemctl daemon-reload
 
+    # ── mDNS — ensure avahi is up after any reboot or service wipe ──
+    if systemctl is-enabled avahi-daemon >/dev/null 2>&1; then
+        systemctl start avahi-daemon 2>/dev/null || true
+    else
+        log "avahi-daemon not installed — skipping mDNS (run installer to enable)"
+    fi
+
     log "Ensuring $LLM_SERVICE is running"
-    # ollama.service is managed by the Ollama installer — we just ensure it's up.
-    # Do NOT write a second unit; that causes a port 11434 conflict.
     systemctl start "$LLM_SERVICE" || warn "Could not start $LLM_SERVICE"
 
     log "Restarting API service"
