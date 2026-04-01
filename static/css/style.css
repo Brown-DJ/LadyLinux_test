@@ -580,11 +580,13 @@ html[data-high-contrast="true"] .response-area {
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
 }
 
-/* Popup mini console */
+/* Popup mini console — anchored to middle-right, opens left of the hub */
 .lady-panel {
   position: fixed;
-  bottom: 90px;
-  right: 20px;
+  top: 50vh;
+  right: 90px;
+  bottom: auto;
+  transform: translateY(-50%);
   width: 320px;
   height: 420px;
   background: var(--bg-surface);
@@ -593,7 +595,7 @@ html[data-high-contrast="true"] .response-area {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  z-index: 9999;
+  z-index: 9998;
   padding: 12px;
 }
 
@@ -1260,11 +1262,13 @@ html[data-high-contrast="true"] .response-area {
    LADY LINUX - RADIAL LAUNCHER
    ===================================================== */
 
-/* Root container — positions hub + all spokes relative to bottom-right */
+/* Root container — anchored to middle-right edge */
 .lady-radial-root {
   position: fixed;
-  bottom: 22px;
+  top: 50vh;
   right: 22px;
+  bottom: auto;
+  transform: translateY(-50%);
   width: 56px;
   height: 56px;
   z-index: 9999;
@@ -1324,11 +1328,11 @@ html[data-high-contrast="true"] .response-area {
   opacity: 1;
 }
 
-/* Per-spoke translate values matching --spoke-angle declarations in HTML */
-#ladySpokePanel      { --spoke-translate: translate(-7px,  -75px); }
-#ladySpokeMetrics    { --spoke-translate: translate(-56px, -56px); }
-#ladySpokeTheme      { --spoke-translate: translate(-75px,  -7px); }
-#ladySpokeFullscreen { --spoke-translate: translate(-56px,  42px); }
+/* Per-spoke translate values — arc fans LEFT from hub (no off-screen right) */
+#ladySpokePanel      { --spoke-translate: translate(-7px,  -75px); }  /* up        */
+#ladySpokeMetrics    { --spoke-translate: translate(-65px, -45px); }  /* up-left   */
+#ladySpokeTheme      { --spoke-translate: translate(-75px,  -7px); }  /* left      */
+#ladySpokeFullscreen { --spoke-translate: translate(-65px,  42px); }  /* down-left */
 
 /* Stagger the animation so spokes fan out sequentially */
 #ladySpokePanel      { transition-delay: 0ms;   }

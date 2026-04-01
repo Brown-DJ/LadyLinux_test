@@ -20,9 +20,6 @@ function syncFullscreenUI() {
   });
 }
 
-function toggleTheme() {
-  document.body.classList.toggle("light-theme");
-}
 
 document.addEventListener("fullscreenchange", syncFullscreenUI);
 
@@ -78,14 +75,15 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Theme spoke — delegates to nav_controls toggle or legacy toggleTheme
+  // Theme spoke — calls shared handleThemeToggle from nav_controls.js
   const ladySpokeTheme = document.getElementById("ladySpokeTheme");
   if (ladySpokeTheme) {
     ladySpokeTheme.addEventListener("click", () => {
-      // Prefer the navbar toggle handler if available (nav_controls.js)
-      const navToggle = document.getElementById("navThemeToggle");
-      if (navToggle) navToggle.click();
-      else if (typeof window.toggleTheme === "function") window.toggleTheme();
+      if (typeof window.handleThemeToggle === "function") {
+        window.handleThemeToggle();
+      } else {
+        document.getElementById("navThemeToggle")?.click();
+      }
     });
   }
 
@@ -104,7 +102,6 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 window.toggleFullscreen = toggleFullscreen;
-window.toggleTheme = toggleTheme;
 
 // ── Context Nav Collapse Toggle ──────────────────────────────
 (function initContextNavCollapse() {

@@ -23,7 +23,7 @@
   const themeIcon = document.getElementById("navThemeIcon");
 
   /**
-   * Update the toggle button icon to reflect the currently active theme.
+   * Update the navbar icon to reflect the currently active theme.
    * Moon = currently dark (click to go light); Sun = currently light (click to go dark).
    */
   function syncThemeIcon(activeTheme) {
@@ -32,6 +32,20 @@
     themeIcon.className = isDark
       ? "bi bi-sun-fill"           // dark mode active → show sun (switch to light)
       : "bi bi-moon-stars-fill";   // light mode active → show moon (switch to dark)
+  }
+
+  /**
+   * Sync BOTH the navbar icon and the radial spoke icon to reflect active theme.
+   * Called on toggle and on page load.
+   */
+  function syncAllThemeIcons(activeTheme) {
+    syncThemeIcon(activeTheme);
+
+    const spokeIcon = document.querySelector("#ladySpokeTheme i");
+    if (spokeIcon) {
+      const isDark = activeTheme === DARK_THEME;
+      spokeIcon.className = isDark ? "bi bi-sun-fill" : "bi bi-moon-stars-fill";
+    }
   }
 
   /**
@@ -47,20 +61,23 @@
     const current = localStorage.getItem(LS_THEME_KEY) || DARK_THEME;
     const next = current === DARK_THEME ? LIGHT_THEME : DARK_THEME;
 
-    window.applyTheme(next);    // persists + syncs backend via existing pipeline
-    syncThemeIcon(next);
+    window.applyTheme(next);
+    syncAllThemeIcons(next);
   }
 
   if (themeBtn) {
     themeBtn.addEventListener("click", handleThemeToggle);
 
-    // Sync icon on page load — read from localStorage (set by themes.js restoreTheme)
-    // Use a short delay so restoreTheme() has time to run first
+    // Sync both icons on page load — short delay so restoreTheme() runs first
     setTimeout(() => {
       const saved = localStorage.getItem(LS_THEME_KEY) || DARK_THEME;
-      syncThemeIcon(saved);
+      syncAllThemeIcons(saved);
     }, 100);
   }
+
+  // Expose for global.js spoke wiring
+  window.handleThemeToggle = handleThemeToggle;
+  window.syncAllThemeIcons = syncAllThemeIcons;
 
 
   /* ── Notification dropdown ────────────────────────────────── */
