@@ -660,11 +660,40 @@ html[data-high-contrast="true"] .response-area {
    LADY LINUX - AI DASHBOARD LAYOUT
    ===================================================== */
 
+/* ── Topbar: must not clip Bootstrap dropdowns ── */
 .ll-topbar {
   background: color-mix(in srgb, var(--bg-panel) 84%, transparent);
   border-bottom: 1px solid var(--border-color);
   box-shadow: var(--effect-glow);
   backdrop-filter: blur(14px);
+  overflow: visible !important;  /* prevents dropdown from being hidden behind navbar */
+  position: relative;            /* establishes stacking context for dropdown z-index */
+}
+
+/* ── Notification dropdown: themed to match LL palette ── */
+.ll-notif-dropdown {
+  min-width: 300px;
+  max-height: 380px;
+  overflow-y: auto;
+  background-color: var(--bg-surface) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: var(--radius-medium) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  z-index: 1051;
+}
+
+.ll-notif-dropdown .dropdown-item {
+  color: var(--text-main) !important;
+}
+
+.ll-notif-dropdown .dropdown-item:hover,
+.ll-notif-dropdown .dropdown-item:focus {
+  background-color: var(--accent-soft, rgba(196, 181, 253, 0.1)) !important;
+  color: var(--text-main) !important;
+}
+
+.ll-notif-dropdown .dropdown-divider {
+  border-color: var(--border-color) !important;
 }
 
 .ll-topbar .nav-link {
