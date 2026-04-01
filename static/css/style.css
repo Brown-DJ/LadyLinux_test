@@ -1255,3 +1255,95 @@ html[data-high-contrast="true"] .response-area {
   0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 50%, transparent); }
   50%       { box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 0%, transparent); }
 }
+
+/* =====================================================
+   LADY LINUX - RADIAL LAUNCHER
+   ===================================================== */
+
+/* Root container — positions hub + all spokes relative to bottom-right */
+.lady-radial-root {
+  position: fixed;
+  bottom: 22px;
+  right: 22px;
+  width: 56px;
+  height: 56px;
+  z-index: 9999;
+}
+
+/* Hub button — sits at center of root, always visible */
+.lady-btn {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent);
+  color: var(--color-on-accent, black);
+  font-size: 22px;
+  cursor: pointer;
+  z-index: 2;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s ease;
+}
+
+/* Hub rotates 45deg when radial is open — signals close action */
+.lady-btn.is-open {
+  transform: rotate(45deg);
+}
+
+/* Spoke base — hidden at hub center by default */
+.lady-spoke {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface);
+  color: var(--text-main);
+  font-size: 1rem;
+  cursor: pointer;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  /* Start collapsed at hub center */
+  transform: translate(0, 0) scale(0);
+  opacity: 0;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+              opacity 0.2s ease;
+}
+
+/* Spoke expanded state — fan out along --spoke-angle */
+.lady-radial-root.is-open .lady-spoke {
+  transform: var(--spoke-translate) scale(1);
+  opacity: 1;
+}
+
+/* Per-spoke translate values matching --spoke-angle declarations in HTML */
+#ladySpokePanel      { --spoke-translate: translate(-7px,  -75px); }
+#ladySpokeMetrics    { --spoke-translate: translate(-56px, -56px); }
+#ladySpokeTheme      { --spoke-translate: translate(-75px,  -7px); }
+#ladySpokeFullscreen { --spoke-translate: translate(-56px,  42px); }
+
+/* Stagger the animation so spokes fan out sequentially */
+#ladySpokePanel      { transition-delay: 0ms;   }
+#ladySpokeMetrics    { transition-delay: 40ms;  }
+#ladySpokeTheme      { transition-delay: 80ms;  }
+#ladySpokeFullscreen { transition-delay: 120ms; }
+
+/* Spoke hover state */
+.lady-spoke:hover,
+.lady-spoke:focus-visible {
+  background: var(--accent);
+  color: var(--color-on-accent, black);
+  border-color: var(--accent);
+  outline: none;
+}
+
+/* Remove old .lady-actions grid — replaced by radial */
+.lady-actions { display: none; }

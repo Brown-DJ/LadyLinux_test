@@ -33,19 +33,36 @@ document.addEventListener("DOMContentLoaded", () => {
     button.addEventListener("click", toggleFullscreen);
   });
 
-  const ladyBtn = document.getElementById("ladyBtn");
-  const ladyPanel = document.getElementById("ladyPanel");
-  const ladyClose = document.getElementById("ladyClose");
-  const ladyRefreshMetrics = document.getElementById("ladyRefreshMetrics");
-  const ladyToggleTheme = document.getElementById("ladyToggleTheme");
+  // Radial menu state
+  const radialRoot     = document.getElementById("ladyRadialRoot");
+  const ladyBtn        = document.getElementById("ladyBtn");
+  const ladyPanel      = document.getElementById("ladyPanel");
+  const ladyClose      = document.getElementById("ladyClose");
+  const ladySpokePanel = document.getElementById("ladySpokePanel");
 
-  if (ladyBtn && ladyPanel) {
+  // Toggle radial open/close on hub click
+  if (ladyBtn && radialRoot) {
     ladyBtn.addEventListener("click", () => {
-      const isHidden = ladyPanel.classList.toggle("hidden");
-      ladyPanel.setAttribute("aria-hidden", isHidden ? "true" : "false");
+      const isOpen = radialRoot.classList.toggle("is-open");
+      ladyBtn.classList.toggle("is-open", isOpen);
+
+      // If closing radial, also close panel
+      if (!isOpen && ladyPanel) {
+        ladyPanel.classList.add("hidden");
+        ladyPanel.setAttribute("aria-hidden", "true");
+      }
     });
   }
 
+  // Panel spoke opens the chat panel without closing radial
+  if (ladySpokePanel && ladyPanel) {
+    ladySpokePanel.addEventListener("click", () => {
+      const isHidden = ladyPanel.classList.toggle("hidden");
+      ladyPanel.setAttribute("aria-hidden", String(isHidden));
+    });
+  }
+
+  // Close button collapses panel only, leaves radial open
   if (ladyClose && ladyPanel) {
     ladyClose.addEventListener("click", () => {
       ladyPanel.classList.add("hidden");
@@ -53,17 +70,37 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  if (ladyRefreshMetrics) {
-    ladyRefreshMetrics.addEventListener("click", () => {
-      if (typeof window.fetchMetrics === "function") {
-        window.fetchMetrics();
-      }
+  // Metrics spoke
+  const ladySpokeMetrics = document.getElementById("ladySpokeMetrics");
+  if (ladySpokeMetrics) {
+    ladySpokeMetrics.addEventListener("click", () => {
+      if (typeof window.fetchMetrics === "function") window.fetchMetrics();
     });
   }
 
-  if (ladyToggleTheme) {
-    ladyToggleTheme.addEventListener("click", toggleTheme);
+  // Theme spoke — delegates to nav_controls toggle or legacy toggleTheme
+  const ladySpokeTheme = document.getElementById("ladySpokeTheme");
+  if (ladySpokeTheme) {
+    ladySpokeTheme.addEventListener("click", () => {
+      // Prefer the navbar toggle handler if available (nav_controls.js)
+      const navToggle = document.getElementById("navThemeToggle");
+      if (navToggle) navToggle.click();
+      else if (typeof window.toggleTheme === "function") window.toggleTheme();
+    });
   }
+
+  // Close radial when clicking outside both the root and the panel
+  document.addEventListener("click", (e) => {
+    if (
+      radialRoot &&
+      ladyPanel &&
+      !radialRoot.contains(e.target) &&
+      !ladyPanel.contains(e.target)
+    ) {
+      radialRoot.classList.remove("is-open");
+      ladyBtn?.classList.remove("is-open");
+    }
+  });
 });
 
 window.toggleFullscreen = toggleFullscreen;

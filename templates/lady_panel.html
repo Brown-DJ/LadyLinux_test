@@ -1,8 +1,68 @@
-<button id="ladyBtn" class="lady-btn" type="button" title="Open Lady panel">
-  &#129504;
-</button>
+<!-- templates/lady_panel.html -->
 
+<!-- ── Radial launcher hub ── -->
+<div id="ladyRadialRoot" class="lady-radial-root">
+
+  <!-- Action spokes — hidden until hub is activated -->
+  <!-- Each spoke has a data-action attr wired in global.js -->
+  <button
+    id="ladySpokePanel"
+    class="lady-spoke"
+    type="button"
+    style="--spoke-angle: 90deg;"
+    title="Open Lady panel"
+    aria-label="Open Lady panel"
+  >
+    <i class="bi bi-chat-dots"></i>
+  </button>
+
+  <button
+    id="ladySpokeMetrics"
+    class="lady-spoke"
+    type="button"
+    style="--spoke-angle: 135deg;"
+    title="Refresh Metrics"
+    aria-label="Refresh metrics"
+    data-action="refresh-metrics"
+  >
+    <i class="bi bi-arrow-clockwise"></i>
+  </button>
+
+  <button
+    id="ladySpokeTheme"
+    class="lady-spoke"
+    type="button"
+    style="--spoke-angle: 180deg;"
+    title="Toggle Theme"
+    aria-label="Toggle theme"
+    data-action="toggle-theme"
+  >
+    <i class="bi bi-moon-stars"></i>
+  </button>
+
+  <button
+    id="ladySpokeFullscreen"
+    class="lady-spoke"
+    type="button"
+    style="--spoke-angle: 225deg;"
+    title="Fullscreen"
+    aria-label="Toggle fullscreen"
+    data-fullscreen
+    data-fullscreen-label="icon"
+  >
+    <i class="bi bi-fullscreen"></i>
+  </button>
+
+  <!-- Hub button — always visible, toggles spokes -->
+  <button id="ladyBtn" class="lady-btn" type="button" aria-label="Lady Linux assistant">
+    &#129504;
+  </button>
+
+</div>
+
+<!-- ── Floating panel (chat + memory) ── -->
 <div id="ladyPanel" class="lady-panel hidden" aria-hidden="true">
+
   <div class="lady-header">
     <span>Lady</span>
     <button id="ladyClose" class="lady-close" type="button" aria-label="Close Lady panel">
@@ -10,44 +70,29 @@
     </button>
   </div>
 
-  <div class="lady-actions">
-    <button id="ladyRefreshMetrics" class="btn btn-sm btn-outline-light" type="button">
-      Refresh Metrics
-    </button>
-    <button id="ladyToggleTheme" class="btn btn-sm btn-outline-light" type="button">
-      Toggle Theme
-    </button>
-    <button
-      data-fullscreen
-      data-fullscreen-label="text"
-      class="btn btn-sm btn-outline-light"
-      type="button"
-      title="Fullscreen"
-    >
-      Fullscreen
-    </button>
-  </div>
-
-  <div id="lady-response"></div>
+  <!-- Response output area -->
+  <div id="lady-response" class="flex-grow-1 overflow-auto"></div>
 
   <!-- Memory panel (collapsible) -->
-  <div class="lady-memory mt-3" style="border-top: 1px solid var(--border-color); padding-top: 0.75rem;">
+  <div class="lady-memory" style="border-top: 1px solid var(--border-color); padding-top: 0.75rem;">
     <div class="d-flex align-items-center justify-content-between mb-2">
-      <span class="fw-semibold" style="font-size: 0.8rem; color: var(--text-muted);">What Lady Remembers</span>
+      <span class="fw-semibold" style="font-size: 0.8rem; color: var(--text-muted);">
+        What Lady Remembers
+      </span>
+      <!-- Toggle uses data attribute; wired in chat.js initMemoryPanel() -->
       <button
         type="button"
-        class="btn btn-sm btn-outline-light p-0 px-1"
+        class="lady-memory-toggle"
         id="ladyMemoryToggle"
         aria-expanded="true"
         aria-controls="ladyMemoryBody"
         title="Collapse"
-        style="line-height: 1.2;"
       >
         <i class="bi bi-chevron-up" id="ladyMemoryChevron"></i>
       </button>
     </div>
+
     <div id="ladyMemoryBody">
-      <!-- stubbed: will be populated by memory system -->
       <ul class="activity-log" id="ladyMemoryList" style="font-size: 0.8rem;">
         <li>Asked about firewall rules on the network page</li>
         <li>Prefers dark mode</li>
@@ -59,10 +104,9 @@
     </div>
   </div>
 
-  <!-- Wrap input + mic in a flex row -->
+  <!-- Input row -->
   <div class="lady-input d-flex align-items-center gap-2">
     <input id="lady-input" type="text" placeholder="Ask Lady..." autocomplete="off" style="flex:1" />
-    <!-- Mic button for widget voice — same voice_client.js handler -->
     <button
       type="button"
       class="btn btn-sm btn-outline-secondary"
@@ -74,4 +118,5 @@
       <i class="bi bi-mic"></i>
     </button>
   </div>
+
 </div>
