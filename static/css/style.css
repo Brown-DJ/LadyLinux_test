@@ -668,6 +668,7 @@ html[data-high-contrast="true"] .response-area {
   backdrop-filter: blur(14px);
   overflow: visible !important;  /* prevents dropdown from being hidden behind navbar */
   position: relative;            /* establishes stacking context for dropdown z-index */
+  z-index: 1060;                 /* sits above all backdrop-filter page cards */
 }
 
 /* ── Notification dropdown: themed to match LL palette ── */
@@ -679,7 +680,7 @@ html[data-high-contrast="true"] .response-area {
   border: 1px solid var(--border-color) !important;
   border-radius: var(--radius-medium) !important;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-  z-index: 1051;
+  z-index: 1070 !important;
 }
 
 .ll-notif-dropdown .dropdown-item {
