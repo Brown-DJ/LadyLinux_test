@@ -50,7 +50,7 @@
 
   /**
    * Toggle between dark and light named themes.
-   * Delegates to window.applyTheme (themes.js pipeline, persists to backend + localStorage).
+   * Delegates to window.applyTheme without syncing to the backend.
    */
   function handleThemeToggle() {
     if (typeof window.applyTheme !== "function") {
@@ -61,7 +61,8 @@
     const current = localStorage.getItem(LS_THEME_KEY) || DARK_THEME;
     const next = current === DARK_THEME ? LIGHT_THEME : DARK_THEME;
 
-    window.applyTheme(next);
+    window.applyTheme(next, { remote: false, persist: true });
+    localStorage.setItem(LS_THEME_KEY, next);
     syncAllThemeIcons(next);
   }
 

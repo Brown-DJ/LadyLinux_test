@@ -653,8 +653,27 @@ function applyThemeInstructionFromText(text) {
 }
 
 async function restoreTheme() {
-  // Step 1: Ask the backend what theme is active — shared state visible to
-  // every device that connects, not just the host browser's localStorage.
+  const localSaved = localStorage.getItem(THEME_SELECTION_STORAGE_KEY);
+
+  // Hydrate custom slots from localStorage before attempting restore.
+  ["custom-1", "custom-2", "custom-3", "custom-4"].forEach((slot) => {
+    if (!THEMES[slot]) {
+      const raw = localStorage.getItem(slot);
+      if (raw) {
+        try { THEMES[slot] = JSON.parse(raw); } catch (_) {}
+      }
+    }
+  });
+
+  // Step 1: Prefer a device-local selection over shared backend state.
+  if (localSaved && localSaved !== "softcore") {
+    if (THEMES[localSaved] || !localSaved.startsWith("custom-")) {
+      applyTheme(localSaved, { remote: false, persist: false });
+      return;
+    }
+  }
+
+  // Step 2: No local override — fall back to the backend's shared default.
   try {
     const res = await fetch("/api/theme/active");
     if (res.ok) {
@@ -666,27 +685,14 @@ async function restoreTheme() {
       }
     }
   } catch (_) {
-    // Backend unreachable — fall through to localStorage
+    // Backend unreachable — fall through to hardcoded default.
   }
 
-  // Step 2: localStorage fallback — used by host browser or offline loads
-  const saved = localStorage.getItem(THEME_SELECTION_STORAGE_KEY) || "softcore";
-
-  // Hydrate custom slots from localStorage before attempting restore.
-  // Without this, custom-1..4 are missing from THEMES on page load.
-  ["custom-1", "custom-2", "custom-3", "custom-4"].forEach((slot) => {
-    if (!THEMES[slot]) {
-      const raw = localStorage.getItem(slot);
-      if (raw) {
-        try { THEMES[slot] = JSON.parse(raw); } catch (_) {}
-      }
-    }
-  });
-
-  if (saved && THEMES[saved]) {
-    // Custom slots must bypass remote API — backend doesn't store them
-    const isCustomSlot = saved.startsWith("custom-");
-    applyTheme(saved, { remote: !isCustomSlot });
+  // Step 3: Hardcoded fallback.
+  const fallback = localSaved || "softcore";
+  if (fallback && THEMES[fallback]) {
+    const isCustomSlot = fallback.startsWith("custom-");
+    applyTheme(fallback, { remote: !isCustomSlot });
     return;
   }
 
