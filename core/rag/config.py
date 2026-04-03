@@ -8,13 +8,14 @@ Description: Central configuration for chunking, retrieval, and vector store
 import os
 from pathlib import Path
 
+from core.llm_gpu_probe import gpu_available
 from core.rag.domain_router import detect_domain_from_path
 
 # Qdrant
 # QDRANT_MODE controls the client backend:
-#   "memory" — in-process, wiped on restart (dev/test only)
-#   "local"  — embedded on-disk persistence via qdrant-client (default for prod)
-#   "server" — remote Qdrant server (Docker / dedicated instance)
+#   "memory" - in-process, wiped on restart (dev/test only)
+#   "local"  - embedded on-disk persistence via qdrant-client (default for prod)
+#   "server" - remote Qdrant server (Docker / dedicated instance)
 QDRANT_MODE = os.getenv("QDRANT_MODE", "local")  # "memory" | "local" | "server"
 QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
 QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
@@ -27,18 +28,16 @@ OLLAMA_EMBED_URL = f"{OLLAMA_BASE_URL}/api/embeddings"
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
 VECTOR_DIM = int(os.getenv("VECTOR_DIM", "768"))  # nomic-embed-text -> 768
 
-# Chunking — reduced for CPU-only inference
-# 512-char chunks at 5 results = ~2500 chars of RAG context injected per query
-# 256-char chunks at 3 results = ~768 chars — roughly 3x less for Mistral to process
-# Note: changing CHUNK_SIZE requires re-seeding Qdrant.
-CHUNK_SIZE    = int(os.getenv("CHUNK_SIZE",    "256"))   # was 512
-CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "32"))    # was 64
-
-# Retrieval
-# Reduced from 5 → 3 for CPU-only testing. Each extra chunk adds ~200-400 tokens
-# to the Mistral prompt, directly increasing inference time on a 4-core VM.
-# Raise back to 5 once a GPU is available.
-TOP_K = int(os.getenv("TOP_K", "3"))
+# Chunking and retrieval tuning - auto-scaled based on available hardware.
+# IMPORTANT: changing CHUNK_SIZE requires a full Qdrant re-seed.
+if gpu_available():
+    CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "512"))
+    CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "64"))
+    TOP_K = int(os.getenv("TOP_K", "5"))
+else:
+    CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "256"))
+    CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "32"))
+    TOP_K = int(os.getenv("TOP_K", "3"))
 
 # File safety limits
 MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE", str(1 * 1024 * 1024)))  # 1 MB

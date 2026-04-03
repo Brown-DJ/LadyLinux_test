@@ -34,6 +34,7 @@ from api_layer.utils.command_runner import run_command
 from api_layer.utils.validators import validate_service_name
 from core.command.intent_classifier import detect_live_topics
 from core.command.semantic_classifier import classify_semantic
+from core.llm_gpu_probe import gpu_available
 from core.rag.retriever import build_context_block, retrieve
 from core.rag.seed import seed
 from core.rag.system_provider import SystemProvider
@@ -157,6 +158,8 @@ _CONVERSATIONAL_REF = re.compile(
     r"|what (were|was) (we|i) (talking|asking|discussing))\b",
     re.IGNORECASE,
 )
+
+_HISTORY_CAP: int = 8 if gpu_available() else 4
 
 
 def classify_prompt(message: str, precomputed_route: str | None = None) -> Literal["system", "rag", "chat"]:
@@ -963,7 +966,7 @@ def _stream_llm_response(prompt: str, route: str, handle_fn, history: list[dict]
         if history:
             # Hard cap at 4 messages (2 exchanges) — each extra turn adds
             # ~13-17s of first-token latency on 4-core CPU-only Mistral 7B.
-            trimmed = history[-4:] if len(history) > 4 else history
+            trimmed = history[-_HISTORY_CAP:] if len(history) > _HISTORY_CAP else history
             messages = [{"role": "system", "content": system_prompt}] + trimmed
             for token in _ollama_stream_chat(messages):
                 yield json.dumps({"type": "token", "text": token}) + "\n"
