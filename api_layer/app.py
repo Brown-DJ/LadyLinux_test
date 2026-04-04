@@ -42,6 +42,8 @@ from core.rag.vector_store import COLLECTION_NAME, client, ensure_collection
 from llm_runtime import ensure_model
 from core.command.command_kernel import evaluate_prompt
 from core.command.tool_router import ToolRouter, ToolRouterError
+from core.tools.tool_registry import TOOL_REGISTRY
+from core.tools.tool_schemas import schema_to_manifest
 
 _SCREEN_STATE_FILE = Path("/var/lib/ladylinux/data/screen_state.json")
 
@@ -270,12 +272,20 @@ def _plan_tool_call(prompt: str, context_text: str) -> tuple[str | None, dict[st
 
     This step blocks hallucinated endpoints/commands by forcing selection from tools.json.
     """
-    tools_manifest = json.dumps(TOOL_ROUTER.get_tools_manifest(), indent=2)
+    tools = [
+        {
+            "name": name,
+            "description": tool.get("description", ""),
+            "args": schema_to_manifest(tool.get("schema", {})),
+        }
+        for name, tool in TOOL_REGISTRY.items()
+    ]
+    tools_manifest = json.dumps(tools, indent=2)
     planning_prompt = f"""
 You are choosing whether to call a system tool.
 Return strict JSON only, no markdown, no prose.
 
-Canonical tool schema (tools.json):
+Canonical tool schema:
 {tools_manifest}
 
 Response schema:

@@ -32,6 +32,10 @@ from api_layer.services.system_info_service import get_datetime, get_uptime
 from api_layer.services.system_service import get_status
 from api_layer.services.theme_service import apply_theme
 from api_layer.services.users_service import list_users
+from core.tools.tool_policy import enforce_policy
+from core.tools.tool_registry import TOOL_REGISTRY, get_tool
+from core.tools.tool_schemas import schema_to_manifest
+from core.tools.tool_utils import normalize
 
 
 class ToolRouterError(RuntimeError):
@@ -91,33 +95,55 @@ class ToolRouter:
         }
 
     def list_tool_names(self):
-        return sorted(self.tools.keys())
+        return sorted(set(self.tools.keys()) | set(TOOL_REGISTRY.keys()))
 
     def get_tools_manifest(self) -> dict[str, Any]:
         # Exposed for compatibility with prompt-planner code paths.
+        tools = []
+        seen: set[str] = set()
+
+        for name, tool in TOOL_REGISTRY.items():
+            tools.append(
+                {
+                    "name": name,
+                    "description": tool.get("description", ""),
+                    "args": schema_to_manifest(tool.get("schema", {})),
+                    "parameters": schema_to_manifest(tool.get("schema", {})),
+                }
+            )
+            seen.add(name)
+
+        for name in self.list_tool_names():
+            if name in seen:
+                continue
+            tools.append({"name": name, "parameters": self.schemas.get(name, {})})
+
         return {
-            "tools": [
-                {"name": name, "parameters": self.schemas.get(name, {})}
-                for name in self.list_tool_names()
-            ]
+            "tools": tools
         }
 
     def execute(self, tool_name: str, parameters: dict | None = None):
         parameters = parameters or {}
-
-        if tool_name not in self.tools:
-            raise ToolRouterError(f"Unknown tool: {tool_name}")
-
-        allowed = self.schemas.get(tool_name, {})
+        requested_tool = tool_name
+        canonical_name, tool = get_tool(requested_tool)
+        allowed = schema_to_manifest(tool.get("schema", {})) if tool else self.schemas.get(requested_tool, {})
         for key in parameters:
             if key not in allowed:
                 raise ToolRouterError(f"Invalid parameter: {key}")
 
-        handler = self.tools[tool_name]
+        if tool:
+            enforce_policy(tool)
+            handler = tool["handler"]
+            tool_name = canonical_name
+        else:
+            handler = self.tools.get(requested_tool)
+            if handler is None:
+                raise ToolRouterError(f"Unknown tool: {requested_tool}")
+            tool_name = requested_tool
 
         try:
             raw_result = handler(**parameters)
-            return self._normalize_result(tool_name, parameters, raw_result)
+            return normalize(self._normalize_result(tool_name, parameters, raw_result))
         except TypeError as e:
             raise ToolRouterError(
                 f"Invalid parameters for tool '{tool_name}': {e}"
