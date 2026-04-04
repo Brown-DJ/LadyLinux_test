@@ -159,6 +159,22 @@ _CONVERSATIONAL_REF = re.compile(
     re.IGNORECASE,
 )
 
+# Matches interrogative service/process status queries that must route to
+# "system" even though they look like questions.
+# Must be checked before _QUESTION_OPENER in classify_prompt().
+_SERVICE_INTENT_RE = re.compile(
+    r"\b(is|are|check|did|does|can|show|get|find)\b"
+    r".{0,50}"
+    r"\b(running|active|up|status|enabled|stopped|dead|failed|started|open|alive|responding)\b",
+    re.IGNORECASE,
+)
+
+# Matches subject-first phrasing: "nginx running?", "ollama up?"
+_PROCESS_SUBJECT_RE = re.compile(
+    r"^[\w\-\.\/]+\s+(up|running|active|alive|started|open)\??$",
+    re.IGNORECASE,
+)
+
 _HISTORY_CAP: int = 8 if gpu_available() else 4
 
 
@@ -180,6 +196,11 @@ def classify_prompt(message: str, precomputed_route: str | None = None) -> Liter
     # These prompts require conversation history to answer, not doc retrieval.
     if _CONVERSATIONAL_REF.search(text_lower):
         return "chat"
+
+    # Service/process status questions look like questions but need live tool data.
+    # Must precede _QUESTION_OPENER so they don't fall into RAG.
+    if _SERVICE_INTENT_RE.search(text) or _PROCESS_SUBJECT_RE.match(text):
+        return "system"
 
     # Interrogative structure check — covers all standard English question
     # forms including "is my system connected", "are my services running",

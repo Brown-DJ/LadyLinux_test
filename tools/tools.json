@@ -64,6 +64,24 @@
       }
     },
     {
+      "name": "check_process",
+      "description": "Check if a process or application is running by name using pgrep. Use for GUI apps, executables, and non-systemd processes like gnome-calculator, firefox, vlc, python.",
+      "method": "GET",
+      "endpoint": "/api/system/process/{name}",
+      "parameters": {
+        "name": "string"
+      }
+    },
+    {
+      "name": "kill_process",
+      "description": "Kill a running process by name using pkill. Use for GUI apps and non-systemd executables. Do NOT use for systemd services — use system_service_stop for those.",
+      "method": "POST",
+      "endpoint": "/api/system/process/{name}/kill",
+      "parameters": {
+        "name": "string"
+      }
+    },
+    {
       "name": "firewall_status",
       "description": "Get firewall status",
       "method": "GET",

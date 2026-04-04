@@ -686,6 +686,19 @@ async function sendPrompt(prompt) {
             window.loadServices();
           }
           finalPayload = `${event.message || "Services retrieved"}\n\n${lines.join("\n")}`;
+        } else if (event.tool === "check_process") {
+          const d = event.data?.data || event.data || {};
+          const proc = d.process || event.data?.process || "process";
+          const running = d.running ?? event.data?.running;
+          finalPayload = running
+            ? `✓ ${proc} is running. PIDs: ${(d.pids || []).join(", ") || "unknown"}`
+            : `✗ ${proc} is not running.`;
+        } else if (event.tool === "kill_process") {
+          finalPayload = event.message
+            || event.data?.message
+            || "Kill command sent.";
+        } else if (!event.tool || !event.data) {
+          finalPayload = event.message || "Done.";
         } else {
           // Format as the legacy response string so processAssistantReply works
           finalPayload = event.message || "";

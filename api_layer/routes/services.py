@@ -67,3 +67,28 @@ def disable_service(name: str) -> dict:
         return service_manager.disable_service(name)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/process/{name}")
+def check_process(name: str) -> dict:
+    """
+    Check if a process is running by name (pgrep).
+    Handles GUI apps, executables, and non-systemd processes.
+    """
+    try:
+        return service_manager.check_process(name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/process/{name}/kill")
+def kill_process(name: str) -> dict:
+    """
+    Kill a process by name (pkill -x).
+    Use for GUI apps and non-systemd processes only.
+    Does not touch systemd units.
+    """
+    try:
+        return service_manager.kill_process(name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc

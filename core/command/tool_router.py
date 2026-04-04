@@ -18,8 +18,10 @@ from api_layer.services.firewall_service import firewall_reload, firewall_status
 from api_layer.services.network_service import network_interfaces
 from api_layer.services.network_service import wifi_disable, wifi_enable, wifi_status
 from api_layer.services.service_manager import (
+    check_process,
     disable_service,
     enable_service,
+    kill_process,
     list_services,
     restart_service,
     start_service,
@@ -45,6 +47,8 @@ class ToolRouter:
             "system_service_start": start_service,
             "system_service_enable": enable_service,
             "system_service_disable": disable_service,
+            "check_process": check_process,
+            "kill_process": kill_process,
             "firewall_status": firewall_status,
             "firewall_reload": firewall_reload,
             "system_users": list_users,
@@ -67,6 +71,8 @@ class ToolRouter:
             "system_service_start": {"name": "string"},
             "system_service_enable": {"name": "string"},
             "system_service_disable": {"name": "string"},
+            "check_process": {"name": "string"},
+            "kill_process": {"name": "string"},
             "firewall_status": {},
             "firewall_reload": {},
             "system_users": {},
@@ -209,6 +215,23 @@ class ToolRouter:
             action = "enabled" if tool_name == "wifi_enable" else "disabled"
             message = raw_result.get("message", f"WiFi {action}" if ok else f"Failed to {action.replace('d', '')} WiFi")
             return {"ok": ok, "message": message, "data": raw_result}
+
+        if tool_name == "check_process":
+            running = bool(raw_result.get("running", False)) if isinstance(raw_result, dict) else False
+            name = parameters.get("name", "")
+            return {
+                "ok": True,
+                "message": f"{name} is running." if running else f"{name} is not running.",
+                "data": raw_result,
+            }
+
+        if tool_name == "kill_process":
+            ok = bool(raw_result.get("ok", False)) if isinstance(raw_result, dict) else False
+            return {
+                "ok": ok,
+                "message": raw_result.get("message", "Kill attempted") if isinstance(raw_result, dict) else "Kill attempted",
+                "data": raw_result,
+            }
 
         return {
             "ok": True,

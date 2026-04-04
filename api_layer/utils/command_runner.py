@@ -18,6 +18,8 @@ ALLOWED_COMMANDS = {
     "journalctl",  # Service and system log retrieval.
     "nft",  # nftables firewall inspection/management compatibility.
     "passwd",  # Password management flows routed through controlled endpoints.
+    "pgrep",  # Process existence checks for non-systemd apps and executables.
+    "pkill",  # Process termination for non-systemd apps and executables.
     "ss",  # Socket and listening-port inspection.
     "sudo",  # Privilege escalation for commands with NOPASSWD sudoers rules.
     "systemctl",  # Service lifecycle and status management.

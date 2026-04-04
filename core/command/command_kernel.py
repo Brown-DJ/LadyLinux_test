@@ -34,6 +34,8 @@ VALID_TOOLS = {
     "set_ui_override",
     "list_services",
     "restart_service",
+    "kill_process",
+    "check_process",
     "firewall_status",
     "firewall_reload",
 }
@@ -77,6 +79,20 @@ def evaluate_prompt(text: str):
                 "args": {"name": parts[1]},
             }
 
+        if tool in {"kill_process", "check_process"}:
+            if len(parts) != 2:
+                return {
+                    "type": "error",
+                    "tool": tool,
+                    "error": f"Usage: {tool} <process>",
+                }
+
+            return {
+                "type": "tool",
+                "tool": tool,
+                "args": {"name": parts[1]},
+            }
+
         if len(parts) != 1:
             return {
                 "type": "error",
@@ -108,6 +124,30 @@ def evaluate_prompt(text: str):
             "type": "tool",
             "tool": "restart_service",
             "args": {"name": restart_match.group(1)},
+        }
+
+    kill_match = re.search(
+        r"^(kill|close|end|terminate|stop)\s+(?:process\s+)?([a-z0-9._-]+)$",
+        text,
+    )
+    if kill_match:
+        proc_name = kill_match.group(2).strip()
+        return {
+            "type": "tool",
+            "tool": "kill_process",
+            "args": {"name": proc_name},
+        }
+
+    check_match = re.search(
+        r"^(?:is|check|pgrep)\s+([a-z0-9._-]+)(?:\s+running)?$",
+        text,
+    )
+    if check_match:
+        proc_name = check_match.group(1).strip()
+        return {
+            "type": "tool",
+            "tool": "check_process",
+            "args": {"name": proc_name},
         }
 
     # ------------------------------------------------

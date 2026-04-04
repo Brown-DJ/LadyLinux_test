@@ -213,3 +213,49 @@ def disable_service(name: str) -> dict:
     payload["service"] = service_name
     payload["disabled"] = result.ok
     return payload
+
+
+def check_process(name: str) -> dict:
+    """
+    Check if a process is running by name using pgrep.
+    Covers GUI apps, executables, and any non-systemd process.
+    Returns PIDs and count so the caller can distinguish "not found" from error.
+    """
+    process_name = validate_service_name(name)
+    result = run_command(["pgrep", "-a", process_name])
+    pids = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    return {
+        "ok": True,
+        "process": process_name,
+        "running": result.ok,
+        "pids": pids,
+        "count": len(pids),
+        "stdout": result.stdout,
+        "stderr": result.stderr,
+    }
+
+
+def kill_process(name: str) -> dict:
+    """
+    Kill a process by name using pkill.
+    Targets non-systemd apps (GUI apps, executables, background scripts).
+    Does NOT append .service — this is NOT a systemctl path.
+    """
+    process_name = validate_service_name(name)
+    result = run_command(["pkill", "-x", process_name])
+    killed = result.returncode == 0
+    no_match = result.returncode == 1
+    return {
+        "ok": killed,
+        "process": process_name,
+        "killed": killed,
+        "no_match": no_match,
+        "message": (
+            f"{process_name} terminated." if killed
+            else f"No process named '{process_name}' found." if no_match
+            else f"Failed to kill '{process_name}': {result.stderr}"
+        ),
+        "stdout": result.stdout,
+        "stderr": result.stderr,
+        "returncode": result.returncode,
+    }

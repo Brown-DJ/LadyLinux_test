@@ -39,7 +39,11 @@ Rules:
 - topics: include ANY topic the user might be asking about even indirectly
   Examples: "sluggish" -> ["processes","memory"], "anything off" -> ["processes","services","memory"],
   "how loaded" -> ["processes","memory","cpu"], "is she running" -> ["services"],
-  "out of room" -> ["disk"], "can't connect" -> ["network"], "all good?" -> ["processes","services","memory","disk"]
+  "out of room" -> ["disk"], "can't connect" -> ["network"], "all good?" -> ["processes","services","memory","disk"],
+  "kill firefox" -> route: system, topics: ["processes"],
+  "is gnome-calculator running" -> route: system, topics: ["processes"],
+  "close vlc" -> route: system, topics: ["processes"],
+  "is nginx up" -> route: system, topics: ["services","processes"]
 - route: "system" if they want an action done, "rag" if asking a question, "chat" if conversational
 - Return ONLY the JSON object. No explanation."""
 
