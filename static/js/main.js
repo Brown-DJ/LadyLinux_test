@@ -398,11 +398,26 @@ window.loadServices = loadServices;
 
 /* =====================================================
    PROCESSES TAB
-   Mirrors loadServices() pattern for the Processes tab.
-   Endpoint: GET /api/system/processes
+   Client-side sort + filter on top of the /api/system/processes payload.
+   No backend changes — all logic operates on currentProcessData in memory.
    ===================================================== */
 
 let currentProcessData = [];
+let processSortKey = "cpu";
+let processSortDir = "desc";
+let processUserFilter = "all";
+let processStatusFilter = "all";
+let processHideKernel = false;
+
+const KERNEL_PREFIXES = [
+  "kworker", "kthread", "ksoftirqd", "migration", "rcu_", "watchdog",
+  "pool_workqueue", "irq/", "kswapd", "khugepaged", "kcompactd",
+];
+
+function isKernelThread(name) {
+  const n = (name || "").toLowerCase();
+  return KERNEL_PREFIXES.some((p) => n.startsWith(p));
+}
 
 async function loadProcesses() {
   if (getCurrentPageKey() !== "system") return;
@@ -416,29 +431,70 @@ async function loadProcesses() {
 
     const data = await res.json();
     currentProcessData = data.processes || [];
-    renderProcessTable(currentProcessData);
+    renderProcessTable();
   } catch (err) {
     console.error("loadProcesses:", err);
-    tbody.innerHTML = '<tr><td colspan="7">Unable to load processes.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Unable to load processes.</td></tr>';
     currentProcessData = [];
   }
 }
 
-function renderProcessTable(rows) {
+function getFilteredProcesses() {
+  return currentProcessData.filter((p) => {
+    if (processHideKernel && isKernelThread(p.name)) return false;
+
+    if (processUserFilter === "user" && p.user === "root") return false;
+    if (processUserFilter === "root" && p.user !== "root") return false;
+
+    if (processStatusFilter !== "all") {
+      const status = (p.status || "").toLowerCase();
+      if (status !== processStatusFilter) return false;
+    }
+
+    const query = (document.getElementById("process-search")?.value || "").toLowerCase();
+    if (query && !(p.name || "").toLowerCase().includes(query)) return false;
+
+    return true;
+  });
+}
+
+function getSortedProcesses(rows) {
+  return [...rows].sort((a, b) => {
+    let result = 0;
+
+    if (processSortKey === "pid") {
+      result = (a.pid || 0) - (b.pid || 0);
+    } else if (processSortKey === "name") {
+      result = String(a.name || "").localeCompare(String(b.name || ""), undefined, { sensitivity: "base" });
+    } else if (processSortKey === "user") {
+      result = String(a.user || "").localeCompare(String(b.user || ""), undefined, { sensitivity: "base" });
+    } else if (processSortKey === "status") {
+      result = String(a.status || "").localeCompare(String(b.status || ""), undefined, { sensitivity: "base" });
+    } else if (processSortKey === "cpu") {
+      result = (a.cpu || 0) - (b.cpu || 0);
+    } else if (processSortKey === "mem") {
+      result = (a.mem || 0) - (b.mem || 0);
+    }
+
+    return processSortDir === "desc" ? result * -1 : result;
+  });
+}
+
+function renderProcessTable() {
   const tbody = document.querySelector("#processes-table-body");
   if (!tbody) return;
 
-  const query = (document.getElementById("process-search")?.value || "").toLowerCase();
-  const filtered = query
-    ? rows.filter((p) => (p.name || "").toLowerCase().includes(query))
-    : rows;
+  const filtered = getFilteredProcesses();
+  const sorted = getSortedProcesses(filtered);
 
-  if (!filtered.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No processes found.</td></tr>';
+  updateProcessSortIndicators();
+
+  if (!sorted.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">No processes match the current filters.</td></tr>';
     return;
   }
 
-  tbody.innerHTML = filtered.map((p) => `
+  tbody.innerHTML = sorted.map((p) => `
     <tr>
       <td class="text-muted">${p.pid}</td>
       <td>${p.name}</td>
@@ -456,6 +512,82 @@ function renderProcessTable(rows) {
       </td>
     </tr>
   `).join("");
+}
+
+function updateProcessSortIndicators() {
+  document.querySelectorAll("[data-process-sort]").forEach((btn) => {
+    const key = btn.getAttribute("data-process-sort");
+    const icon = btn.querySelector("[data-sort-icon]");
+    const header = btn.closest("th");
+    const isActive = key === processSortKey;
+
+    btn.classList.toggle("is-active", isActive);
+    btn.setAttribute(
+      "aria-label",
+      isActive
+        ? `Sorted by ${key} ${processSortDir}. Click to reverse.`
+        : `Sort by ${key}.`
+    );
+
+    if (header) {
+      header.setAttribute(
+        "aria-sort",
+        isActive ? (processSortDir === "asc" ? "ascending" : "descending") : "none"
+      );
+    }
+
+    if (icon) {
+      icon.className = `bi ${
+        !isActive ? "bi-arrow-down-up" :
+        processSortDir === "asc" ? "bi-caret-up-fill" : "bi-caret-down-fill"
+      } ll-sort-icon`;
+    }
+  });
+}
+
+function initProcessControls() {
+  document.querySelectorAll("[data-process-sort]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const key = btn.getAttribute("data-process-sort");
+      if (processSortKey === key) {
+        processSortDir = processSortDir === "asc" ? "desc" : "asc";
+      } else {
+        processSortKey = key;
+        processSortDir = (key === "cpu" || key === "mem") ? "desc" : "asc";
+      }
+      renderProcessTable();
+    });
+  });
+
+  document.querySelectorAll("[data-process-user]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      processUserFilter = btn.getAttribute("data-process-user");
+      document.querySelectorAll("[data-process-user]").forEach((b) => {
+        b.classList.toggle("active", b === btn);
+      });
+      renderProcessTable();
+    });
+  });
+
+  const statusSelect = document.getElementById("process-status-filter");
+  if (statusSelect) {
+    statusSelect.addEventListener("change", () => {
+      processStatusFilter = statusSelect.value;
+      renderProcessTable();
+    });
+  }
+
+  const kernelToggle = document.getElementById("process-hide-kernel");
+  if (kernelToggle) {
+    kernelToggle.addEventListener("change", () => {
+      processHideKernel = kernelToggle.checked;
+      renderProcessTable();
+    });
+  }
+
+  document.getElementById("process-search")?.addEventListener("input", () => {
+    renderProcessTable();
+  });
 }
 
 async function killProcess(name) {
@@ -623,9 +755,7 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  document.getElementById("process-search")?.addEventListener("input", () => {
-    renderProcessTable(currentProcessData);
-  });
+  initProcessControls();
 
   setInterval(() => {
     updateThemeIndicator();
