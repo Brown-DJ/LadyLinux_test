@@ -632,6 +632,10 @@ Group=$SERVICE_GROUP
 WorkingDirectory=$APP_DIR
 EnvironmentFile=-$ENV_FILE
 Environment="PATH=$VENV_DIR/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="DISPLAY=:0"
+Environment="XDG_RUNTIME_DIR=/run/user/1000"
+Environment="DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus"
+Environment="XDG_CURRENT_DESKTOP=X-Cinnamon"
 ExecStart=$VENV_DIR/bin/uvicorn api_layer:app --host 0.0.0.0 --port $API_PORT
 Restart=on-failure
 RestartSec=5

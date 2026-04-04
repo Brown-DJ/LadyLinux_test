@@ -40,6 +40,10 @@ EnvironmentFile=-/etc/ladylinux/ladylinux.env
 
 # Explicit PATH so systemd does not rely on shell defaults
 Environment="PATH=/opt/ladylinux/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin"
+Environment="DISPLAY=:0"
+Environment="XDG_RUNTIME_DIR=/run/user/1000"
+Environment="DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus"
+Environment="XDG_CURRENT_DESKTOP=X-Cinnamon"
 
 # FIX 1: correct module path — matches what the installer and refresh_git.sh expect.
 # Original had api_layer.utils.app:app which does not exist and caused the restart loop.

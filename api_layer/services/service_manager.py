@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import time
@@ -75,6 +76,32 @@ def _build_service_uptime_map(units: list[str]) -> dict[str, int | None]:
 
     commit_current_unit()
     return uptime_map
+
+
+def _get_display_env() -> dict:
+    """
+    Build environment required to launch GUI apps from the ladylinux service user.
+    Cinnamon runs on X11 — only DISPLAY is needed, no Wayland vars.
+    XDG_RUNTIME_DIR uid must match the active desktop user (typically 1000).
+    """
+    env = os.environ.copy()
+
+    if "DISPLAY" not in env:
+        env["DISPLAY"] = ":0"
+
+    if "XDG_RUNTIME_DIR" not in env:
+        env["XDG_RUNTIME_DIR"] = "/run/user/1000"
+
+    if "DBUS_SESSION_BUS_ADDRESS" not in env:
+        env["DBUS_SESSION_BUS_ADDRESS"] = "unix:path=/run/user/1000/bus"
+
+    if "XDG_CURRENT_DESKTOP" not in env:
+        env["XDG_CURRENT_DESKTOP"] = "X-Cinnamon"
+
+    env.pop("WAYLAND_DISPLAY", None)
+    env.pop("WAYLAND_SOCKET", None)
+
+    return env
 
 
 def list_services() -> dict:
@@ -286,6 +313,7 @@ def launch_app(name: str) -> dict:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             start_new_session=True,
+            env=_get_display_env(),
         )
         return {
             "ok": True,
