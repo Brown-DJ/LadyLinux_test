@@ -74,6 +74,9 @@
           <li class="nav-item" role="presentation" data-tab-id="services">
             <button class="nav-link" id="services-tab" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#services-pane" aria-controls="services-pane" aria-selected="false">Services</button>
           </li>
+          <li class="nav-item" role="presentation" data-tab-id="processes">
+            <button class="nav-link" id="processes-tab" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#processes-pane" aria-controls="processes-pane" aria-selected="false">Processes</button>
+          </li>
           <li class="nav-item" role="presentation" data-tab-id="storage">
             <button class="nav-link" id="storage-tab" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#storage-pane" aria-controls="storage-pane" aria-selected="false">Storage</button>
           </li>
@@ -236,6 +239,35 @@
                     </thead>
                     <!-- Dynamic service rows are populated by static/js/main.js -->
                     <tbody id="services-table-body"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tab-pane fade" id="processes-pane" role="tabpanel" aria-labelledby="processes-tab" tabindex="0">
+            <div class="card ll-dashboard-card">
+              <div class="card-body">
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                  <h2 class="h5 mb-0">Running Processes</h2>
+                  <input type="search" id="process-search" class="form-control form-control-sm w-auto"
+                         placeholder="Filter by name…" aria-label="Filter processes">
+                </div>
+
+                <div class="table-responsive">
+                  <table class="table table-dark table-hover align-middle mb-0">
+                    <thead>
+                      <tr>
+                        <th scope="col">PID</th>
+                        <th scope="col">Name</th>
+                        <th scope="col">User</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">CPU %</th>
+                        <th scope="col">Mem %</th>
+                        <th scope="col">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody id="processes-table-body"></tbody>
                   </table>
                 </div>
               </div>
@@ -645,6 +677,7 @@ async function loadSystemSettings() {
 })();
 
 // Load storage when tab becomes active; load settings on any settings tab show
+document.getElementById("processes-tab")?.addEventListener("shown.bs.tab", loadProcesses);
 document.getElementById("storage-tab")?.addEventListener("shown.bs.tab", loadStoragePartitions);
 document.getElementById("settings-tab")?.addEventListener("shown.bs.tab", loadSystemSettings);
 

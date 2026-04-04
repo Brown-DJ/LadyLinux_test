@@ -396,6 +396,88 @@ async function restartService(name) {
 window.restartService = restartService;
 window.loadServices = loadServices;
 
+/* =====================================================
+   PROCESSES TAB
+   Mirrors loadServices() pattern for the Processes tab.
+   Endpoint: GET /api/system/processes
+   ===================================================== */
+
+let currentProcessData = [];
+
+async function loadProcesses() {
+  if (getCurrentPageKey() !== "system") return;
+
+  const tbody = document.querySelector("#processes-table-body");
+  if (!tbody) return;
+
+  try {
+    const res = await fetch("/api/system/processes");
+    if (!res.ok) throw new Error(`Processes API failed (${res.status})`);
+
+    const data = await res.json();
+    currentProcessData = data.processes || [];
+    renderProcessTable(currentProcessData);
+  } catch (err) {
+    console.error("loadProcesses:", err);
+    tbody.innerHTML = '<tr><td colspan="7">Unable to load processes.</td></tr>';
+    currentProcessData = [];
+  }
+}
+
+function renderProcessTable(rows) {
+  const tbody = document.querySelector("#processes-table-body");
+  if (!tbody) return;
+
+  const query = (document.getElementById("process-search")?.value || "").toLowerCase();
+  const filtered = query
+    ? rows.filter((p) => (p.name || "").toLowerCase().includes(query))
+    : rows;
+
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No processes found.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map((p) => `
+    <tr>
+      <td class="text-muted">${p.pid}</td>
+      <td>${p.name}</td>
+      <td class="text-muted">${p.user}</td>
+      <td>${p.status}</td>
+      <td>${p.cpu}%</td>
+      <td>${p.mem}%</td>
+      <td>
+        <button class="btn btn-sm btn-outline-danger"
+                onclick="killProcess('${String(p.name).replace(/'/g, "\\'")}')"
+                type="button"
+                title="Kill ${p.name}">
+          Kill
+        </button>
+      </td>
+    </tr>
+  `).join("");
+}
+
+async function killProcess(name) {
+  if (!name || !confirm(`Kill process "${name}"?`)) return;
+
+  try {
+    const res = await fetch(
+      `/api/system/process/${encodeURIComponent(name)}/kill`,
+      { method: "POST" }
+    );
+    const data = await res.json();
+    console.log("killProcess:", data.message);
+  } catch (err) {
+    console.error("killProcess failed:", err);
+  }
+
+  await loadProcesses();
+}
+
+window.loadProcesses = loadProcesses;
+window.killProcess = killProcess;
+
 function updateThemeIndicator() {
   const themeEl = document.getElementById("currentTheme");
   if (!themeEl) return;
@@ -531,6 +613,15 @@ window.addEventListener("DOMContentLoaded", () => {
       loadServices();
     });
   }
+
+  const processesTabTrigger = document.getElementById("processes-tab");
+  if (processesTabTrigger) {
+    processesTabTrigger.addEventListener("shown.bs.tab", loadProcesses);
+  }
+
+  document.getElementById("process-search")?.addEventListener("input", () => {
+    renderProcessTable(currentProcessData);
+  });
 
   setInterval(() => {
     updateThemeIndicator();

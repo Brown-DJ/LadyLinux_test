@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from api_layer.services import system_service
 from api_layer.services import users_service
+from api_layer.services.system_service import list_processes
 from api_layer.utils.command_runner import run_command
 
 # Absolute path to the git refresh script.
@@ -75,6 +76,15 @@ def get_disk() -> dict:
 @router.get("/uptime")
 def get_uptime() -> dict:
     return {"ok": True, "stdout": "", "stderr": "", "returncode": 0, **system_service.get_uptime()}
+
+
+@router.get("/processes")
+def get_processes() -> dict:
+    """
+    Return running processes sorted by CPU% descending.
+    Powers the Processes tab in os.html.
+    """
+    return list_processes()
 
 
 @router.get("/users")

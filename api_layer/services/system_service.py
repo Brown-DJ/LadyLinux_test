@@ -211,3 +211,39 @@ def get_uptime() -> dict[str, Any]:
     if psutil is not None:
         return {"uptime": int(time.time() - psutil.boot_time())}
     return {"uptime": int(time.time() - START_TIME)}
+
+
+def list_processes(limit: int = 100) -> dict[str, Any]:
+    """
+    Return running processes sorted by CPU% descending.
+    Capped at `limit` rows to keep payload small for the UI table.
+    psutil is already imported at the top of this file.
+    """
+    if psutil is None:
+        return {"ok": False, "processes": [], "error": "psutil unavailable"}
+
+    procs = []
+    for proc in psutil.process_iter(
+        ["pid", "name", "username", "status", "cpu_percent", "memory_percent"]
+    ):
+        try:
+            info = proc.info
+            procs.append({
+                "pid": info["pid"],
+                "name": info.get("name") or "unknown",
+                "user": info.get("username") or "-",
+                "status": info.get("status") or "-",
+                "cpu": round(float(info.get("cpu_percent") or 0.0), 1),
+                "mem": round(float(info.get("memory_percent") or 0.0), 1),
+            })
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+
+    # Sort by CPU descending so the heaviest hitters appear first.
+    procs.sort(key=lambda p: p["cpu"], reverse=True)
+
+    return {
+        "ok": True,
+        "count": len(procs),
+        "processes": procs[:limit],
+    }
