@@ -604,7 +604,6 @@ loads asynchronously in the background.
 window.addEventListener("DOMContentLoaded", () => {
   loadSystemTelemetry();
   loadServices();
-  loadProcesses();
   updateThemeIndicator();
 
   // Refresh service data whenever the Services tab becomes active.
@@ -618,6 +617,10 @@ window.addEventListener("DOMContentLoaded", () => {
   const processesTabTrigger = document.getElementById("processes-tab");
   if (processesTabTrigger) {
     processesTabTrigger.addEventListener("shown.bs.tab", loadProcesses);
+
+    if (processesTabTrigger.classList.contains("active")) {
+      loadProcesses();
+    }
   }
 
   document.getElementById("process-search")?.addEventListener("input", () => {
