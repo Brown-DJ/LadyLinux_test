@@ -503,7 +503,7 @@ function renderProcessTable() {
   // Build kill button separately to avoid nested template literal conflicts
   const killBtn = isProtected
     ? `<button class="btn btn-sm btn-outline-danger" disabled title="Protected system process" type="button">Kill</button>`
-    : `<button class="btn btn-sm btn-outline-danger" onclick="killProcess('${String(p.name).replace(/'/g, "\\'")}'')" title="Kill ${p.name}" type="button">Kill</button>`;
+    : `<button class="btn btn-sm btn-outline-danger" onclick="killProcess('${String(p.name).replace(/'/g, "\\'")}')" title="Kill ${p.name}" type="button">Kill</button>`;
 
   return `
     <tr>
