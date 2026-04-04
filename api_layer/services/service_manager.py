@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import subprocess
 import time
 
@@ -237,15 +238,14 @@ def check_process(name: str) -> dict:
 
 def kill_process(name: str) -> dict:
     """
-    Kill a process by name using pkill.
-    Targets non-systemd apps (GUI apps, executables, background scripts).
-    Does NOT append .service — this is NOT a systemctl path.
-    Name is truncated to 15 chars to match Linux kernel comm field limit —
-    pkill -x matches against /proc/[pid]/comm which the kernel caps at 15.
+    Kill a process by name using pkill -x.
+    Requires sudo — ladylinux service user cannot signal other users' processes
+    without it. Sudoers entry for /usr/bin/pkill added in install_ladylinux.sh.
     """
     process_name = validate_service_name(name)
     comm_name = process_name[:15]
-    result = run_command(["pkill", "-x", comm_name])
+    sudo_binary = shutil.which("sudo") or "/usr/bin/sudo"
+    result = run_command([sudo_binary, "pkill", "-x", comm_name])
     killed = result.returncode == 0
     no_match = result.returncode == 1
     return {

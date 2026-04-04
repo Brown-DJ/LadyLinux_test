@@ -282,6 +282,15 @@ SUDOEOF
     chmod 0440 "$systemctl_sudoers"
     log "Sudoers rule written: $systemctl_sudoers"
 
+    # Allow ladylinux to kill user-owned GUI/app processes across users.
+    local pkill_sudoers="/etc/sudoers.d/ladylinux-pkill"
+    cat > "$pkill_sudoers" <<SUDOEOF
+# LadyLinux — allow service user to terminate processes without a password
+$SERVICE_USER ALL=(root) NOPASSWD: /usr/bin/pkill
+SUDOEOF
+    chmod 0440 "$pkill_sudoers"
+    log "Sudoers rule written: $pkill_sudoers"
+
     # Allow ladylinux to toggle WiFi via nmcli without a password.
     local wifi_sudoers="/etc/sudoers.d/ladylinux-wifi"
     cat > "$wifi_sudoers" <<SUDOEOF
