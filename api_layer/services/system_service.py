@@ -213,11 +213,12 @@ def get_uptime() -> dict[str, Any]:
     return {"uptime": int(time.time() - START_TIME)}
 
 
-def list_processes(limit: int = 250) -> dict[str, Any]:
+def list_processes(limit: int = 0) -> dict[str, Any]:
     """
-    Return running processes sorted by CPU% descending.
-    Capped at `limit` rows to keep payload small for the UI table.
-    psutil is already imported at the top of this file.
+    Return all running processes sorted by CPU% descending.
+    limit=0 means no cap — full list returned to the frontend.
+    The old default of 100 (later 250) was cutting off idle GUI processes.
+    Client-side filtering/search handles the display burden.
     """
     if psutil is None:
         return {"ok": False, "processes": [], "error": "psutil unavailable"}
@@ -239,11 +240,14 @@ def list_processes(limit: int = 250) -> dict[str, Any]:
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
 
-    # Sort by CPU descending so the heaviest hitters appear first.
+    # Sort by CPU descending — heaviest hitters first.
     procs.sort(key=lambda p: p["cpu"], reverse=True)
+
+    # Return full list; limit param retained for future caller override.
+    result = procs if not limit else procs[:limit]
 
     return {
         "ok": True,
         "count": len(procs),
-        "processes": procs[:250],
+        "processes": result,
     }

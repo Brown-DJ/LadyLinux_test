@@ -81,10 +81,10 @@ def get_uptime() -> dict:
 @router.get("/processes")
 def get_processes() -> dict:
     """
-    Return running processes sorted by CPU% descending.
-    Powers the Processes tab in os.html.
+    Return all running processes sorted by CPU% descending.
+    No limit — full process list for client-side filter/sort.
     """
-    return list_processes(limit=250)
+    return list_processes()
 
 
 @router.get("/users")
