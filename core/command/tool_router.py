@@ -23,6 +23,7 @@ from api_layer.services.service_manager import (
     enable_service,
     kill_process,
     list_services,
+    launch_app,
     restart_service,
     start_service,
     stop_service,
@@ -49,6 +50,7 @@ class ToolRouter:
             "system_service_disable": disable_service,
             "check_process": check_process,
             "kill_process": kill_process,
+            "launch_app": launch_app,
             "firewall_status": firewall_status,
             "firewall_reload": firewall_reload,
             "system_users": list_users,
@@ -73,6 +75,7 @@ class ToolRouter:
             "system_service_disable": {"name": "string"},
             "check_process": {"name": "string"},
             "kill_process": {"name": "string"},
+            "launch_app": {"name": "string"},
             "firewall_status": {},
             "firewall_reload": {},
             "system_users": {},
@@ -230,6 +233,14 @@ class ToolRouter:
             return {
                 "ok": ok,
                 "message": raw_result.get("message", "Kill attempted") if isinstance(raw_result, dict) else "Kill attempted",
+                "data": raw_result,
+            }
+
+        if tool_name == "launch_app":
+            ok = bool(raw_result.get("ok", raw_result.get("launched", False))) if isinstance(raw_result, dict) else False
+            return {
+                "ok": ok,
+                "message": raw_result.get("message", "Launch attempted") if isinstance(raw_result, dict) else "Launch attempted",
                 "data": raw_result,
             }
 

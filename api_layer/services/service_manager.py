@@ -261,3 +261,42 @@ def kill_process(name: str) -> dict:
         "stderr": result.stderr,
         "returncode": result.returncode,
     }
+
+
+def launch_app(name: str) -> dict:
+    """
+    Launch a GUI application or executable by name.
+    Uses Popen (detached) so the API doesn't block waiting for the app to exit.
+    This is NOT systemctl — use start_service() for systemd units.
+    """
+    app_name = validate_service_name(name)
+
+    exe = shutil.which(app_name)
+    if not exe:
+        return {
+            "ok": False,
+            "app": app_name,
+            "launched": False,
+            "message": f"Executable '{app_name}' not found on PATH.",
+        }
+
+    try:
+        subprocess.Popen(
+            [exe],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        return {
+            "ok": True,
+            "app": app_name,
+            "launched": True,
+            "message": f"{app_name} launched.",
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "ok": False,
+            "app": app_name,
+            "launched": False,
+            "message": f"Failed to launch '{app_name}': {exc}",
+        }

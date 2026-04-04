@@ -92,3 +92,15 @@ def kill_process(name: str) -> dict:
         return service_manager.kill_process(name)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/app/{name}/launch")
+def launch_app(name: str) -> dict:
+    """
+    Launch a GUI application or executable by name.
+    Distinct from service start — does not use systemctl.
+    """
+    try:
+        return service_manager.launch_app(name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc

@@ -82,6 +82,15 @@
       }
     },
     {
+      "name": "launch_app",
+      "description": "Launch a GUI application or executable by name. Use for desktop apps like gnome-calculator, firefox, nemo, vlc. Do NOT use for systemd services — use system_service_start for those.",
+      "method": "POST",
+      "endpoint": "/api/system/app/{name}/launch",
+      "parameters": {
+        "name": "string"
+      }
+    },
+    {
       "name": "firewall_status",
       "description": "Get firewall status",
       "method": "GET",

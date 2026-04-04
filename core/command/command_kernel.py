@@ -34,6 +34,7 @@ VALID_TOOLS = {
     "set_ui_override",
     "list_services",
     "restart_service",
+    "launch_app",
     "kill_process",
     "check_process",
     "firewall_status",
@@ -79,12 +80,12 @@ def evaluate_prompt(text: str):
                 "args": {"name": parts[1]},
             }
 
-        if tool in {"kill_process", "check_process"}:
+        if tool in {"kill_process", "check_process", "launch_app"}:
             if len(parts) != 2:
                 return {
                     "type": "error",
                     "tool": tool,
-                    "error": f"Usage: {tool} <process>",
+                    "error": f"Usage: {tool} <{'app' if tool == 'launch_app' else 'process'}>",
                 }
 
             return {
@@ -117,6 +118,18 @@ def evaluate_prompt(text: str):
 
     if text == "firewall reload":
         return {"type": "tool", "tool": "firewall_reload", "args": {}}
+
+    launch_match = re.search(
+        r"^(launch|open|run|start)\s+(?:app\s+)?([a-z0-9._-]+)$",
+        text,
+    )
+    if launch_match:
+        app_name = launch_match.group(2).strip()
+        return {
+            "type": "tool",
+            "tool": "launch_app",
+            "args": {"name": app_name},
+        }
 
     restart_match = re.search(r"restart(?:\s+service)?\s+([a-z0-9._-]+)", text)
     if restart_match:
