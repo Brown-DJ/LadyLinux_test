@@ -231,7 +231,7 @@ def list_processes(limit: int = 0) -> dict[str, Any]:
             info = proc.info
             procs.append({
                 "pid": info["pid"],
-                "name": info.get("name") or "unknown",
+                "name": (info.get("name") or "unknown")[:15],
                 "user": info.get("username") or "-",
                 "status": info.get("status") or "-",
                 "cpu": round(float(info.get("cpu_percent") or 0.0), 1),

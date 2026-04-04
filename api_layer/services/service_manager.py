@@ -240,9 +240,12 @@ def kill_process(name: str) -> dict:
     Kill a process by name using pkill.
     Targets non-systemd apps (GUI apps, executables, background scripts).
     Does NOT append .service — this is NOT a systemctl path.
+    Name is truncated to 15 chars to match Linux kernel comm field limit —
+    pkill -x matches against /proc/[pid]/comm which the kernel caps at 15.
     """
     process_name = validate_service_name(name)
-    result = run_command(["pkill", "-x", process_name])
+    comm_name = process_name[:15]
+    result = run_command(["pkill", "-x", comm_name])
     killed = result.returncode == 0
     no_match = result.returncode == 1
     return {
@@ -252,8 +255,7 @@ def kill_process(name: str) -> dict:
         "no_match": no_match,
         "message": (
             f"{process_name} terminated." if killed
-            else f"No process named '{process_name}' found." if no_match
-            else f"Failed to kill '{process_name}': {result.stderr}"
+            else f"No process named '{process_name}' found."
         ),
         "stdout": result.stdout,
         "stderr": result.stderr,
