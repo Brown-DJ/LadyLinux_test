@@ -348,7 +348,8 @@ def launch_app(name: str) -> dict:
         env["LOGNAME"] = desktop_user
         env["XDG_RUNTIME_DIR"] = f"/run/user/{pw.pw_uid}"
         env["DBUS_SESSION_BUS_ADDRESS"] = f"unix:path=/run/user/{pw.pw_uid}/bus"
-
+        # Xauthority cookie required for X11 window creation — belongs to desktop user's session
+        env["XAUTHORITY"] = os.path.join(pw.pw_dir, ".Xauthority")
         subprocess.Popen(
             [sudo_bin, "-u", desktop_user, exe],
             stdout=subprocess.DEVNULL,
