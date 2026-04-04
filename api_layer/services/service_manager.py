@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import pwd
 import shutil
 import subprocess
 import time
@@ -96,31 +95,6 @@ def _get_display_env() -> dict:
     env.pop("WAYLAND_SOCKET", None)
 
     return env
-
-
-def _detect_from_runtime_dir() -> str:
-    """
-    Detect the desktop user from the runtime dir owner.
-    Falls back to the service environment's current user if no runtime dir is usable.
-    """
-    runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
-    candidates = [runtime_dir] if runtime_dir else []
-    candidates.append("/run/user/1000")
-
-    for path in candidates:
-        if not path:
-            continue
-        try:
-            return pwd.getpwuid(os.stat(path).st_uid).pw_name
-        except Exception:  # noqa: BLE001
-            continue
-
-    return os.environ.get("USER", "ladylinux")
-
-
-def _get_desktop_user() -> str:
-    return os.environ.get("DESKTOP_USER") or _detect_from_runtime_dir()
-
 
 def list_services() -> dict:
     # Use explicit systemctl flags so output is deterministic and free of UI symbols.
@@ -307,14 +281,18 @@ def kill_process(name: str) -> dict:
         "returncode": result.returncode,
     }
 
-
 def launch_app(name: str) -> dict:
     """
-    Launch a GUI application as the logged-in desktop user rather than the
-    ladylinux service user so D-Bus and dconf access match the active session.
+    Launch a GUI application or executable by name.
+    Runs as the ladylinux service user with display env forwarded from
+    the systemd unit override (DISPLAY, XDG_RUNTIME_DIR, DBUS_SESSION_BUS_ADDRESS).
+    The sudo -u desktop_user approach is deferred until DESKTOP_USER is
+    properly wired through ladylinux.env and the installer sudoers block.
     """
     app_name = validate_service_name(name)
 
+    # Normalize underscore -> hyphen — LLM often extracts underscored names
+    # e.g. gnome_calculator -> gnome-calculator
     exe = shutil.which(app_name)
     if not exe:
         hyphen_name = app_name.replace("_", "-")
@@ -331,22 +309,12 @@ def launch_app(name: str) -> dict:
         }
 
     try:
-        desktop_user = _get_desktop_user()
-        pw = pwd.getpwnam(desktop_user)
-        sudo_bin = shutil.which("sudo") or "/usr/bin/sudo"
-        env = _get_display_env()
-        env["HOME"] = pw.pw_dir
-        env["USER"] = desktop_user
-        env["LOGNAME"] = desktop_user
-        env["XDG_RUNTIME_DIR"] = f"/run/user/{pw.pw_uid}"
-        env["DBUS_SESSION_BUS_ADDRESS"] = f"unix:path=/run/user/{pw.pw_uid}/bus"
-
         subprocess.Popen(
-            [sudo_bin, "-u", desktop_user, exe],
+            [exe],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             start_new_session=True,
-            env=env,
+            env=_get_display_env(),  # forward DISPLAY etc. from systemd unit override
         )
         return {
             "ok": True,
