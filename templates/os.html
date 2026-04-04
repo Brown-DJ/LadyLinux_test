@@ -677,7 +677,11 @@ async function loadSystemSettings() {
 })();
 
 // Load storage when tab becomes active; load settings on any settings tab show
-document.getElementById("processes-tab")?.addEventListener("shown.bs.tab", loadProcesses);
+document.getElementById("processes-tab")?.addEventListener("shown.bs.tab", () => {
+  if (typeof window.loadProcesses === "function") {
+    window.loadProcesses();
+  }
+});
 document.getElementById("storage-tab")?.addEventListener("shown.bs.tab", loadStoragePartitions);
 document.getElementById("settings-tab")?.addEventListener("shown.bs.tab", loadSystemSettings);
 

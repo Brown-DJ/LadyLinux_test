@@ -604,6 +604,7 @@ loads asynchronously in the background.
 window.addEventListener("DOMContentLoaded", () => {
   loadSystemTelemetry();
   loadServices();
+  loadProcesses();
   updateThemeIndicator();
 
   // Refresh service data whenever the Services tab becomes active.
