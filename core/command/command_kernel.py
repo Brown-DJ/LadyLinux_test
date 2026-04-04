@@ -11,6 +11,8 @@ This runs BEFORE RAG or LLM logic.
 
 import re
 
+from core.command.semantic_classifier import classify_semantic
+
 COLOR_MAP = {
     "red": "#ff3b3b",
     "blue": "#4a8cff",
@@ -34,11 +36,17 @@ VALID_TOOLS = {
     "set_ui_override",
     "list_services",
     "restart_service",
+    "system_service_start",
+    "system_service_stop",
+    "system_service_restart",
     "launch_app",
     "kill_process",
     "check_process",
     "firewall_status",
     "firewall_reload",
+    "wifi_status",
+    "wifi_enable",
+    "wifi_disable",
 }
 
 
@@ -258,4 +266,12 @@ def evaluate_prompt(text: str):
     # ------------------------------------------------
     # NO COMMAND FOUND
     # ------------------------------------------------
+    semantic = classify_semantic(text)
+    if semantic.get("tool") in VALID_TOOLS:
+        return {
+            "type": "tool",
+            "tool": semantic["tool"],
+            "args": semantic.get("args") or {},
+        }
+
     return None
