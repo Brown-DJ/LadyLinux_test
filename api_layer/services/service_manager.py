@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import pwd
 import shutil
 import subprocess
 import time
@@ -80,20 +81,13 @@ def _build_service_uptime_map(units: list[str]) -> dict[str, int | None]:
 
 def _get_display_env() -> dict:
     """
-    Build environment required to launch GUI apps from the ladylinux service user.
-    Cinnamon runs on X11 — only DISPLAY is needed, no Wayland vars.
-    XDG_RUNTIME_DIR uid must match the active desktop user (typically 1000).
+    Build the base GUI environment inherited by launched desktop apps.
+    Runtime-sensitive user/session variables are filled in at launch time.
     """
     env = os.environ.copy()
 
     if "DISPLAY" not in env:
         env["DISPLAY"] = ":0"
-
-    if "XDG_RUNTIME_DIR" not in env:
-        env["XDG_RUNTIME_DIR"] = "/run/user/1000"
-
-    if "DBUS_SESSION_BUS_ADDRESS" not in env:
-        env["DBUS_SESSION_BUS_ADDRESS"] = "unix:path=/run/user/1000/bus"
 
     if "XDG_CURRENT_DESKTOP" not in env:
         env["XDG_CURRENT_DESKTOP"] = "X-Cinnamon"
@@ -102,6 +96,30 @@ def _get_display_env() -> dict:
     env.pop("WAYLAND_SOCKET", None)
 
     return env
+
+
+def _detect_from_runtime_dir() -> str:
+    """
+    Detect the desktop user from the runtime dir owner.
+    Falls back to the service environment's current user if no runtime dir is usable.
+    """
+    runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
+    candidates = [runtime_dir] if runtime_dir else []
+    candidates.append("/run/user/1000")
+
+    for path in candidates:
+        if not path:
+            continue
+        try:
+            return pwd.getpwuid(os.stat(path).st_uid).pw_name
+        except Exception:  # noqa: BLE001
+            continue
+
+    return os.environ.get("USER", "ladylinux")
+
+
+def _get_desktop_user() -> str:
+    return os.environ.get("DESKTOP_USER") or _detect_from_runtime_dir()
 
 
 def list_services() -> dict:
@@ -292,13 +310,18 @@ def kill_process(name: str) -> dict:
 
 def launch_app(name: str) -> dict:
     """
-    Launch a GUI application or executable by name.
-    Uses Popen (detached) so the API doesn't block waiting for the app to exit.
-    This is NOT systemctl — use start_service() for systemd units.
+    Launch a GUI application as the logged-in desktop user rather than the
+    ladylinux service user so D-Bus and dconf access match the active session.
     """
     app_name = validate_service_name(name)
 
     exe = shutil.which(app_name)
+    if not exe:
+        hyphen_name = app_name.replace("_", "-")
+        exe = shutil.which(hyphen_name)
+        if exe:
+            app_name = hyphen_name
+
     if not exe:
         return {
             "ok": False,
@@ -308,12 +331,22 @@ def launch_app(name: str) -> dict:
         }
 
     try:
+        desktop_user = _get_desktop_user()
+        pw = pwd.getpwnam(desktop_user)
+        sudo_bin = shutil.which("sudo") or "/usr/bin/sudo"
+        env = _get_display_env()
+        env["HOME"] = pw.pw_dir
+        env["USER"] = desktop_user
+        env["LOGNAME"] = desktop_user
+        env["XDG_RUNTIME_DIR"] = f"/run/user/{pw.pw_uid}"
+        env["DBUS_SESSION_BUS_ADDRESS"] = f"unix:path=/run/user/{pw.pw_uid}/bus"
+
         subprocess.Popen(
-            [exe],
+            [sudo_bin, "-u", desktop_user, exe],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             start_new_session=True,
-            env=_get_display_env(),
+            env=env,
         )
         return {
             "ok": True,

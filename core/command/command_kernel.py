@@ -10,6 +10,7 @@ This runs BEFORE RAG or LLM logic.
 """
 
 import re
+import shutil
 
 from core.command.semantic_classifier import classify_semantic
 
@@ -48,6 +49,14 @@ VALID_TOOLS = {
     "wifi_enable",
     "wifi_disable",
 }
+
+_UNRESOLVED_NAMES = {"it", "that", "this", "the app", "the application", "them"}
+
+
+def _is_resolved_arg(args: dict) -> bool:
+    """Return False when a tool arg still looks like an unresolved reference."""
+    name = str(args.get("name") or "").strip().lower()
+    return name not in _UNRESOLVED_NAMES and len(name) > 1
 
 
 def evaluate_prompt(text: str):
@@ -267,11 +276,28 @@ def evaluate_prompt(text: str):
     # NO COMMAND FOUND
     # ------------------------------------------------
     semantic = classify_semantic(text)
-    if semantic.get("tool") in VALID_TOOLS:
+    if semantic.get("tool") in VALID_TOOLS and semantic.get("args"):
+        if _is_resolved_arg(semantic["args"]):
+            return {
+                "type": "tool",
+                "tool": semantic["tool"],
+                "args": semantic.get("args") or {},
+            }
+
+    if len(parts) == 1 and parts[0].isalpha():
+        candidate = parts[0]
+        if shutil.which(candidate) or shutil.which(candidate.replace("_", "-")):
+            return {
+                "type": "tool",
+                "tool": "launch_app",
+                "args": {"name": candidate},
+            }
+
+    if semantic.get("tool") in VALID_TOOLS and not semantic.get("args"):
         return {
             "type": "tool",
             "tool": semantic["tool"],
-            "args": semantic.get("args") or {},
+            "args": {},
         }
 
     return None
