@@ -413,6 +413,8 @@ const KERNEL_PREFIXES = [
   "kworker", "kthread", "ksoftirqd", "migration", "rcu_", "watchdog",
   "pool_workqueue", "irq/", "kswapd", "khugepaged", "kcompactd",
 ];
+const PROTECTED_PIDS = new Set([1, 2]);
+const PROTECTED_NAMES = new Set(["systemd", "init", "kthreadd"]);
 
 function isKernelThread(name) {
   const n = (name || "").toLowerCase();
@@ -495,22 +497,26 @@ function renderProcessTable() {
   }
 
   tbody.innerHTML = sorted.map((p) => `
-    <tr>
-      <td class="text-muted">${p.pid}</td>
-      <td>${p.name}</td>
-      <td class="text-muted">${p.user}</td>
-      <td>${p.status}</td>
-      <td>${p.cpu}%</td>
-      <td>${p.mem}%</td>
-      <td>
-        <button class="btn btn-sm btn-outline-danger"
-                onclick="killProcess('${String(p.name).replace(/'/g, "\\'")}')"
-                type="button"
-                title="Kill ${p.name}">
-          Kill
-        </button>
-      </td>
-    </tr>
+    (() => {
+      const isProtected = PROTECTED_PIDS.has(p.pid) || PROTECTED_NAMES.has(p.name);
+      return `
+        <tr>
+          <td class="text-muted">${p.pid}</td>
+          <td>${p.name}</td>
+          <td class="text-muted">${p.user}</td>
+          <td>${p.status}</td>
+          <td>${p.cpu}%</td>
+          <td>${p.mem}%</td>
+          <td>
+            <button class="btn btn-sm btn-outline-danger"
+                    ${isProtected ? "disabled title=\"Protected system process\"" : `onclick="killProcess('${String(p.name).replace(/'/g, "\\'")}')" title="Kill ${p.name}"`}
+                    type="button">
+              Kill
+            </button>
+          </td>
+        </tr>
+      `;
+    })()
   `).join("");
 }
 
@@ -591,6 +597,11 @@ function initProcessControls() {
 }
 
 async function killProcess(name) {
+  if (PROTECTED_NAMES.has(name)) {
+    console.warn("killProcess: refusing to kill protected process", name);
+    return;
+  }
+
   if (!name || !confirm(`Kill process "${name}"?`)) return;
 
   try {

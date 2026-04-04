@@ -984,3 +984,8 @@ window.logSystemActivity = logSystemActivity;
 window.recordActionHistory = logSystemActivity;
 window.sendPrompt = sendPrompt;
 window.processAssistantReply = processAssistantReply;
+
+document.addEventListener("DOMContentLoaded", () => {
+  initMemoryPanel();
+  initChat();
+});
