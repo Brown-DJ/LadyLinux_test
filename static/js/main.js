@@ -496,28 +496,27 @@ function renderProcessTable() {
     return;
   }
 
-  tbody.innerHTML = sorted.map((p) => `
-    (() => {
-      const isProtected = PROTECTED_PIDS.has(p.pid) || PROTECTED_NAMES.has(p.name);
-      return `
-        <tr>
-          <td class="text-muted">${p.pid}</td>
-          <td>${p.name}</td>
-          <td class="text-muted">${p.user}</td>
-          <td>${p.status}</td>
-          <td>${p.cpu}%</td>
-          <td>${p.mem}%</td>
-          <td>
-            <button class="btn btn-sm btn-outline-danger"
-                    ${isProtected ? "disabled title=\"Protected system process\"" : `onclick="killProcess('${String(p.name).replace(/'/g, "\\'")}')" title="Kill ${p.name}"`}
-                    type="button">
-              Kill
-            </button>
-          </td>
-        </tr>
-      `;
-    })()
-  `).join("");
+  tbody.innerHTML = sorted.map((p) => {
+  // Determine if this process is protected before building the row
+  const isProtected = PROTECTED_PIDS.has(p.pid) || PROTECTED_NAMES.has(p.name);
+
+  // Build kill button separately to avoid nested template literal conflicts
+  const killBtn = isProtected
+    ? `<button class="btn btn-sm btn-outline-danger" disabled title="Protected system process" type="button">Kill</button>`
+    : `<button class="btn btn-sm btn-outline-danger" onclick="killProcess('${String(p.name).replace(/'/g, "\\'")}'')" title="Kill ${p.name}" type="button">Kill</button>`;
+
+  return `
+    <tr>
+      <td class="text-muted">${p.pid}</td>
+      <td>${p.name}</td>
+      <td class="text-muted">${p.user}</td>
+      <td>${p.status}</td>
+      <td>${p.cpu}%</td>
+      <td>${p.mem}%</td>
+      <td>${killBtn}</td>
+    </tr>
+  `;
+}).join("");
 }
 
 function updateProcessSortIndicators() {
