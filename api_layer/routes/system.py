@@ -84,7 +84,7 @@ def get_processes() -> dict:
     Return running processes sorted by CPU% descending.
     Powers the Processes tab in os.html.
     """
-    return list_processes()
+    return list_processes(limit=250)
 
 
 @router.get("/users")

@@ -213,7 +213,7 @@ def get_uptime() -> dict[str, Any]:
     return {"uptime": int(time.time() - START_TIME)}
 
 
-def list_processes(limit: int = 100) -> dict[str, Any]:
+def list_processes(limit: int = 250) -> dict[str, Any]:
     """
     Return running processes sorted by CPU% descending.
     Capped at `limit` rows to keep payload small for the UI table.
@@ -245,5 +245,5 @@ def list_processes(limit: int = 100) -> dict[str, Any]:
     return {
         "ok": True,
         "count": len(procs),
-        "processes": procs[:limit],
+        "processes": procs[:250],
     }
