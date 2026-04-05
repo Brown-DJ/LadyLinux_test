@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 
 import os
@@ -10,15 +11,17 @@ from api_layer.utils.command_runner import run_command
 from api_layer.utils.validators import validate_service_name
 
 
+# ---------------------------
+# INTERNAL HELPERS
+# ---------------------------
+
 def _parse_monotonic_usec(raw_value: str | None) -> int | None:
     if raw_value in (None, "", "0"):
         return None
-
     try:
         value = int(raw_value)
     except (TypeError, ValueError):
         return None
-
     return value if value > 0 else None
 
 
@@ -38,9 +41,7 @@ def _build_service_uptime_map(units: list[str]) -> dict[str, int | None]:
         cmd,
         capture_output=True,
         text=True,
-        check=False,
         timeout=15,
-        shell=False,
     )
 
     if completed.returncode != 0:
@@ -50,7 +51,7 @@ def _build_service_uptime_map(units: list[str]) -> dict[str, int | None]:
     uptime_map: dict[str, int | None] = {}
     unit_data: dict[str, str] = {}
 
-    def commit_current_unit() -> None:
+    def commit():
         unit = unit_data.get("Id")
         if not unit:
             return
@@ -67,42 +68,28 @@ def _build_service_uptime_map(units: list[str]) -> dict[str, int | None]:
 
     for line in (completed.stdout or "").splitlines():
         if not line.strip():
-            commit_current_unit()
+            commit()
             unit_data = {}
             continue
 
         key, _, value = line.partition("=")
-        if key:
-            unit_data[key] = value
+        unit_data[key] = value
 
-    commit_current_unit()
+    commit()
     return uptime_map
 
 
 def _get_display_env() -> dict:
     """
-    Build the base GUI environment inherited by launched desktop apps.
-    Runtime-sensitive user/session variables are filled in at launch time.
+    Minimal, controlled GUI env (do NOT inherit systemd env blindly)
     """
-    env = os.environ.copy()
-
-    if "DISPLAY" not in env:
-        env["DISPLAY"] = ":0"
-
-    if "XDG_CURRENT_DESKTOP" not in env:
-        env["XDG_CURRENT_DESKTOP"] = "X-Cinnamon"
-
-    env.pop("WAYLAND_DISPLAY", None)
-    env.pop("WAYLAND_SOCKET", None)
-
-    return env
+    return {
+        "DISPLAY": ":0",
+        "XDG_CURRENT_DESKTOP": "X-Cinnamon",
+    }
 
 
 def _detect_from_runtime_dir() -> str:
-    """
-    Detect the desktop user from /run/user/* ownership.
-    Used as fallback when DESKTOP_USER is not set in ladylinux.env.
-    """
     runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
     candidates = [runtime_dir] if runtime_dir else []
     candidates.append("/run/user/1000")
@@ -112,22 +99,21 @@ def _detect_from_runtime_dir() -> str:
             continue
         try:
             return pwd.getpwuid(os.stat(path).st_uid).pw_name
-        except Exception:  # noqa: BLE001
+        except Exception:
             continue
 
     return os.environ.get("USER", "ladylinux")
 
 
 def _get_desktop_user() -> str:
-    """
-    Return the active desktop user.
-    Reads DESKTOP_USER from ladylinux.env first, falls back to runtime dir detection.
-    Never hardcoded — machine-local value lives in /etc/ladylinux/ladylinux.env.
-    """
     return os.environ.get("DESKTOP_USER") or _detect_from_runtime_dir()
 
+
+# ---------------------------
+# SERVICE CONTROL
+# ---------------------------
+
 def list_services() -> dict:
-    # Use explicit systemctl flags so output is deterministic and free of UI symbols.
     cmd = [
         "systemctl",
         "list-units",
@@ -139,234 +125,149 @@ def list_services() -> dict:
         "--no-legend",
     ]
 
-    completed = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=15,
-        shell=False,
-    )
+    completed = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
 
     services = []
     for line in (completed.stdout or "").splitlines():
         parts = line.split(None, 4)
         if len(parts) < 4:
             continue
+
         unit, load, active, sub = parts[:4]
         description = parts[4] if len(parts) > 4 else ""
-        services.append(
-            {
-                "name": unit.replace(".service", ""),
-                "unit": unit,
-                "load": load,
-                "active": active,
-                "sub": sub,
-                "status": sub,
-                "description": description,
-                }
-            )
 
-    uptime_map = _build_service_uptime_map([service["unit"] for service in services])
-    for service in services:
-        service["uptime_seconds"] = uptime_map.get(service["unit"])
+        services.append({
+            "name": unit.replace(".service", ""),
+            "unit": unit,
+            "load": load,
+            "active": active,
+            "sub": sub,
+            "status": sub,
+            "description": description,
+        })
 
-    payload = {
+    uptime_map = _build_service_uptime_map([s["unit"] for s in services])
+
+    for s in services:
+        s["uptime_seconds"] = uptime_map.get(s["unit"])
+
+    return {
         "ok": completed.returncode == 0,
-        "stdout": (completed.stdout or "").strip(),
-        "stderr": (completed.stderr or "").strip(),
-        "returncode": completed.returncode,
+        "services": services,
     }
-    payload["services"] = services
-    return payload
 
 
 def get_service(name: str) -> dict:
     service_name = validate_service_name(name)
-    unit = f"{service_name}.service" if not service_name.endswith(".service") else service_name
+    unit = f"{service_name}.service"
+
     result = run_command(["systemctl", "status", unit, "--no-pager"])
     payload = result.model_dump()
     payload["service"] = service_name
-    payload["unit"] = unit
-    return payload
-
-
-def list_failed_services() -> dict:
-    result = run_command(["systemctl", "--failed", "--type=service", "--no-pager", "--no-legend"])
-    failed = []
-    for line in result.stdout.splitlines():
-        parts = line.split(None, 4)
-        if len(parts) >= 4:
-            failed.append(
-                {
-                    "name": parts[0].replace(".service", ""),
-                    "unit": parts[0],
-                    "load": parts[1],
-                    "active": parts[2],
-                    "sub": parts[3],
-                }
-            )
-    payload = result.model_dump()
-    payload["failed"] = failed
-    return payload
-
-
-def restart_service(name: str) -> dict:
-    service_name = validate_service_name(name)
-    unit = f"{service_name}.service" if not service_name.endswith(".service") else service_name
-    result = run_command(["systemctl", "restart", unit])
-    payload = result.model_dump()
-    payload["service"] = service_name
-    payload["restarted"] = result.ok
-    return payload
-
-
-def stop_service(name: str) -> dict:
-    """Stop a systemd service unit by name."""
-    service_name = validate_service_name(name)
-    unit = f"{service_name}.service" if not service_name.endswith(".service") else service_name
-    result = run_command(["systemctl", "stop", unit])
-    payload = result.model_dump()
-    payload["service"] = service_name
-    payload["stopped"] = result.ok
     return payload
 
 
 def start_service(name: str) -> dict:
-    """Start a systemd service unit by name."""
     service_name = validate_service_name(name)
-    unit = f"{service_name}.service" if not service_name.endswith(".service") else service_name
-    result = run_command(["systemctl", "start", unit])
-    payload = result.model_dump()
-    payload["service"] = service_name
-    payload["started"] = result.ok
-    return payload
+    result = run_command(["systemctl", "start", f"{service_name}.service"])
+    return {"ok": result.ok}
+
+
+def stop_service(name: str) -> dict:
+    service_name = validate_service_name(name)
+    result = run_command(["systemctl", "stop", f"{service_name}.service"])
+    return {"ok": result.ok}
+
+
+def restart_service(name: str) -> dict:
+    service_name = validate_service_name(name)
+    result = run_command(["systemctl", "restart", f"{service_name}.service"])
+    return {"ok": result.ok}
 
 
 def enable_service(name: str) -> dict:
-    """Enable a systemd service to start at boot."""
     service_name = validate_service_name(name)
-    unit = f"{service_name}.service" if not service_name.endswith(".service") else service_name
-    result = run_command(["systemctl", "enable", unit])
-    payload = result.model_dump()
-    payload["service"] = service_name
-    payload["enabled"] = result.ok
-    return payload
+    result = run_command(["systemctl", "enable", f"{service_name}.service"])
+    return {"ok": result.ok}
 
 
 def disable_service(name: str) -> dict:
-    """Disable a systemd service from starting at boot."""
     service_name = validate_service_name(name)
-    unit = f"{service_name}.service" if not service_name.endswith(".service") else service_name
-    result = run_command(["systemctl", "disable", unit])
-    payload = result.model_dump()
-    payload["service"] = service_name
-    payload["disabled"] = result.ok
-    return payload
+    result = run_command(["systemctl", "disable", f"{service_name}.service"])
+    return {"ok": result.ok}
 
+
+def list_failed_services() -> dict:
+    result = run_command([
+        "systemctl",
+        "--failed",
+        "--type=service",
+        "--no-pager",
+        "--no-legend"
+    ])
+
+    failed = []
+    for line in result.stdout.splitlines():
+        parts = line.split(None, 4)
+        if len(parts) >= 4:
+            failed.append({
+                "name": parts[0].replace(".service", ""),
+                "unit": parts[0],
+                "active": parts[2],
+                "sub": parts[3],
+            })
+
+    return {"ok": True, "failed": failed}
+
+
+# ---------------------------
+# PROCESS CONTROL
+# ---------------------------
 
 def check_process(name: str) -> dict:
-    """
-    Check if a process is running by name using pgrep.
-    Covers GUI apps, executables, and any non-systemd process.
-    Returns PIDs and count so the caller can distinguish "not found" from error.
-    """
-    process_name = validate_service_name(name)
-    result = run_command(["pgrep", "-a", process_name])
-    pids = [line.strip() for line in result.stdout.splitlines() if line.strip()]
-    return {
-        "ok": True,
-        "process": process_name,
-        "running": result.ok,
-        "pids": pids,
-        "count": len(pids),
-        "stdout": result.stdout,
-        "stderr": result.stderr,
-    }
+    result = run_command(["pgrep", "-a", name])
+    return {"running": result.ok}
 
 
 def kill_process(name: str) -> dict:
-    """
-    Kill a process by name using pkill -x.
-    Requires sudo — ladylinux service user cannot signal other users' processes
-    without it. Sudoers entry for /usr/bin/pkill added in install_ladylinux.sh.
-    """
-    process_name = validate_service_name(name)
-    comm_name = process_name[:15]
-    sudo_binary = shutil.which("sudo") or "/usr/bin/sudo"
-    result = run_command([sudo_binary, "pkill", "-x", comm_name])
-    killed = result.returncode == 0
-    no_match = result.returncode == 1
-    return {
-        "ok": killed,
-        "process": process_name,
-        "killed": killed,
-        "no_match": no_match,
-        "message": (
-            f"{process_name} terminated." if killed
-            else f"No process named '{process_name}' found."
-        ),
-        "stdout": result.stdout,
-        "stderr": result.stderr,
-        "returncode": result.returncode,
-    }
+    sudo_bin = shutil.which("sudo") or "/usr/bin/sudo"
+    result = run_command([sudo_bin, "pkill", "-x", name[:15]])
+    return {"ok": result.returncode == 0}
+
+
+# ---------------------------
+# GUI LAUNCH (FINAL FIXED)
+# ---------------------------
 
 def launch_app(name: str) -> dict:
-    """
-    Launch a GUI application as the desktop user (DESKTOP_USER from ladylinux.env).
-    Must run as the desktop user — not ladylinux — so dconf, D-Bus, and session
-    bus access match the active X session. Uses sudo -u <desktop_user> via a
-    NOPASSWD sudoers rule written by the installer.
-    """
     app_name = validate_service_name(name)
 
-    # Normalize underscore -> hyphen — LLM often extracts underscored names
-    exe = shutil.which(app_name)
-    if not exe:
-        hyphen_name = app_name.replace("_", "-")
-        exe = shutil.which(hyphen_name)
-        if exe:
-            app_name = hyphen_name
+    exe = shutil.which(app_name) or shutil.which(app_name.replace("_", "-"))
 
     if not exe:
-        return {
-            "ok": False,
-            "app": app_name,
-            "launched": False,
-            "message": f"Executable '{app_name}' not found on PATH.",
-        }
+        return {"ok": False, "message": f"{app_name} not found"}
 
     try:
-        desktop_user = _get_desktop_user()
-        pw = pwd.getpwnam(desktop_user)
+        user = _get_desktop_user()
+        pw = pwd.getpwnam(user)
+
         sudo_bin = shutil.which("sudo") or "/usr/bin/sudo"
 
-        # Build env as the desktop user so session bus and dconf dirs resolve correctly
-        env = _get_display_env()
-        env["HOME"] = pw.pw_dir
-        env["USER"] = desktop_user
-        env["LOGNAME"] = desktop_user
-        env["XDG_RUNTIME_DIR"] = f"/run/user/{pw.pw_uid}"
-        env["DBUS_SESSION_BUS_ADDRESS"] = f"unix:path=/run/user/{pw.pw_uid}/bus"
-        # Xauthority cookie required for X11 window creation — belongs to desktop user's session
-        env["XAUTHORITY"] = os.path.join(pw.pw_dir, ".Xauthority")
-        subprocess.Popen(
-            [sudo_bin, "-u", desktop_user, exe],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-            env=env,
-        )
-        return {
-            "ok": True,
-            "app": app_name,
-            "launched": True,
-            "message": f"{app_name} launched.",
-        }
-    except Exception as exc:  # noqa: BLE001
-        return {
-            "ok": False,
-            "app": app_name,
-            "launched": False,
-            "message": f"Failed to launch '{app_name}': {exc}",
-        }
+        cmd = [
+            sudo_bin,
+            "-u", user,
+            "env",
+            "DISPLAY=:0",
+            f"XAUTHORITY={pw.pw_dir}/.Xauthority",
+            f"XDG_RUNTIME_DIR=/run/user/{pw.pw_uid}",
+            f"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{pw.pw_uid}/bus",
+            exe,
+        ]
+
+        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        return {"ok": True, "launched": True}
+
+    except Exception as e:
+        return {"ok": False, "message": str(e)}
+
