@@ -26,8 +26,9 @@ _SESSION_SIGNALS = re.compile(
 
 # Patterns that suggest live system state is needed
 _SYSTEM_SIGNALS = re.compile(
-    r"\b(slow|sluggish|cpu|memory|ram|disk|processes|services"
-    r"|is.*running|what.*running|system.*state|current.*usage)\b",
+    r"\b(slow|sluggish|cpu|ram|disk|processes|services"
+    r"|is.*running|what.*running|system.*state|current.*usage"
+    r"|memory\s+usage|memory\s+percent|out\s+of\s+memory)\b",
     re.IGNORECASE,
 )
 
