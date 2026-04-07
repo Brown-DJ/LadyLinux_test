@@ -43,6 +43,7 @@ from core.command.command_kernel import evaluate_prompt
 from core.command.tool_router import ToolRouter, ToolRouterError
 from core.memory.router import route as memory_route
 from core.memory.log_reader import fetch_error_lines
+from core.memory.graph import ObsidianGraph
 
 _SCREEN_STATE_FILE = Path("/var/lib/ladylinux/data/screen_state.json")
 
@@ -94,6 +95,17 @@ RAG context should be used for explanation and project knowledge only.
 # tools.json is the single source of truth for allowed tool calls.
 # Add new tools there (and implement matching API routes) instead of prompt text.
 TOOL_ROUTER = ToolRouter()
+
+# Initialise the wikilink graph once at startup.
+# Points at the same obsidian_docs/ directory used by ingest_obsidian.py.
+# If the path does not exist, ObsidianGraph logs a warning and the graph is
+# empty — the rest of the pipeline continues normally.
+_OBSIDIAN_VAULT = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "obsidian_docs",
+)
+OBSIDIAN_GRAPH = ObsidianGraph(_OBSIDIAN_VAULT)
+
 TOOL_NAME_MAP = {
     "list_services": "system_services",
     "restart_service": "system_service_restart",
@@ -1011,11 +1023,25 @@ def _build_rag_system_prompt(
     page_context: str = "unknown",
     precomputed_topics: list[str] | None = None,
     log_context: str | None = None,
+    use_graph_expand: bool = False,     # set True when memory router returns "graph_expand"
 ) -> tuple[str, list[dict], str]:
     domain = classify_rag_domain(prompt)
     live_block = _build_live_state_block(prompt, precomputed_topics=precomputed_topics, page_context=page_context)
     context_results = retrieve(prompt, domain=domain)
     context_text = build_context_block(context_results)
+
+    # ── Graph expansion (optional) ─────────────────────────────────────────
+    # Only runs when the memory router signals "graph_expand".
+    # Follows wikilinks from each Qdrant result to pull in linked sibling docs.
+    # Depth=1 keeps prompt size manageable on the CPU-only VM.
+    graph_block = ""
+    if use_graph_expand and context_results:
+        linked_content = OBSIDIAN_GRAPH.expand_from_qdrant_results(context_results, depth=1)
+        if linked_content:
+            # Deduplicate previews (multiple results may link to the same node).
+            seen: set[str] = set()
+            unique = [c for c in linked_content if not (c in seen or seen.add(c))]
+            graph_block = "\n\nLINKED CONTEXT (via wikilinks)\n" + "\n---\n".join(unique)
 
     log_block = f"\n\nRECENT SYSTEM LOGS\n{log_context}" if log_context else ""
 
@@ -1029,7 +1055,7 @@ LIVE SYSTEM STATE
 {live_block or "No live data available."}
 
 RELEVANT CONTEXT
-{context_text or "No relevant context found."}{log_block}
+{context_text or "No relevant context found."}{graph_block}{log_block}
 
 USER QUESTION
 {prompt}
@@ -1148,11 +1174,21 @@ async def prompt_stream(req: PromptRequest):
         # ── RAG streaming ─────────────────────────────────────────────────────
         if route == "rag":
             log_action("assistant:rag", prompt[:120], "streaming")
-            _lc = log_context  # capture for closure
+            _lc = log_context
             _t = topics
+            # Pass graph expansion flag derived from memory router output.
+            # "graph_expand" in memory_sources means the user asked about
+            # architecture/connected concepts — worth the extra graph traversal.
+            _use_graph = "graph_expand" in memory_sources
             yield from _stream_llm_response(
                 prompt, "rag",
-                lambda p: _build_rag_system_prompt(p, page_context=page_context, precomputed_topics=_t, log_context=_lc),
+                lambda p: _build_rag_system_prompt(
+                    p,
+                    page_context=page_context,
+                    precomputed_topics=_t,
+                    log_context=_lc,
+                    use_graph_expand=_use_graph,
+                ),
                 history,
             )
             return

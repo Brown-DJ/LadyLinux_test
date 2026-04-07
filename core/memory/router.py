@@ -38,6 +38,14 @@ _DOCS_SIGNALS = re.compile(
     re.IGNORECASE,
 )
 
+# Patterns that suggest the user wants cross-referenced / linked context.
+# Graph expansion supplements Qdrant results with wikilinked sibling docs.
+_GRAPH_SIGNALS = re.compile(
+    r"\b(related|linked|connected|depends on|part of|see also"
+    r"|what connects|how does.*relate|architecture|overview|pipeline)\b",
+    re.IGNORECASE,
+)
+
 
 def route(query: str) -> list[str]:
     """
@@ -62,5 +70,12 @@ def route(query: str) -> list[str]:
 
     if _DOCS_SIGNALS.search(query) or not sources:
         sources.append("rag_docs")
+
+    # Add graph expansion when the query suggests cross-referenced architecture context.
+    # graph_expand supplements rag_docs results — it never replaces them.
+    if _GRAPH_SIGNALS.search(query):
+        if "rag_docs" not in sources:
+            sources.append("rag_docs")  # graph expansion requires a Qdrant result set
+        sources.append("graph_expand")
 
     return sources
