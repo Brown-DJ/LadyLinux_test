@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import threading
 import time
+import os
 from typing import Any, Literal
 
 import requests
