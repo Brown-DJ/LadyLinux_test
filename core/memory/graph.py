@@ -157,10 +157,19 @@ class ObsidianGraph:
             if not raw_path:
                 continue
 
-            # Normalise: strip .md suffix and leading path separators.
-            node_key = raw_path.replace("\\", "/").lstrip("/")
-            if node_key.lower().endswith(".md"):
-                node_key = node_key[:-3]
+            # Strip absolute prefix down to vault-relative path.
+            # source_path comes in as /opt/ladylinux/app/obsidian_docs/Architecture.md
+            # We need just: Architecture (or Core/Command Kernel etc.)
+            norm = raw_path.replace("\\", "/")
+            vault_prefix = self.vault_path.replace("\\", "/")
+            if vault_prefix in norm:
+                norm = norm.split(vault_prefix + "/")[-1]
+
+            # Strip .md suffix.
+            if norm.lower().endswith(".md"):
+                norm = norm[:-3]
+
+            node_key = norm
 
             if node_key in seen_nodes:
                 continue  # avoid redundant DFS from the same node
