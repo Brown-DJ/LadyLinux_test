@@ -155,7 +155,8 @@ _QUESTION_OPENER = re.compile(
     r"can|could|will|would|should|"
     r"has|have|had|am|"
     r"isn't|aren't|doesn't|don't|won't|wasn't|weren't|"
-    r"tell me|help me understand|explain to me)\b",
+    r"tell me|help me understand|explain to me|"
+    r"give me|show me|walk me through|explain)\b",
     re.IGNORECASE,
 )
 
