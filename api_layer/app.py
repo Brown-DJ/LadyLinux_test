@@ -178,13 +178,11 @@ def classify_prompt(message: str, precomputed_route: str | None = None) -> Liter
     """
     Route a prompt to system/rag/chat.
 
-    If precomputed_route is provided (from classify_semantic), uses it directly.
-    Falls back to the existing regex/keyword logic if not — preserving all
-    existing behaviour for non-streaming callers (/ask, /ask_rag etc).
+    Regex runs first regardless of precomputed_route.
+    classify_semantic() returns "chat" unconditionally in CPU demo mode,
+    which incorrectly overrides doc/architecture queries.
+    precomputed_route is only trusted when regex has no strong opinion.
     """
-    if precomputed_route in ("system", "rag", "chat"):
-        return precomputed_route  # type: ignore[return-value]
-
     text = message.strip()
     text_lower = text.lower()
 
@@ -198,6 +196,9 @@ def classify_prompt(message: str, precomputed_route: str | None = None) -> Liter
     # "can I check the firewall", "does this affect the network", etc.
     # Also catches a trailing question mark regardless of word order.
     if _QUESTION_OPENER.match(text) or text.endswith("?"):
+        # Only trust precomputed_route if it's more specific than chat.
+        if precomputed_route in ("system", "rag"):
+            return precomputed_route  # type: ignore[return-value]
         return "rag"
 
     command_words = (
@@ -221,6 +222,10 @@ def classify_prompt(message: str, precomputed_route: str | None = None) -> Liter
 
     if any(x in text_lower for x in knowledge_words):
         return "rag"
+
+    # Only fall back to precomputed_route if regex found nothing definitive.
+    if precomputed_route in ("system", "rag", "chat"):
+        return precomputed_route  # type: ignore[return-value]
 
     return "chat"
 
