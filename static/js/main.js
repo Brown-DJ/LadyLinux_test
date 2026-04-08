@@ -756,12 +756,37 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // Poll processes only while the tab is visible — avoids 300-process fetches
+  // on every interval when the user is on a different tab.
+  let _processPoller = null;
+
+  function startProcessPolling() {
+    // Load immediately on tab show, then every 5s while active
+    loadProcesses();
+    if (!_processPoller) {
+      _processPoller = setInterval(loadProcesses, 5000);
+    }
+  }
+
+  function stopProcessPolling() {
+    // Clear interval when user leaves the tab — no wasted fetches
+    if (_processPoller) {
+      clearInterval(_processPoller);
+      _processPoller = null;
+    }
+  }
+
   const processesTabTrigger = document.getElementById("processes-tab");
   if (processesTabTrigger) {
-    processesTabTrigger.addEventListener("shown.bs.tab", loadProcesses);
+    // Start polling when tab becomes active
+    processesTabTrigger.addEventListener("shown.bs.tab", startProcessPolling);
 
+    // Stop polling when user switches away
+    processesTabTrigger.addEventListener("hide.bs.tab", stopProcessPolling);
+
+    // If processes tab is the default active tab on page load, start immediately
     if (processesTabTrigger.classList.contains("active")) {
-      loadProcesses();
+      startProcessPolling();
     }
   }
 
