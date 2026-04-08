@@ -67,6 +67,9 @@ VALID_TOOLS = {
 }
 
 _UNRESOLVED_NAMES = {"it", "that", "this", "the app", "the application", "them"}
+_BARE_DOMAIN_RE = re.compile(
+    r"^open\s+((?:[a-z0-9-]+\.)+[a-z]{2,})(/\S*)?$"
+)
 
 
 def _is_resolved_arg(args: dict) -> bool:
@@ -244,6 +247,11 @@ def evaluate_prompt(text: str):
             "tool": "xdg_open",
             "args": {"target": open_target_match.group(1)},
         }
+
+    match = _BARE_DOMAIN_RE.match(text)
+    if match:
+        target = "https://" + match.group(1) + (match.group(2) or "")
+        return {"type": "tool", "tool": "xdg_open", "args": {"target": target}}
 
     launch_match = re.search(
         r"^(launch|open|run|start)\s+(?:app\s+)?([a-z0-9._-]+)$",
