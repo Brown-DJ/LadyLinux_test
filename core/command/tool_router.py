@@ -14,9 +14,28 @@ Benefits:
 
 from typing import Any
 
+from api_layer.services.audio_service import (
+    audio_mute,
+    audio_sink_list,
+    audio_toggle_mute,
+    audio_unmute,
+    audio_volume_get,
+    audio_volume_set,
+)
 from api_layer.services.firewall_service import firewall_reload, firewall_status
+from api_layer.services.media_service import (
+    media_next,
+    media_pause,
+    media_play,
+    media_prev,
+    media_status,
+    media_stop,
+    media_toggle,
+)
 from api_layer.services.network_service import network_interfaces
 from api_layer.services.network_service import wifi_disable, wifi_enable, wifi_status
+from api_layer.services.open_service import xdg_open
+from api_layer.services.search_service import search_content, search_files
 from api_layer.services.service_manager import (
     check_process,
     disable_service,
@@ -67,6 +86,22 @@ class ToolRouter:
             "wifi_status": wifi_status,
             "wifi_enable": wifi_enable,
             "wifi_disable": wifi_disable,
+            "audio_mute": audio_mute,
+            "audio_unmute": audio_unmute,
+            "audio_toggle_mute": audio_toggle_mute,
+            "audio_volume_set": audio_volume_set,
+            "audio_volume_get": audio_volume_get,
+            "audio_sink_list": audio_sink_list,
+            "media_play": media_play,
+            "media_pause": media_pause,
+            "media_toggle": media_toggle,
+            "media_next": media_next,
+            "media_prev": media_prev,
+            "media_stop": media_stop,
+            "media_status": media_status,
+            "xdg_open": xdg_open,
+            "search_content": search_content,
+            "search_files": search_files,
         }
 
         # Deterministic tool schema keeps command execution predictable.
@@ -92,6 +127,22 @@ class ToolRouter:
             "wifi_status": {},
             "wifi_enable": {},
             "wifi_disable": {},
+            "audio_mute": {},
+            "audio_unmute": {},
+            "audio_toggle_mute": {},
+            "audio_volume_set": {"level": "integer"},
+            "audio_volume_get": {},
+            "audio_sink_list": {},
+            "media_play": {},
+            "media_pause": {},
+            "media_toggle": {},
+            "media_next": {},
+            "media_prev": {},
+            "media_stop": {},
+            "media_status": {},
+            "xdg_open": {"target": "string"},
+            "search_content": {"query": "string", "path": "string"},
+            "search_files": {"name": "string", "path": "string"},
         }
 
     def list_tool_names(self):
@@ -267,6 +318,32 @@ class ToolRouter:
             return {
                 "ok": ok,
                 "message": raw_result.get("message", "Launch attempted") if isinstance(raw_result, dict) else "Launch attempted",
+                "data": raw_result,
+            }
+
+        if tool_name in (
+            "audio_mute",
+            "audio_unmute",
+            "audio_toggle_mute",
+            "audio_volume_set",
+            "audio_volume_get",
+            "audio_sink_list",
+            "media_play",
+            "media_pause",
+            "media_toggle",
+            "media_next",
+            "media_prev",
+            "media_stop",
+            "media_status",
+            "xdg_open",
+            "search_content",
+            "search_files",
+        ):
+            ok = bool(raw_result.get("ok", False)) if isinstance(raw_result, dict) else False
+            message = raw_result.get("message", f"{tool_name} executed") if isinstance(raw_result, dict) else f"{tool_name} executed"
+            return {
+                "ok": ok,
+                "message": message,
                 "data": raw_result,
             }
 

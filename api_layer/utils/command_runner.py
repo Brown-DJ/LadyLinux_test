@@ -30,6 +30,11 @@ ALLOWED_COMMANDS = {
     "hostnamectl",  # Hostname read/write for system settings endpoints.
     "timedatectl",  # Timezone read/write for system settings endpoints.
     "nmcli",  # WiFi and network manager control via NetworkManager CLI.
+    "pactl",  # Audio volume, mute, and sink control.
+    "playerctl",  # Media player transport control.
+    "xdg-open",  # Open URLs and files via the desktop MIME handler.
+    "rg",  # Fast content search for text queries.
+    "fdfind",  # Fast file name search.
 }
 
 

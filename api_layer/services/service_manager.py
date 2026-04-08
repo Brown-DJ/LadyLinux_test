@@ -1,12 +1,11 @@
 
 from __future__ import annotations
 
-import os
-import pwd
 import shutil
 import subprocess
 import time
 
+from api_layer.services._desktop_runner import run_as_desktop_user
 from api_layer.utils.command_runner import run_command
 from api_layer.utils.validators import validate_service_name
 
@@ -77,36 +76,6 @@ def _build_service_uptime_map(units: list[str]) -> dict[str, int | None]:
 
     commit()
     return uptime_map
-
-
-def _get_display_env() -> dict:
-    """
-    Minimal, controlled GUI env (do NOT inherit systemd env blindly)
-    """
-    return {
-        "DISPLAY": ":0",
-        "XDG_CURRENT_DESKTOP": "X-Cinnamon",
-    }
-
-
-def _detect_from_runtime_dir() -> str:
-    runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
-    candidates = [runtime_dir] if runtime_dir else []
-    candidates.append("/run/user/1000")
-
-    for path in candidates:
-        if not path:
-            continue
-        try:
-            return pwd.getpwuid(os.stat(path).st_uid).pw_name
-        except Exception:
-            continue
-
-    return os.environ.get("USER", "ladylinux")
-
-
-def _get_desktop_user() -> str:
-    return os.environ.get("DESKTOP_USER") or _detect_from_runtime_dir()
 
 
 # ---------------------------
@@ -248,26 +217,8 @@ def launch_app(name: str) -> dict:
         return {"ok": False, "message": f"{app_name} not found"}
 
     try:
-        user = _get_desktop_user()
-        pw = pwd.getpwnam(user)
-
-        sudo_bin = shutil.which("sudo") or "/usr/bin/sudo"
-
-        cmd = [
-            sudo_bin,
-            "-u", user,
-            "env",
-            "DISPLAY=:0",
-            f"XAUTHORITY={pw.pw_dir}/.Xauthority",
-            f"XDG_RUNTIME_DIR=/run/user/{pw.pw_uid}",
-            f"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{pw.pw_uid}/bus",
-            exe,
-        ]
-
-        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
+        run_as_desktop_user([exe])
         return {"ok": True, "launched": True}
 
     except Exception as e:
         return {"ok": False, "message": str(e)}
-

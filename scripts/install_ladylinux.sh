@@ -143,6 +143,12 @@ install_system_packages() {
         build-essential
         xdotool      # screen agent: active window title + PID detection
         wmctrl       # screen agent: fallback window detection
+        pulseaudio-utils  # pactl — audio volume, mute, and sink control
+        playerctl         # media player control via MPRIS/D-Bus (play/pause/next)
+        xdg-utils         # xdg-open — open URLs and files via desktop default handler
+        ripgrep           # rg — fast file content search
+        fd-find           # fdfind — fast file name search (binary is fdfind on Debian/Mint)
+        brightnessctl     # display brightness control
     )
 
     log "Installing required packages: ${PACKAGES[*]}"

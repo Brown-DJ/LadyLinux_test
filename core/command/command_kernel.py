@@ -33,6 +33,21 @@ FONT_STEPS = {
 }
 
 VALID_TOOLS = {
+    "audio_mute",
+    "audio_unmute",
+    "audio_toggle_mute",
+    "audio_volume_set",
+    "audio_volume_get",
+    "audio_sink_list",
+    "media_play",
+    "media_pause",
+    "media_toggle",
+    "media_next",
+    "media_prev",
+    "media_stop",
+    "media_status",
+    "search_content",
+    "search_files",
     "set_theme",
     "set_ui_override",
     "list_services",
@@ -48,6 +63,7 @@ VALID_TOOLS = {
     "wifi_status",
     "wifi_enable",
     "wifi_disable",
+    "xdg_open",
 }
 
 _UNRESOLVED_NAMES = {"it", "that", "this", "the app", "the application", "them"}
@@ -111,6 +127,62 @@ def evaluate_prompt(text: str):
                 "args": {"name": parts[1]},
             }
 
+        if tool == "audio_volume_set":
+            if len(parts) != 2 or not parts[1].isdigit():
+                return {
+                    "type": "error",
+                    "tool": "audio_volume_set",
+                    "error": "Usage: audio_volume_set <0-100>",
+                }
+
+            return {
+                "type": "tool",
+                "tool": "audio_volume_set",
+                "args": {"level": int(parts[1])},
+            }
+
+        if tool == "xdg_open":
+            if len(parts) != 2:
+                return {
+                    "type": "error",
+                    "tool": "xdg_open",
+                    "error": "Usage: xdg_open <target>",
+                }
+
+            return {
+                "type": "tool",
+                "tool": "xdg_open",
+                "args": {"target": parts[1]},
+            }
+
+        if tool == "search_content":
+            if len(parts) < 2:
+                return {
+                    "type": "error",
+                    "tool": "search_content",
+                    "error": "Usage: search_content <query>",
+                }
+
+            return {
+                "type": "tool",
+                "tool": "search_content",
+                "args": {"query": " ".join(parts[1:])},
+            }
+
+        if tool == "search_files":
+            if len(parts) < 2:
+                return {
+                    "type": "error",
+                    "tool": "search_files",
+                    "error": "Usage: search_files <name>",
+                }
+
+            return {
+                "type": "tool",
+                "tool": "search_files",
+                "args": {"name": " ".join(parts[1:])},
+            }
+
         if len(parts) != 1:
             return {
                 "type": "error",
@@ -135,6 +207,43 @@ def evaluate_prompt(text: str):
 
     if text == "firewall reload":
         return {"type": "tool", "tool": "firewall_reload", "args": {}}
+
+    if text in ("mute", "mute audio", "mute sound", "turn off sound"):
+        return {"type": "tool", "tool": "audio_mute", "args": {}}
+
+    if text in ("unmute", "unmute audio", "unmute sound", "turn on sound"):
+        return {"type": "tool", "tool": "audio_unmute", "args": {}}
+
+    if text in ("pause music", "pause audio", "pause media"):
+        return {"type": "tool", "tool": "media_pause", "args": {}}
+
+    volume_match = re.search(
+        r"^(?:set\s+volume(?:\s+to)?|volume(?:\s+to)?)\s+(\d{1,3})(?:\s*%)?$",
+        text,
+    )
+    if volume_match:
+        return {
+            "type": "tool",
+            "tool": "audio_volume_set",
+            "args": {"level": int(volume_match.group(1))},
+        }
+
+    search_for_match = re.search(r"^search\s+for\s+(.+)$", text)
+    if search_for_match:
+        query = search_for_match.group(1).strip()
+        return {
+            "type": "tool",
+            "tool": "search_content",
+            "args": {"query": query},
+        }
+
+    open_target_match = re.search(r"^open\s+((?:https?://\S+)|(?:/[\w./-]+))$", text)
+    if open_target_match:
+        return {
+            "type": "tool",
+            "tool": "xdg_open",
+            "args": {"target": open_target_match.group(1)},
+        }
 
     launch_match = re.search(
         r"^(launch|open|run|start)\s+(?:app\s+)?([a-z0-9._-]+)$",

@@ -1,8 +1,27 @@
 from __future__ import annotations
 
+from api_layer.services.audio_service import (
+    audio_mute,
+    audio_sink_list,
+    audio_toggle_mute,
+    audio_unmute,
+    audio_volume_get,
+    audio_volume_set,
+)
 from api_layer.services.firewall_service import firewall_reload, firewall_status
+from api_layer.services.media_service import (
+    media_next,
+    media_pause,
+    media_play,
+    media_prev,
+    media_status,
+    media_stop,
+    media_toggle,
+)
 from api_layer.services.network_service import network_interfaces
 from api_layer.services.network_service import wifi_disable, wifi_enable, wifi_status
+from api_layer.services.open_service import xdg_open
+from api_layer.services.search_service import search_content, search_files
 from api_layer.services.service_manager import (
     check_process,
     disable_service,
@@ -167,6 +186,118 @@ TOOL_REGISTRY = {
         "risk": "medium",
         "aliases": ["disable wifi", "wifi disable"],
         "description": "Disable WiFi.",
+    },
+    "audio_mute": {
+        "handler": audio_mute,
+        "schema": EMPTY_SCHEMA,
+        "risk": "medium",
+        "aliases": ["mute audio", "mute sound", "audio mute"],
+        "description": "Mute the default audio sink.",
+    },
+    "audio_unmute": {
+        "handler": audio_unmute,
+        "schema": EMPTY_SCHEMA,
+        "risk": "medium",
+        "aliases": ["unmute audio", "audio unmute"],
+        "description": "Unmute the default audio sink.",
+    },
+    "audio_toggle_mute": {
+        "handler": audio_toggle_mute,
+        "schema": EMPTY_SCHEMA,
+        "risk": "medium",
+        "aliases": ["toggle mute", "audio toggle mute"],
+        "description": "Toggle mute on the default audio sink.",
+    },
+    "audio_volume_set": {
+        "handler": audio_volume_set,
+        "schema": {"level": int},
+        "risk": "medium",
+        "aliases": ["set volume", "audio volume set"],
+        "description": "Set the default audio sink volume.",
+    },
+    "audio_volume_get": {
+        "handler": audio_volume_get,
+        "schema": EMPTY_SCHEMA,
+        "risk": "safe",
+        "aliases": ["get volume", "audio volume get", "volume status"],
+        "description": "Get current volume and mute state.",
+    },
+    "audio_sink_list": {
+        "handler": audio_sink_list,
+        "schema": EMPTY_SCHEMA,
+        "risk": "safe",
+        "aliases": ["list audio sinks", "audio sink list"],
+        "description": "List available audio output sinks.",
+    },
+    "media_play": {
+        "handler": media_play,
+        "schema": EMPTY_SCHEMA,
+        "risk": "medium",
+        "aliases": ["play media", "resume music", "media play"],
+        "description": "Resume playback on the active media player.",
+    },
+    "media_pause": {
+        "handler": media_pause,
+        "schema": EMPTY_SCHEMA,
+        "risk": "medium",
+        "aliases": ["pause media", "pause music", "media pause"],
+        "description": "Pause the active media player.",
+    },
+    "media_toggle": {
+        "handler": media_toggle,
+        "schema": EMPTY_SCHEMA,
+        "risk": "medium",
+        "aliases": ["toggle media", "toggle music", "media toggle"],
+        "description": "Toggle play/pause on the active media player.",
+    },
+    "media_next": {
+        "handler": media_next,
+        "schema": EMPTY_SCHEMA,
+        "risk": "medium",
+        "aliases": ["next track", "media next"],
+        "description": "Skip to the next media track.",
+    },
+    "media_prev": {
+        "handler": media_prev,
+        "schema": EMPTY_SCHEMA,
+        "risk": "medium",
+        "aliases": ["previous track", "media prev"],
+        "description": "Return to the previous media track.",
+    },
+    "media_stop": {
+        "handler": media_stop,
+        "schema": EMPTY_SCHEMA,
+        "risk": "medium",
+        "aliases": ["stop media", "stop music", "media stop"],
+        "description": "Stop the active media player.",
+    },
+    "media_status": {
+        "handler": media_status,
+        "schema": EMPTY_SCHEMA,
+        "risk": "safe",
+        "aliases": ["media status", "music status", "now playing"],
+        "description": "Get playback state and track metadata.",
+    },
+    "xdg_open": {
+        "handler": xdg_open,
+        "schema": {"target": str},
+        "risk": "medium",
+        "aliases": ["open url", "open file", "xdg open"],
+        "description": "Open a safe URL or local path via the desktop handler.",
+    },
+    "search_content": {
+        "handler": search_content,
+        "schema": {"query": str, "path": str},
+        "risk": "safe",
+        "aliases": ["search content", "search text", "ripgrep"],
+        "description": "Search file contents within allowed roots.",
+    },
+    "search_files": {
+        "handler": search_files,
+        "schema": {"name": str, "path": str},
+        "risk": "safe",
+        "aliases": ["search files", "find files", "fd search"],
+        "description": "Search for files by name within allowed roots.",
     },
 }
 
