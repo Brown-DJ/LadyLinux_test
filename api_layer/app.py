@@ -16,12 +16,16 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
+from api_layer.routes.audio import router as audio_router
 from core.tools import os_core
 from core.tools.firewall_core import get_firewall_status_json
 from api_layer.routes.firewall import router as firewall_router
 from api_layer.routes.logs import router as logs_router
+from api_layer.routes.media import router as media_router
 from api_layer.routes.network import router as network_router
+from api_layer.routes.open import router as open_router
 from api_layer.routes.packages import router as packages_router
+from api_layer.routes.search import router as search_router
 from api_layer.routes.services import router as services_router
 from api_layer.routes.storage import router as storage_router
 from api_layer.routes.system import router as system_router
@@ -68,6 +72,10 @@ app.include_router(theme_router)
 app.include_router(ws_router)
 app.include_router(voice_ws_router)
 app.include_router(users_router.router)
+app.include_router(audio_router)
+app.include_router(media_router)
+app.include_router(open_router)
+app.include_router(search_router)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
