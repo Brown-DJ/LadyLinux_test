@@ -217,7 +217,9 @@ def launch_app(name: str) -> dict:
         return {"ok": False, "message": f"{app_name} not found"}
 
     try:
-        run_as_desktop_user([exe])
+        result = run_as_desktop_user([exe], popen=True)
+        if not result["ok"]:
+            return {"ok": False, "message": result["stderr"]}
         return {"ok": True, "launched": True}
 
     except Exception as e:

@@ -82,12 +82,16 @@ def run_as_desktop_user(
 
     # Minimal desktop environment — only what PulseAudio/PipeWire and
     # D-Bus actually need. Do NOT inherit the full systemd env.
+    uid = pw.pw_uid
+    env = {
+        "DISPLAY": ":0",
+        "XAUTHORITY": f"/home/{user}/.Xauthority",
+        "XDG_RUNTIME_DIR": f"/run/user/{uid}",
+        "DBUS_SESSION_BUS_ADDRESS": f"unix:path=/run/user/{uid}/bus",
+    }
     full_cmd = [
         sudo_bin, "-u", user, "env",
-        "DISPLAY=:0",
-        f"XAUTHORITY={pw.pw_dir}/.Xauthority",
-        f"XDG_RUNTIME_DIR=/run/user/{pw.pw_uid}",
-        f"DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{pw.pw_uid}/bus",
+        *(f"{key}={value}" for key, value in env.items()),
         *cmd,
     ]
 
