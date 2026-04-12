@@ -47,6 +47,7 @@ MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE", str(1 * 1024 * 1024)))  # 1 MB
 # produce noisy, generic Linux context that degrades Lady Linux answers.
 ALLOWED_RAG_PATHS: list[str] = [
     "/opt/ladylinux",
+    "obsidian_docs",
     "templates",
     "static",
     "config",

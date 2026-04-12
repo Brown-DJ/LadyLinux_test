@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 import json
 import logging
+import os
 from pathlib import Path
 import re
 import threading
@@ -39,6 +40,10 @@ from api_layer.utils.validators import validate_service_name
 from core.command.intent_classifier import detect_live_topics
 from core.command.semantic_classifier import classify_semantic
 from core.llm_gpu_probe import gpu_available
+from core.memory.router import route as memory_route
+from core.memory.log_reader import fetch_error_lines
+from core.memory.graph import ObsidianGraph
+from core.rag.ingest_obsidian import seed_obsidian_docs
 from core.rag.retriever import build_context_block, retrieve
 from core.rag.seed import seed
 from core.rag.system_provider import SystemProvider
@@ -103,6 +108,16 @@ RAG context should be used for explanation and project knowledge only.
 # tools.json is the single source of truth for allowed tool calls.
 # Add new tools there (and implement matching API routes) instead of prompt text.
 TOOL_ROUTER = ToolRouter()
+
+# Wikilink graph — built once at startup, zero I/O after that.
+# Points at obsidian_docs/ in the repo root. Logs a warning and returns empty
+# results if the vault is absent, so the pipeline continues.
+_OBSIDIAN_VAULT = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "obsidian_docs",
+)
+OBSIDIAN_GRAPH = ObsidianGraph(_OBSIDIAN_VAULT)
+
 TOOL_NAME_MAP = {
     "list_services": "system_services",
     "restart_service": "system_service_restart",
@@ -770,13 +785,21 @@ _seed_running = False
 @app.on_event("startup")
 def init_rag() -> None:
     ensure_collection()
-    if rag_collection_is_empty():
-        def _seed_with_flag():
-            global _seed_running
-            _seed_running = True
+
+    def _seed_all():
+        global _seed_running
+        _seed_running = True
+        try:
             seed()
+            seed_obsidian_docs()
+        finally:
             _seed_running = False
-        threading.Thread(target=_seed_with_flag, daemon=True).start()
+
+    if rag_collection_is_empty():
+        threading.Thread(target=_seed_all, daemon=True).start()
+    else:
+        # Vault content may have changed on git pull — always re-seed it.
+        threading.Thread(target=seed_obsidian_docs, daemon=True).start()
 
     def preload() -> None:
         time.sleep(30)
@@ -1029,23 +1052,56 @@ def _stream_llm_response(prompt: str, route: str, handle_fn, history: list[dict]
     }) + "\n"
 
 
-def _build_rag_system_prompt(prompt: str, page_context: str = "unknown", precomputed_topics: list[str] | None = None) -> tuple[str, list[dict], str]:
+def _build_session_system_prompt(
+    prompt: str,
+    history: list[dict],
+) -> tuple[str, list[dict], str]:
+    """Answer from conversation history when the query references prior turns."""
+    history_text = "\n".join(
+        f"{m['role'].capitalize()}: {m['content']}"
+        for m in history[-_HISTORY_CAP:]
+    )
+    session_prompt = f"""You are Lady Linux, a Linux assistant. Answer using the conversation below.
+
+CONVERSATION HISTORY
+{history_text}
+
+User: {prompt}
+
+Rules: Reference specific prior turns if relevant. Be concise."""
+
+    return session_prompt, [], "chat"
+
+
+def _build_rag_system_prompt(
+    prompt: str,
+    page_context: str = "unknown",
+    precomputed_topics: list[str] | None = None,
+    log_context: str | None = None,
+    use_graph_expand: bool = False,
+) -> tuple[str, list[dict], str]:
     domain = classify_rag_domain(prompt)
     live_block = _build_live_state_block(prompt, precomputed_topics=precomputed_topics, page_context=page_context)
     context_results = retrieve(prompt, domain=domain)
     context_text = build_context_block(context_results)
 
-    # Stripped-down RAG prompt for CPU-only inference.
-    # Removed: CAPABILITY_BLOCK, full rules list, _command_hint_block().
-    # Mistral only needs the question + live state + retrieved context to answer.
-    # Full scaffolding can be restored when GPU inference is available.
+    graph_block = ""
+    if use_graph_expand and context_results:
+        linked_content = OBSIDIAN_GRAPH.expand_from_qdrant_results(context_results, depth=1)
+        if linked_content:
+            seen: set[str] = set()
+            unique = [c for c in linked_content if not (c in seen or seen.add(c))]
+            graph_block = "\n\nLINKED CONTEXT (via wikilinks)\n" + "\n---\n".join(unique)
+
+    log_block = f"\n\nRECENT SYSTEM LOGS\n{log_context}" if log_context else ""
+
     system_prompt = f"""You are Lady Linux, a Linux system assistant. Answer concisely using the context below.
 
 LIVE SYSTEM STATE
 {live_block or "No live data available."}
 
 RELEVANT CONTEXT
-{context_text or "No relevant context found."}
+{context_text or "No relevant context found."}{graph_block}{log_block}
 
 USER QUESTION
 {prompt}
@@ -1101,12 +1157,37 @@ async def prompt_stream(req: PromptRequest):
             }) + "\n"
             return
 
-        # ── Single semantic pre-pass ──────────────────────────────────────────
-        # Runs once per request. Results flow to both routing and live state
-        # so Mistral is only called once for classification overhead.
+        # ── Memory router ─────────────────────────────────────────────────────
+        # Keyword-only, zero latency — runs before any LLM call.
+        # Returns an ordered list of sources: session, logs, system_state,
+        # rag_docs, graph_expand. Multiple sources can be active at once.
+        memory_sources = memory_route(prompt)
+        logger.info(f"[MEMORY ROUTER] sources={memory_sources}")
+
+        # ── Session path — Phase 3 ────────────────────────────────────────────
+        # When the query references the current conversation and history exists,
+        # answer directly from session context — skip RAG, skip Qdrant.
+        if "session" in memory_sources and history:
+            log_action("assistant:session", prompt[:120], "streaming")
+            yield from _stream_llm_response(
+                prompt,
+                "chat",
+                lambda p: _build_session_system_prompt(p, history),
+                None,
+            )
+            return
+
+        # ── Semantic pre-pass ─────────────────────────────────────────────────
+        # Runs once per request. Results used for both routing and live state injection.
         classification = classify_semantic(prompt)
         route = classify_prompt(prompt, precomputed_route=classification["route"])
         topics = classification["topics"]
+
+        # ── Phase 5: system_state fallback ────────────────────────────────────
+        # If memory router detected system signals but semantic classification
+        # returned no topics, seed a minimal topic set.
+        if "system_state" in memory_sources and not topics:
+            topics = ["processes", "services"]
 
         logger.info(f"[STREAM ROUTER] semantic route={route} page={page_context} topics={topics}")
 
@@ -1131,12 +1212,30 @@ async def prompt_stream(req: PromptRequest):
                 }) + "\n"
             return
 
+        # ── Phase 4: fetch log context when memory router signals logs ────────
+        log_context: str | None = None
+        if "logs" in memory_sources:
+            try:
+                log_context = fetch_error_lines()
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("[MEMORY ROUTER] log fetch failed: %s", exc)
+
         # ── RAG streaming ─────────────────────────────────────────────────────
         if route == "rag":
             log_action("assistant:rag", prompt[:120], "streaming")
+            _lc = log_context
+            _t = topics
+            _use_graph = "graph_expand" in memory_sources
             yield from _stream_llm_response(
-                prompt, "rag",
-                lambda p: _build_rag_system_prompt(p, page_context=page_context, precomputed_topics=topics),
+                prompt,
+                "rag",
+                lambda p: _build_rag_system_prompt(
+                    p,
+                    page_context=page_context,
+                    precomputed_topics=_t,
+                    log_context=_lc,
+                    use_graph_expand=_use_graph,
+                ),
                 history,
             )
             return
