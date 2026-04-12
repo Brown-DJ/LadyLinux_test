@@ -114,6 +114,8 @@ def retrieve_context(query: str, domain: str = "docs", top_k: int | None = None)
 
 
 def _domain_search_order(domain: str) -> list[str]:
+    if domain == "firewall":
+        return ["firewall", "system-help", "docs", "code"]
     if domain == "system-help":
         return ["system-help", "docs", "code"]
     if domain == "code":

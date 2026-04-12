@@ -14,7 +14,7 @@ let pendingConfirmation = null;
 let systemActivity = [];
 let conversationHistory = [];
 const MAX_HISTORY_TURNS = 10;
-// Store backend metadata from the most recent /ask_rag request for Dev Mode diagnostics.
+// Store backend metadata from the most recent assistant request for Dev Mode diagnostics.
 let lastRagMeta = {
   model: "mistral",
   retrievedChunks: 0,
@@ -579,11 +579,90 @@ function executeAction(actionName, params, options = {}) {
   return result.ok;
 }
 
+function currentPageContext() {
+  const firewallPane = document.getElementById("pane-firewall");
+  const firewallTab = document.getElementById("tab-firewall");
+  if (
+    window.location.pathname === "/firewall" ||
+    document.body?.dataset?.page === "firewall" ||
+    firewallPane?.classList.contains("active") ||
+    firewallTab?.classList.contains("active")
+  ) {
+    return "firewall";
+  }
+
+  return ({
+    "/":         "dashboard",
+    "/os":       "system-monitor",
+    "/network":  "network-manager",
+    "/users":    "user-manager",
+    "/logs":     "log-viewer",
+  })[window.location.pathname] ?? "unknown";
+}
+
+function inferFirewallAskAction(prompt) {
+  const text = String(prompt || "").toLowerCase();
+  if (text.includes("port") || text.includes("open") || text.includes("exposed")) {
+    return "inspect_ports";
+  }
+  if (text.includes("rule") || text.includes("allow") || text.includes("deny")) {
+    return "inspect_rules";
+  }
+  if (text.includes("log") || text.includes("failed") || text.includes("blocked")) {
+    return "inspect_logs";
+  }
+  if (text.includes("setting") || text.includes("default") || text.includes("profile")) {
+    return "inspect_settings";
+  }
+  if (text.includes("status") || text.includes("active") || text.includes("enabled")) {
+    return "inspect_status";
+  }
+  return "custom";
+}
+
+async function sendFirewallPrompt(prompt) {
+  replaceLastAssistantLine("▌", { isPlaceholder: true });
+
+  const response = await fetch("/api/firewall/ask", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      prompt,
+      action: inferFirewallAskAction(prompt),
+      top_k: 6,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  lastRagMeta = {
+    model: "mistral",
+    retrievedChunks: data?.retrieval?.result_count || 0,
+  };
+
+  const finalPayload = data?.output || data?.response || "No firewall answer returned.";
+
+  conversationHistory.push({ role: "assistant", content: finalPayload });
+  if (conversationHistory.length > MAX_HISTORY_TURNS * 2) {
+    conversationHistory = conversationHistory.slice(-MAX_HISTORY_TURNS * 2);
+  }
+  persistChatHistory();
+
+  return finalPayload;
+}
+
 /* Shared backend transport for all UI chat surfaces */
 async function sendPrompt(prompt) {
   // Add user turn to history before sending so backend sees full context
   conversationHistory.push({ role: "user", content: prompt });
   persistChatHistory();
+
+  if (currentPageContext() === "firewall") {
+    return sendFirewallPrompt(prompt);
+  }
 
   const response = await fetch("/api/prompt/stream", {
     method: "POST",
@@ -593,13 +672,7 @@ async function sendPrompt(prompt) {
       messages: conversationHistory,
       // Derive page context from current URL path so the backend knows where
       // the user is and can inject page-relevant live data automatically.
-      context: ({
-        "/":        "dashboard",
-        "/os":      "system-monitor",
-        "/network": "network-manager",
-        "/users":   "user-manager",
-        "/logs":    "log-viewer",
-      })[window.location.pathname] ?? "unknown",
+      context: currentPageContext(),
     }),
   });
 

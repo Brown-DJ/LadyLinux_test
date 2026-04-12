@@ -47,6 +47,7 @@ MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE", str(1 * 1024 * 1024)))  # 1 MB
 # produce noisy, generic Linux context that degrades Lady Linux answers.
 ALLOWED_RAG_PATHS: list[str] = [
     "/opt/ladylinux",
+    "/runtime/firewall",
     "obsidian_docs",
     "templates",
     "static",
@@ -67,7 +68,7 @@ EXCLUDED_RAG_PATHS: list[str] = [
 ]
 
 RAG_DOMAIN = "lady_linux"
-RAG_DOMAINS = ("docs", "code", "system-help")
+RAG_DOMAINS = ("docs", "code", "system-help", "firewall")
 
 
 def _normalize(path: str) -> str:
@@ -117,6 +118,8 @@ def domain_for_path(path: str) -> str:
     """
     normalized = _normalize(path).lower()
     if allowed_for_rag(path):
+        if "/runtime/firewall" in normalized:
+            return "firewall"
         if "/docs/" in normalized or normalized.endswith(".md"):
             return "docs"
         if any(
