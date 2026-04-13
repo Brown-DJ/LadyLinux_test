@@ -45,8 +45,11 @@ MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE", str(1 * 1024 * 1024)))  # 1 MB
 # Project-focused RAG scope:
 # We intentionally exclude core OS directories from indexing because they
 # produce noisy, generic Linux context that degrades Lady Linux answers.
+OBSIDIAN_USER_RAG_PATH = os.environ.get("OBSIDIAN_USER_PATH", "/var/lib/ladylinux/obsidian_user")
+
 ALLOWED_RAG_PATHS: list[str] = [
     "/opt/ladylinux",
+    OBSIDIAN_USER_RAG_PATH,
     "/runtime/firewall",
     "obsidian_docs",
     "templates",
@@ -89,15 +92,15 @@ def allowed_for_rag(path: str) -> bool:
     normalized = _normalize(path)
     lower = normalized.lower()
 
-    for blocked in EXCLUDED_RAG_PATHS:
-        blocked_norm = _normalize(blocked).lower()
-        if lower == blocked_norm or lower.startswith(f"{blocked_norm}{os.sep}") or lower.startswith(f"{blocked_norm}/"):
-            return False
-
     for allowed in ALLOWED_RAG_PATHS:
         allowed_norm = _normalize(allowed).lower()
         if lower == allowed_norm or lower.startswith(f"{allowed_norm}{os.sep}") or lower.startswith(f"{allowed_norm}/"):
             return True
+
+    for blocked in EXCLUDED_RAG_PATHS:
+        blocked_norm = _normalize(blocked).lower()
+        if lower == blocked_norm or lower.startswith(f"{blocked_norm}{os.sep}") or lower.startswith(f"{blocked_norm}/"):
+            return False
 
     return False
 
@@ -118,9 +121,15 @@ def domain_for_path(path: str) -> str:
     """
     normalized = _normalize(path).lower()
     if allowed_for_rag(path):
+        user_vault_norm = _normalize(OBSIDIAN_USER_RAG_PATH).lower()
         # Tag obsidian user docs with their own domain so retrieval can target
         # them directly without competing with system/code chunks.
-        if "/obsidian_docs/user/" in normalized:
+        if (
+            normalized == user_vault_norm
+            or normalized.startswith(f"{user_vault_norm}{os.sep}")
+            or normalized.startswith(f"{user_vault_norm}/")
+            or "/obsidian_docs/user/" in normalized
+        ):
             return "user"
         if "/obsidian_docs/system/" in normalized:
             return "system-help"

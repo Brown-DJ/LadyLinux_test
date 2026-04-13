@@ -54,6 +54,7 @@ VAR_DIR="/var/lib/ladylinux"
 DATA_DIR="$VAR_DIR/data"
 CACHE_DIR="$VAR_DIR/cache"
 LOGS_DIR="$VAR_DIR/logs"
+USER_VAULT_DIR="$VAR_DIR/obsidian_user"
 
 API_PORT="8000"
 API_SERVICE="ladylinux-api.service"
@@ -324,6 +325,19 @@ SUDOEOF
             log "Created directory: $d"
         fi
     done
+
+    # User vault: persists across git refreshes, writable by service user.
+    local legacy_user_vault="$APP_DIR/obsidian_docs/user"
+    local user_vault_user_dir="$USER_VAULT_DIR/user"
+    if [[ -d "$legacy_user_vault" && ! -d "$user_vault_user_dir" ]]; then
+        mkdir -p "$USER_VAULT_DIR"
+        cp -r "$legacy_user_vault" "$user_vault_user_dir"
+        chown -R "$SERVICE_USER":"$SERVICE_GROUP" "$USER_VAULT_DIR"
+        log "Migrated user vault to $user_vault_user_dir"
+    fi
+    mkdir -p "$user_vault_user_dir"
+    chown -R "$SERVICE_USER":"$SERVICE_GROUP" "$USER_VAULT_DIR"
+    chmod 0750 "$USER_VAULT_DIR"
 
     # Application action log — must exist before the API starts writing
     mkdir -p /var/log/ladylinux

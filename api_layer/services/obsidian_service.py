@@ -9,23 +9,33 @@ from __future__ import annotations
 import logging
 import os
 
-from core.rag.ingest_obsidian import OBSIDIAN_DOCS_PATH, seed_obsidian_docs
+from core.rag.ingest_obsidian import OBSIDIAN_USER_PATH, seed_obsidian_docs
 
 log = logging.getLogger("ladylinux.obsidian_service")
 
-_VAULT_ROOT = os.path.abspath(OBSIDIAN_DOCS_PATH)
+# Writes always go to the user vault, never into repo-tracked docs.
+_USER_VAULT_ROOT = os.path.abspath(
+    os.environ.get("OBSIDIAN_USER_PATH", "/var/lib/ladylinux/obsidian_user")
+)
 
 
 def _canonical_note_name(name: str) -> str:
     stem = os.path.splitext(os.path.basename(str(name or "").lower()))[0]
     return stem.replace("_", "").replace("-", "").replace(" ", "")
 
+
+def _read_user_vault_root() -> str:
+    if os.path.isdir(_USER_VAULT_ROOT):
+        return _USER_VAULT_ROOT
+    return os.path.abspath(OBSIDIAN_USER_PATH)
+
+
 # TODO: multi-user
 def _resolve_note_path(name: str) -> str:
     """
-    Resolve a note name to an absolute path inside the vault.
+    Resolve a note name to an absolute path inside the user vault.
     Accepts bare names, stems, or relative paths.
-    Raises ValueError if the resolved path escapes the vault root.
+    Raises ValueError if the resolved path escapes the user vault root.
     """
     note_name = str(name or "").strip()
     if not note_name:
@@ -34,16 +44,17 @@ def _resolve_note_path(name: str) -> str:
     if not note_name.lower().endswith(".md"):
         note_name += ".md"
 
-    for dirpath, _, filenames in os.walk(_VAULT_ROOT):
-        for fname in filenames:
-            if fname.lower() == note_name.lower():
-                return os.path.join(dirpath, fname)
-            if _canonical_note_name(fname) == _canonical_note_name(note_name):
-                return os.path.join(dirpath, fname)
+    if os.path.isdir(_USER_VAULT_ROOT):
+        for dirpath, _, filenames in os.walk(_USER_VAULT_ROOT):
+            for fname in filenames:
+                if fname.lower() == note_name.lower():
+                    return os.path.join(dirpath, fname)
+                if _canonical_note_name(fname) == _canonical_note_name(note_name):
+                    return os.path.join(dirpath, fname)
 
-    candidate = os.path.abspath(os.path.join(_VAULT_ROOT, note_name))
-    if os.path.commonpath([_VAULT_ROOT, candidate]) != _VAULT_ROOT:
-        raise ValueError(f"Note path escapes vault root: {candidate}")
+    candidate = os.path.abspath(os.path.join(_USER_VAULT_ROOT, note_name))
+    if os.path.commonpath([_USER_VAULT_ROOT, candidate]) != _USER_VAULT_ROOT:
+        raise ValueError(f"Note path escapes user vault: {candidate}")
 
     return candidate
 
@@ -83,8 +94,8 @@ def append_to_note(name: str, content: str) -> dict:
 
 
 def list_user_notes() -> dict:
-    """Return readable memory items from markdown files under obsidian_docs/user."""
-    user_dir = os.path.join(_VAULT_ROOT, "user")
+    """Return readable memory items from markdown files under the user vault."""
+    user_dir = _read_user_vault_root()
     if not os.path.isdir(user_dir):
         return {"ok": True, "notes": [], "items": []}
 
@@ -94,7 +105,7 @@ def list_user_notes() -> dict:
     for dirpath, _, filenames in os.walk(user_dir):
         for fname in sorted(f for f in filenames if f.lower().endswith(".md")):
             path = os.path.join(dirpath, fname)
-            rel_path = os.path.relpath(path, _VAULT_ROOT)
+            rel_path = os.path.relpath(path, user_dir)
             try:
                 with open(path, "r", encoding="utf-8", errors="ignore") as fh:
                     content = fh.read()

@@ -28,6 +28,19 @@ DEFAULT_OBSIDIAN_PATH = os.path.join(
 )
 OBSIDIAN_DOCS_PATH = os.environ.get("OBSIDIAN_DOCS_PATH", DEFAULT_OBSIDIAN_PATH)
 
+# User vault lives outside the repo so git refreshes never touch it.
+# Falls back to the legacy in-repo path if the external dir doesn't exist yet.
+DEFAULT_USER_VAULT = os.environ.get(
+    "OBSIDIAN_USER_PATH",
+    "/var/lib/ladylinux/obsidian_user",
+)
+LEGACY_USER_VAULT = os.path.join(OBSIDIAN_DOCS_PATH, "user")
+OBSIDIAN_USER_PATH = (
+    DEFAULT_USER_VAULT
+    if os.path.isdir(DEFAULT_USER_VAULT)
+    else LEGACY_USER_VAULT
+)
+
 
 def _collect_md_files(root: str) -> list[str]:
     """Recursively find all .md files under root."""
@@ -35,8 +48,36 @@ def _collect_md_files(root: str) -> list[str]:
     for dirpath, _, filenames in os.walk(root):
         for fname in filenames:
             if fname.lower().endswith(".md"):
-                found.append(os.path.join(dirpath, fname))
+                path = os.path.join(dirpath, fname)
+                if _should_skip_legacy_user_path(path):
+                    continue
+                found.append(path)
     return sorted(found)
+
+
+def _should_skip_legacy_user_path(path: str) -> bool:
+    external_user_root = os.path.abspath(DEFAULT_USER_VAULT)
+    if not os.path.isdir(external_user_root):
+        return False
+
+    legacy_user_root = os.path.abspath(LEGACY_USER_VAULT)
+    candidate = os.path.abspath(path)
+    return os.path.commonpath([legacy_user_root, candidate]) == legacy_user_root
+
+
+def _ingest_roots(docs_path: str | None = None) -> list[str]:
+    if docs_path:
+        return [os.path.abspath(docs_path)]
+
+    roots = [os.path.abspath(OBSIDIAN_DOCS_PATH)]
+    user_root = os.path.abspath(
+        DEFAULT_USER_VAULT
+        if os.path.isdir(DEFAULT_USER_VAULT)
+        else LEGACY_USER_VAULT
+    )
+    if user_root not in roots:
+        roots.append(user_root)
+    return roots
 
 
 def _extract_title(path: str, content: str) -> str:
@@ -54,22 +95,24 @@ def seed_obsidian_docs(docs_path: str | None = None) -> dict:
 
     Returns a summary dict: {"files": int, "chunks": int, "errors": list[str]}
     """
-    root = docs_path or OBSIDIAN_DOCS_PATH
-    root = os.path.abspath(root)
-
-    if not os.path.isdir(root):
-        log.warning("Obsidian docs path not found, skipping: %s", root)
-        return {"files": 0, "chunks": 0, "errors": [f"Path not found: {root}"]}
-
     ensure_collection()
 
-    md_files = _collect_md_files(root)
-    log.info("Found %d .md files under %s", len(md_files), root)
+    roots = _ingest_roots(docs_path)
+    md_files: list[tuple[str, str]] = []
+    missing_roots: list[str] = []
+    for root in roots:
+        if not os.path.isdir(root):
+            log.warning("Obsidian docs path not found, skipping: %s", root)
+            missing_roots.append(root)
+            continue
+        collected = _collect_md_files(root)
+        md_files.extend((root, path) for path in collected)
+        log.info("Found %d .md files under %s", len(collected), root)
 
     total_chunks = 0
-    errors: list[str] = []
+    errors: list[str] = [f"Path not found: {root}" for root in missing_roots]
 
-    for path in md_files:
+    for root, path in md_files:
         try:
             raw_chunks = chunk_file(path)
 
