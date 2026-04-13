@@ -629,18 +629,55 @@ async function loadStoragePartitions() {
       container.innerHTML = '<div class="col-12 text-muted small">No partition data available.</div>';
       return;
     }
-    container.innerHTML = data.partitions.map((p) => `
-      <div class="col-12 col-md-6">
-        <div class="p-3 rounded-3 ll-console-prompt">
-          <div class="fw-semibold">${p.mountpoint}</div>
-          <div class="text-muted small">${p.device} &mdash; ${p.fstype}</div>
-          <div class="progress ll-metric-bar mt-2 mb-1" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(p.percent)}">
-            <div class="progress-bar" style="width:${Math.round(p.percent)}%"></div>
+    container.innerHTML = data.partitions.map((p) => {
+      const pct = Math.round(p.percent);
+      const barClass = pct >= 90 ? "bg-danger"
+                     : pct >= 70 ? "bg-warning"
+                     : "bg-success";
+      const icon = p.mountpoint === "/" ? "bi-server" : "bi-device-hdd";
+      const badgeClass = pct >= 90 ? "bg-danger"
+                       : pct >= 70 ? "bg-warning text-dark"
+                       : "text-bg-secondary";
+
+      return `
+        <div class="col-12 col-md-6">
+          <div class="ll-storage-card p-3 rounded-3">
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <span class="ll-storage-icon">
+                <i class="bi ${icon}"></i>
+              </span>
+              <div class="overflow-hidden">
+                <div class="fw-semibold text-truncate ll-storage-mount">${p.mountpoint}</div>
+                <div class="text-muted small text-truncate">${p.device} &mdash; ${p.fstype}</div>
+              </div>
+              <span class="ms-auto badge ll-storage-badge ${badgeClass}">
+                ${pct}%
+              </span>
+            </div>
+
+            <div class="progress ll-storage-bar mb-2" role="progressbar"
+                 aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}">
+              <div class="progress-bar ${barClass}" style="width:${pct}%"></div>
+            </div>
+
+            <div class="ll-storage-stats">
+              <div class="ll-storage-stat">
+                <span class="ll-storage-stat__label">Used</span>
+                <span class="ll-storage-stat__value">${formatBytes(p.used)}</span>
+              </div>
+              <div class="ll-storage-stat">
+                <span class="ll-storage-stat__label">Free</span>
+                <span class="ll-storage-stat__value text-success">${formatBytes(p.free)}</span>
+              </div>
+              <div class="ll-storage-stat">
+                <span class="ll-storage-stat__label">Total</span>
+                <span class="ll-storage-stat__value">${formatBytes(p.total)}</span>
+              </div>
+            </div>
           </div>
-          <div class="text-muted small">${Math.round(p.percent)}% used &mdash; ${formatBytes(p.used)} / ${formatBytes(p.total)} &mdash; ${formatBytes(p.free)} free</div>
         </div>
-      </div>
-    `).join("");
+      `;
+    }).join("");
   } catch (e) {
     container.innerHTML = '<div class="col-12 text-muted small">Failed to load partitions.</div>';
   }

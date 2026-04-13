@@ -1396,3 +1396,77 @@ html[data-high-contrast="true"] .response-area {
 
 /* Suppress old grid layout (no longer used) */
 .lady-actions { display: none; }
+
+/* =====================================================
+   STORAGE TAB CARDS
+   ===================================================== */
+
+.ll-storage-card {
+  background: var(--bg-surface, #1a1a2e);
+  border: 1px solid var(--border-color, rgba(255,255,255,0.08));
+  transition: border-color 0.2s ease;
+}
+
+.ll-storage-card:hover {
+  border-color: var(--accent, #7c6af7);
+}
+
+.ll-storage-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--accent, #7c6af7) 15%, transparent);
+  color: var(--accent, #7c6af7);
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.ll-storage-mount {
+  font-size: 0.95rem;
+  letter-spacing: 0.01em;
+}
+
+.ll-storage-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--border-color, rgba(255,255,255,0.1));
+}
+
+.ll-storage-bar .progress-bar {
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.ll-storage-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.25rem;
+}
+
+.ll-storage-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.ll-storage-stat__label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted, #888);
+}
+
+.ll-storage-stat__value {
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-family: var(--font-mono, "IBM Plex Mono", monospace);
+}
+
+.ll-storage-badge {
+  font-size: 0.7rem;
+  font-family: var(--font-mono, monospace);
+  white-space: nowrap;
+}
