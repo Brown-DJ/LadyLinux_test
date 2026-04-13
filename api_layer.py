@@ -10,6 +10,9 @@ from fastapi.responses import StreamingResponse, JSONResponse, PlainTextResponse
 from pydantic import BaseModel
 from llm_runtime import ensure_model
 from api_layer.services import system_service
+from logging_filters import IgnoreMetricsFilter
+
+logging.getLogger("uvicorn.access").addFilter(IgnoreMetricsFilter())
 
 app = FastAPI()
 
@@ -379,4 +382,3 @@ def disable_service(target: str):
 @app.get("/api/system/metrics")
 def system_metrics():
     return {"ok": True, "stdout": "", "stderr": "", "returncode": 0, **system_service.get_metrics()}
-

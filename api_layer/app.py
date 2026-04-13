@@ -17,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
+from logging_filters import IgnoreMetricsFilter
 from api_layer.routes.audio import router as audio_router
 from core.tools import os_core
 from core.tools.firewall_core import get_firewall_status_json
@@ -64,6 +65,7 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger("ladylinux")
+logging.getLogger("uvicorn.access").addFilter(IgnoreMetricsFilter())
 
 app = FastAPI()
 
