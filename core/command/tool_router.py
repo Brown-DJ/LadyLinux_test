@@ -34,6 +34,7 @@ from api_layer.services.media_service import (
 )
 from api_layer.services.network_service import network_interfaces
 from api_layer.services.network_service import wifi_disable, wifi_enable, wifi_status
+from api_layer.services.obsidian_service import append_to_note
 from api_layer.services.open_service import xdg_open
 from api_layer.services.search_service import search_content, search_files
 from api_layer.services.service_manager import (
@@ -102,6 +103,8 @@ class ToolRouter:
             "xdg_open": xdg_open,
             "search_content": search_content,
             "search_files": search_files,
+            "update_obsidian_note": append_to_note,
+            "append_obsidian_note": append_to_note,
         }
 
         # Deterministic tool schema keeps command execution predictable.
@@ -143,6 +146,8 @@ class ToolRouter:
             "xdg_open": {"target": "string"},
             "search_content": {"query": "string", "path": "string"},
             "search_files": {"name": "string", "path": "string"},
+            "update_obsidian_note": {"name": "string", "content": "string"},
+            "append_obsidian_note": {"name": "string", "content": "string"},
         }
 
     def list_tool_names(self):
@@ -338,6 +343,8 @@ class ToolRouter:
             "xdg_open",
             "search_content",
             "search_files",
+            "update_obsidian_note",
+            "append_obsidian_note",
         ):
             ok = bool(raw_result.get("ok", False)) if isinstance(raw_result, dict) else False
             message = raw_result.get("message", f"{tool_name} executed") if isinstance(raw_result, dict) else f"{tool_name} executed"

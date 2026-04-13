@@ -64,6 +64,8 @@ VALID_TOOLS = {
     "wifi_enable",
     "wifi_disable",
     "xdg_open",
+    "update_obsidian_note",
+    "append_obsidian_note",
 }
 
 _UNRESOLVED_NAMES = {"it", "that", "this", "the app", "the application", "them"}

@@ -37,6 +37,7 @@ _VALID_TOOLS = {
     "wifi_enable",
     "wifi_disable",
     "xdg_open",
+    "update_obsidian_note",
 }
 
 _CLASSIFICATION_PROMPT = """You are a Linux system assistant classifier. Return ONLY valid JSON, no prose.
@@ -59,11 +60,14 @@ Rules:
 - route: "system" if they want an action done, "rag" if asking a question, "chat" if conversational
 - tool: one of: launch_app, kill_process, check_process, system_service_start,
   system_service_stop, system_service_restart, firewall_status, firewall_reload,
-  wifi_status, wifi_enable, wifi_disable, xdg_open — or null if no direct tool applies
+  wifi_status, wifi_enable, wifi_disable, xdg_open, update_obsidian_note — or null if no direct tool applies
 - args: for launch_app/kill_process/check_process use {{"name": "<app>"}},
   for xdg_open use {{"target": "<url-or-path>"}},
+  for update_obsidian_note use {{"name": "<note>", "content": "<text>"}},
   for service tools use {{"name": "<service>"}}, else null
 - Examples:
+  "add to aboutme.md: system has 24gb ram" -> tool: "update_obsidian_note", args: {{"name": "about_me", "content": "system has 24gb ram"}}
+  "update my notes: I prefer dark mode" -> tool: "update_obsidian_note", args: {{"name": "about_me", "content": "I prefer dark mode"}}
   "can you open spotify" -> tool: "launch_app", args: {{"name": "spotify"}}
   "open the calculator" -> tool: "launch_app", args: {{"name": "calculator"}}
   "open youtube" -> tool: "launch_app", args: {{"name": "youtube"}}
