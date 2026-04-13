@@ -23,7 +23,7 @@ def retrieve(
     """Retrieve the most relevant chunks for a natural-language *query*.
 
     Domain-aware behavior:
-    - Allowed domains are: docs, code, system-help.
+    - Allowed domains are: docs, code, system-help, firewall, user.
     - If no domain is provided, retrieval defaults to docs.
     - For system-help, search order is system-help -> docs -> code.
       This prevents system-live questions from pulling code chunks first.
@@ -49,10 +49,11 @@ def retrieve(
         # On a CPU-only VM this directly reduces LLM prompt size and response time.
         results = search(query_vector, top_k=k + 2, domain=target_domain)
         # Score threshold: discard weak matches that add noise without signal.
-        # Cosine similarity <0.35 is typically off-topic for a focused query.
+        # User docs are short, so they use a relaxed threshold.
+        score_floor = 0.20 if target_domain == "user" else 0.35
         filtered = [
             r for r in results
-            if _matches_domain(r, target_domain) and r.get("score", 0) >= 0.35
+            if _matches_domain(r, target_domain) and r.get("score", 0) >= score_floor
         ]
         final_results.extend(filtered)
     # Preserve order and de-duplicate by file/span.
@@ -114,13 +115,22 @@ def retrieve_context(query: str, domain: str = "docs", top_k: int | None = None)
 
 
 def _domain_search_order(domain: str) -> list[str]:
+    """Return domain search priority. 'user' facts appended to every path."""
     if domain == "firewall":
-        return ["firewall", "system-help", "docs", "code"]
-    if domain == "system-help":
-        return ["system-help", "docs", "code"]
-    if domain == "code":
-        return ["code", "docs", "system-help"]
-    return ["docs", "system-help", "code"]
+        base = ["firewall", "system-help", "docs", "code"]
+    elif domain == "system-help":
+        base = ["system-help", "docs", "code"]
+    elif domain == "code":
+        base = ["code", "docs", "system-help"]
+    elif domain == "user":
+        base = ["user", "docs"]
+    else:
+        base = ["docs", "system-help", "code"]
+
+    if "user" not in base:
+        base.append("user")
+
+    return base
 
 
 def _matches_domain(item: dict, expected_domain: str) -> bool:

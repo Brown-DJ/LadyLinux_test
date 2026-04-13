@@ -68,7 +68,7 @@ EXCLUDED_RAG_PATHS: list[str] = [
 ]
 
 RAG_DOMAIN = "lady_linux"
-RAG_DOMAINS = ("docs", "code", "system-help", "firewall")
+RAG_DOMAINS = ("docs", "code", "system-help", "firewall", "user")
 
 
 def _normalize(path: str) -> str:
@@ -118,6 +118,14 @@ def domain_for_path(path: str) -> str:
     """
     normalized = _normalize(path).lower()
     if allowed_for_rag(path):
+        # Tag obsidian user docs with their own domain so retrieval can target
+        # them directly without competing with system/code chunks.
+        if "/obsidian_docs/user/" in normalized:
+            return "user"
+        if "/obsidian_docs/system/" in normalized:
+            return "system-help"
+        if "/obsidian_docs/project/" in normalized:
+            return "docs"
         if "/runtime/firewall" in normalized:
             return "firewall"
         if "/docs/" in normalized or normalized.endswith(".md"):
