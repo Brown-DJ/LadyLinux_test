@@ -1004,6 +1004,8 @@ function initChat() {
 }
 
 function initMemoryPanel() {
+  loadObsidianMemory();
+
   // Dashboard memory panel
   const toggleBtn = document.getElementById("memoryPanelToggle");
   const chevron = document.getElementById("memoryChevron");
@@ -1011,7 +1013,8 @@ function initMemoryPanel() {
   const clearBtn = document.getElementById("memoryClearBtn");
   const memoryList = document.getElementById("memoryList");
 
-  if (toggleBtn && body) {
+  if (toggleBtn && body && toggleBtn.dataset.memoryToggleBound !== "true") {
+    toggleBtn.dataset.memoryToggleBound = "true";
     toggleBtn.addEventListener("click", () => {
       const isExpanded = toggleBtn.getAttribute("aria-expanded") === "true";
       toggleBtn.setAttribute("aria-expanded", String(!isExpanded));
@@ -1022,7 +1025,8 @@ function initMemoryPanel() {
     });
   }
 
-  if (clearBtn && memoryList) {
+  if (clearBtn && memoryList && clearBtn.dataset.memoryClearBound !== "true") {
+    clearBtn.dataset.memoryClearBound = "true";
     clearBtn.addEventListener("click", () => {
       memoryList.innerHTML = "<li class=\"text-muted fst-italic\">No memories stored.</li>";
     });
@@ -1035,7 +1039,8 @@ function initMemoryPanel() {
   const ladyClearBtn = document.getElementById("ladyMemoryClearBtn");
   const ladyMemoryList = document.getElementById("ladyMemoryList");
 
-  if (ladyToggleBtn && ladyBody) {
+  if (ladyToggleBtn && ladyBody && ladyToggleBtn.dataset.memoryToggleBound !== "true") {
+    ladyToggleBtn.dataset.memoryToggleBound = "true";
     ladyToggleBtn.addEventListener("click", () => {
       const isExpanded = ladyToggleBtn.getAttribute("aria-expanded") === "true";
       ladyToggleBtn.setAttribute("aria-expanded", String(!isExpanded));
@@ -1046,17 +1051,74 @@ function initMemoryPanel() {
     });
   }
 
-  if (ladyClearBtn && ladyMemoryList) {
+  if (ladyClearBtn && ladyMemoryList && ladyClearBtn.dataset.memoryClearBound !== "true") {
+    ladyClearBtn.dataset.memoryClearBound = "true";
     ladyClearBtn.addEventListener("click", () => {
       ladyMemoryList.innerHTML = "<li class=\"text-muted fst-italic\">No memories stored.</li>";
     });
   }
 }
 
+async function loadObsidianMemory() {
+  const lists = [
+    document.getElementById("memoryList"),
+    document.getElementById("ladyMemoryList"),
+  ].filter(Boolean);
+
+  if (!lists.length) return;
+
+  lists.forEach((list) => {
+    list.innerHTML = "<li class=\"text-muted fst-italic\">Loading memories...</li>";
+  });
+
+  try {
+    const response = await fetch("/api/memory/obsidian/user");
+    const data = await response.json();
+    const items = Array.isArray(data?.items) ? data.items : [];
+    lists.forEach((list) => renderObsidianMemoryList(list, items));
+  } catch (err) {
+    lists.forEach((list) => {
+      list.innerHTML = "<li class=\"text-muted fst-italic\">Could not load memories.</li>";
+    });
+  }
+}
+
+function renderObsidianMemoryList(list, items) {
+  list.innerHTML = "";
+
+  if (!items.length) {
+    const empty = document.createElement("li");
+    empty.className = "text-muted fst-italic";
+    empty.textContent = "No user notes yet.";
+    list.appendChild(empty);
+    return;
+  }
+
+  items.slice(0, 12).forEach((item) => {
+    const li = document.createElement("li");
+    const entry = document.createElement("span");
+    entry.className = "activity-entry";
+
+    const icon = document.createElement("i");
+    icon.className = "bi bi-journal-text";
+    entry.appendChild(icon);
+    entry.appendChild(document.createTextNode(" "));
+
+    const note = document.createElement("strong");
+    note.textContent = `${item.note || "User note"}: `;
+    entry.appendChild(note);
+    entry.appendChild(document.createTextNode(item.text || ""));
+
+    li.appendChild(entry);
+    list.appendChild(li);
+  });
+}
+
 window.logSystemActivity = logSystemActivity;
 window.recordActionHistory = logSystemActivity;
 window.sendPrompt = sendPrompt;
 window.processAssistantReply = processAssistantReply;
+window.loadObsidianMemory = loadObsidianMemory;
 
 document.addEventListener("DOMContentLoaded", () => {
   initMemoryPanel();

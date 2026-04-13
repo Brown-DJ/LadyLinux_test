@@ -5,6 +5,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from api_layer.services.obsidian_service import list_user_notes
 from core.memory.user_facts import (
     delete_fact,
     load_user_facts,
@@ -41,3 +42,9 @@ def remove_fact(req: FactDeleteRequest):
     """Delete a user fact by key."""
     removed = delete_fact(req.key)
     return {"ok": removed, "message": f"Fact '{req.key}' {'removed' if removed else 'not found'}."}
+
+
+@memory_router.get("/obsidian/user")
+def get_user_obsidian_notes():
+    """Return memory items from obsidian_docs/user markdown notes."""
+    return list_user_notes()

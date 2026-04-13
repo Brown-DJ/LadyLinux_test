@@ -82,6 +82,55 @@ def append_to_note(name: str, content: str) -> dict:
     }
 
 
+def list_user_notes() -> dict:
+    """Return readable memory items from markdown files under obsidian_docs/user."""
+    user_dir = os.path.join(_VAULT_ROOT, "user")
+    if not os.path.isdir(user_dir):
+        return {"ok": True, "notes": [], "items": []}
+
+    notes: list[dict] = []
+    items: list[dict] = []
+
+    for dirpath, _, filenames in os.walk(user_dir):
+        for fname in sorted(f for f in filenames if f.lower().endswith(".md")):
+            path = os.path.join(dirpath, fname)
+            rel_path = os.path.relpath(path, _VAULT_ROOT)
+            try:
+                with open(path, "r", encoding="utf-8", errors="ignore") as fh:
+                    content = fh.read()
+            except OSError as exc:
+                log.warning("Could not read user note %s: %s", path, exc)
+                continue
+
+            title = os.path.splitext(fname)[0].replace("_", " ").title()
+            note_items: list[str] = []
+
+            for line in content.splitlines():
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                if stripped.startswith("# "):
+                    title = stripped[2:].strip() or title
+                    continue
+                if stripped.startswith(("- ", "* ")):
+                    stripped = stripped[2:].strip()
+                if stripped.startswith("#"):
+                    continue
+                note_items.append(stripped)
+
+            note = {
+                "name": fname,
+                "title": title,
+                "path": rel_path,
+                "items": note_items,
+            }
+            notes.append(note)
+            for item in note_items:
+                items.append({"note": title, "text": item, "path": rel_path})
+
+    return {"ok": True, "notes": notes, "items": items}
+
+
 def _reingest(path: str) -> None:
     """Re-embed updated notes by re-running the obsidian ingest."""
     try:
