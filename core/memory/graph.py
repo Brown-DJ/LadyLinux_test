@@ -16,31 +16,36 @@ _CONTENT_PREVIEW_CHARS = 500
 class ObsidianGraph:
     """Build a vault graph once and answer link expansion queries from memory."""
 
-    def __init__(self, vault_path: str) -> None:
-        self.vault_path = Path(vault_path).resolve()
+    def __init__(self, vault_path: str | list[str] | tuple[str, ...]) -> None:
+        raw_paths = list(vault_path) if isinstance(vault_path, (list, tuple)) else [vault_path]
+        self.vault_paths = [Path(path).resolve() for path in raw_paths]
+        self.vault_path = self.vault_paths[0] if self.vault_paths else Path(".").resolve()
         self.graph: dict[str, dict[str, object]] = {}
         self._basename_index: dict[str, list[str]] = {}
+        self._canonical_basename_index: dict[str, list[str]] = {}
         self._build()
 
     def _build(self) -> None:
-        if not self.vault_path.is_dir():
-            log.warning("Obsidian vault not found, graph disabled: %s", self.vault_path)
-            return
-
-        for path in sorted(self.vault_path.rglob("*.md")):
-            try:
-                content = path.read_text(encoding="utf-8", errors="ignore")
-            except OSError as exc:
-                log.warning("Unable to read Obsidian note %s: %s", path, exc)
+        for vault_path in self.vault_paths:
+            if not vault_path.is_dir():
+                log.warning("Obsidian vault not found, graph disabled for root: %s", vault_path)
                 continue
 
-            key = self._key_for_path(path)
-            links = [match.strip() for match in _WIKILINK_RE.findall(content) if match.strip()]
-            self.graph[key] = {
-                "links": links,
-                "content": content[:_CONTENT_PREVIEW_CHARS].strip(),
-            }
-            self._basename_index.setdefault(Path(key).name.lower(), []).append(key)
+            for path in sorted(vault_path.rglob("*.md")):
+                try:
+                    content = path.read_text(encoding="utf-8", errors="ignore")
+                except OSError as exc:
+                    log.warning("Unable to read Obsidian note %s: %s", path, exc)
+                    continue
+
+                key = self._key_for_path(path)
+                links = [match.strip() for match in _WIKILINK_RE.findall(content) if match.strip()]
+                self.graph[key] = {
+                    "links": links,
+                    "content": content[:_CONTENT_PREVIEW_CHARS].strip(),
+                }
+                self._basename_index.setdefault(Path(key).name.lower(), []).append(key)
+                self._canonical_basename_index.setdefault(self._canonical_name(Path(key).name), []).append(key)
 
         log.info("Built Obsidian graph with %d node(s)", len(self.graph))
 
@@ -102,6 +107,10 @@ class ObsidianGraph:
         if normalized in self._basename_index and len(self._basename_index[normalized]) == 1:
             return self._basename_index[normalized][0]
 
+        canonical = self._canonical_name(target)
+        if canonical in self._canonical_basename_index and len(self._canonical_basename_index[canonical]) == 1:
+            return self._canonical_basename_index[canonical][0]
+
         suffix = f"/{normalized}"
         matches = [key for key in self.graph if key.lower().endswith(suffix)]
         if len(matches) == 1:
@@ -109,8 +118,24 @@ class ObsidianGraph:
 
         return None
 
+    def _canonical_name(self, value: str) -> str:
+        return value.lower().replace("_", "").replace("-", "").replace(" ", "")
+
     def _key_for_path(self, path: Path) -> str:
-        return path.resolve().relative_to(self.vault_path).with_suffix("").as_posix()
+        resolved = path.resolve()
+        for vault_path in self.vault_paths:
+            try:
+                rel_path = resolved.relative_to(vault_path)
+            except ValueError:
+                continue
+
+            key = rel_path.with_suffix("").as_posix()
+            root_label = vault_path.name
+            if root_label == "obsidian_user":
+                return f"user/{key}"
+            return key
+
+        return resolved.with_suffix("").as_posix()
 
     def _node_key_from_result(self, result: dict) -> str | None:
         raw_path = result.get("source_path") or result.get("filepath") or result.get("file_path") or ""
@@ -120,13 +145,17 @@ class ObsidianGraph:
         path = Path(str(raw_path))
         try:
             resolved = path.resolve()
-            if os.path.commonpath([str(self.vault_path), str(resolved)]) == str(self.vault_path):
-                return self._key_for_path(resolved)
+            for vault_path in self.vault_paths:
+                if os.path.commonpath([str(vault_path), str(resolved)]) == str(vault_path):
+                    return self._key_for_path(resolved)
         except (OSError, ValueError):
             pass
 
         candidate = str(raw_path).removesuffix(".md").replace("\\", "/").strip("/")
-        marker = "obsidian_docs/"
-        if marker in candidate:
-            candidate = candidate.split(marker, 1)[1]
+        for marker in ("obsidian_docs/", "obsidian_user/"):
+            if marker in candidate:
+                candidate = candidate.split(marker, 1)[1]
+                if marker == "obsidian_user/":
+                    candidate = f"user/{candidate}"
+                break
         return self._resolve_link(candidate)

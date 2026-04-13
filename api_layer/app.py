@@ -46,7 +46,8 @@ from core.memory.router import route as memory_route
 from core.memory.log_reader import fetch_error_lines
 from core.memory.graph import ObsidianGraph
 from core.memory.user_facts import format_facts_block, load_user_facts
-from core.rag.ingest_obsidian import seed_obsidian_docs
+from core.rag.ingest_obsidian import OBSIDIAN_USER_PATH
+from core.rag.ingest_obsidian import seed_all_vaults
 from core.rag.retriever import build_context_block, retrieve
 from core.rag.seed import seed
 from core.rag.system_provider import SystemProvider
@@ -115,13 +116,12 @@ RAG context should be used for explanation and project knowledge only.
 TOOL_ROUTER = ToolRouter()
 
 # Wikilink graph — built once at startup, zero I/O after that.
-# Points at obsidian_docs/ in the repo root. Logs a warning and returns empty
-# results if the vault is absent, so the pipeline continues.
+# Includes repo docs plus the external user vault so wikilinks can cross roots.
 _OBSIDIAN_VAULT = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
     "obsidian_docs",
 )
-OBSIDIAN_GRAPH = ObsidianGraph(_OBSIDIAN_VAULT)
+OBSIDIAN_GRAPH = ObsidianGraph([_OBSIDIAN_VAULT, OBSIDIAN_USER_PATH])
 
 TOOL_NAME_MAP = {
     "list_services": "system_services",
@@ -796,7 +796,7 @@ def init_rag() -> None:
         _seed_running = True
         try:
             seed()
-            seed_obsidian_docs()
+            seed_all_vaults()
         finally:
             _seed_running = False
 
@@ -804,7 +804,7 @@ def init_rag() -> None:
         threading.Thread(target=_seed_all, daemon=True).start()
     else:
         # Vault content may have changed on git pull — always re-seed it.
-        threading.Thread(target=seed_obsidian_docs, daemon=True).start()
+        threading.Thread(target=seed_all_vaults, daemon=True).start()
 
     def preload() -> None:
         time.sleep(30)

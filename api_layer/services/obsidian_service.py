@@ -145,7 +145,7 @@ def list_user_notes() -> dict:
 def _reingest(path: str) -> None:
     """Re-embed updated notes by re-running the obsidian ingest."""
     try:
-        seed_obsidian_docs()
+        seed_obsidian_docs(_USER_VAULT_ROOT)
         log.info("Re-ingested vault after note update: %s", path)
     except Exception as exc:  # noqa: BLE001
         log.warning("Re-ingest failed (note still written): %s", exc)

@@ -155,7 +155,12 @@ def seed_obsidian_docs(docs_path: str | None = None) -> dict:
     return {"files": len(md_files), "chunks": total_chunks, "errors": errors}
 
 
+def seed_all_vaults() -> dict:
+    """Ingest repo Obsidian docs plus the external user vault when present."""
+    return seed_obsidian_docs()
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)-8s  %(message)s")
-    summary = seed_obsidian_docs()
+    summary = seed_all_vaults()
     print(summary)
