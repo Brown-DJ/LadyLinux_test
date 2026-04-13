@@ -35,6 +35,13 @@ def retrieve(
     k = top_k if top_k is not None else TOP_K
     routed_domain = domain if domain in RAG_DOMAINS else "docs"
 
+    user_signals = (
+        "about me", "my name", "my routine", "who am i", "about_me",
+        "routines", "user folder", "user/", "obsidian user",
+    )
+    if any(signal in query.lower() for signal in user_signals):
+        routed_domain = "user"
+
     # 1) Embed the question once.
     log.info("RAG query: %s", query)
     log.info("Embedding query (%d chars, routed_domain=%s)", len(query), routed_domain)
