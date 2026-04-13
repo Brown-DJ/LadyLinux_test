@@ -334,6 +334,16 @@ SUDOEOF
     chmod 0640 /var/log/ladylinux/actions.log
     log "Created /var/log/ladylinux/actions.log"
 
+    # Persistent user facts - must exist before the API starts reading/writing it.
+    if [[ ! -f "$DATA_DIR/user_facts.json" ]]; then
+        printf "{}\n" > "$DATA_DIR/user_facts.json"
+        log "Seeded $DATA_DIR/user_facts.json"
+    else
+        log "User facts file exists: $DATA_DIR/user_facts.json"
+    fi
+    chown "$SERVICE_USER":"$SERVICE_GROUP" "$DATA_DIR/user_facts.json"
+    chmod 0640 "$DATA_DIR/user_facts.json"
+
     # .env template (never overwrite)
     if [[ -f "$ENV_FILE" ]]; then
         log "Env file exists (not modified): $ENV_FILE"

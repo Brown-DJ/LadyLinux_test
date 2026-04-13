@@ -23,6 +23,7 @@ from core.tools.firewall_core import get_firewall_status_json
 from api_layer.routes.firewall import router as firewall_router
 from api_layer.routes.logs import router as logs_router
 from api_layer.routes.media import router as media_router
+from api_layer.routes.memory_routes import memory_router
 from api_layer.routes.network import router as network_router
 from api_layer.routes.open import router as open_router
 from api_layer.routes.packages import router as packages_router
@@ -43,6 +44,7 @@ from core.llm_gpu_probe import gpu_available
 from core.memory.router import route as memory_route
 from core.memory.log_reader import fetch_error_lines
 from core.memory.graph import ObsidianGraph
+from core.memory.user_facts import format_facts_block, load_user_facts
 from core.rag.ingest_obsidian import seed_obsidian_docs
 from core.rag.retriever import build_context_block, retrieve
 from core.rag.seed import seed
@@ -81,6 +83,7 @@ app.include_router(audio_router)
 app.include_router(media_router)
 app.include_router(open_router)
 app.include_router(search_router)
+app.include_router(memory_router)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
@@ -1094,11 +1097,13 @@ def _build_rag_system_prompt(
             graph_block = "\n\nLINKED CONTEXT (via wikilinks)\n" + "\n---\n".join(unique)
 
     log_block = f"\n\nRECENT SYSTEM LOGS\n{log_context}" if log_context else ""
+    _user_facts_block = format_facts_block(load_user_facts())
 
     system_prompt = f"""You are Lady Linux, a Linux system assistant. Answer concisely using the context below.
 
 LIVE SYSTEM STATE
 {live_block or "No live data available."}
+{f"{chr(10)}{_user_facts_block}" if _user_facts_block else ""}
 
 RELEVANT CONTEXT
 {context_text or "No relevant context found."}{graph_block}{log_block}
@@ -1113,6 +1118,7 @@ Rules: Use context above. Do not invent state or commands. Keep answers brief.""
 
 def _build_chat_system_prompt(prompt: str, page_context: str = "unknown", precomputed_topics: list[str] | None = None) -> tuple[str, list[dict], str]:
     live_block = _build_live_state_block(prompt, precomputed_topics=precomputed_topics, page_context=page_context)
+    _user_facts_block = format_facts_block(load_user_facts())
 
     # Minimal chat prompt — live state + question only.
     # No RAG context injected here; chat route handles conversational queries.
@@ -1120,6 +1126,7 @@ def _build_chat_system_prompt(prompt: str, page_context: str = "unknown", precom
 
 LIVE SYSTEM STATE
 {live_block or "No live data available."}
+{f"{chr(10)}{_user_facts_block}" if _user_facts_block else ""}
 
 User: {prompt}"""
 

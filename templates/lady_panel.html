@@ -1,67 +1,65 @@
 <!-- templates/lady_panel.html -->
+<!-- Widget: Orb (primary) + Expand menu (secondary utilities) -->
+<!-- Orb click -> opens console panel directly -->
+<!-- Expand click -> toggles utility tray (theme, fullscreen, refresh) -->
 
-<!-- ── Radial launcher hub ── -->
-<div id="ladyRadialRoot" class="lady-radial-root">
+<!-- -- Widget root: fixed position handled by CSS -- -->
+<div id="ladyRadialRoot" class="lady-widget-root">
 
-  <!-- Action spokes — hidden until hub is activated -->
-  <!-- Each spoke has a data-action attr wired in global.js -->
-  <button
-    id="ladySpokePanel"
-    class="lady-spoke"
-    type="button"
-    style="--spoke-angle: 90deg;"
-    title="Open Lady panel"
-    aria-label="Open Lady panel"
-  >
-    <i class="bi bi-chat-dots"></i>
+  <!-- Utility tray - hidden by default, toggled by expand button -->
+  <div id="ladyUtilityTray" class="lady-utility-tray" aria-hidden="true">
+
+    <!-- Theme toggle: ID kept so syncAllThemeIcons() in nav_controls.js still finds it -->
+    <button
+      id="ladySpokeTheme"
+      class="lady-util-btn"
+      type="button"
+      title="Toggle Theme"
+      aria-label="Toggle theme"
+    >
+      <!-- Icon corrected on load by syncAllThemeIcons() in nav_controls.js -->
+      <i class="bi bi-circle-half"></i>
+    </button>
+
+    <!-- Fullscreen: data-fullscreen + data-fullscreen-label wired by global.js -->
+    <button
+      id="ladySpokeFullscreen"
+      class="lady-util-btn"
+      type="button"
+      title="Fullscreen"
+      aria-label="Toggle fullscreen"
+      data-fullscreen
+      data-fullscreen-label="icon"
+    >
+      <i class="bi bi-fullscreen"></i>
+    </button>
+
+    <!-- Metrics refresh: triggers window.fetchMetrics() via global.js -->
+    <button
+      id="ladySpokeMetrics"
+      class="lady-util-btn"
+      type="button"
+      title="Refresh Metrics"
+      aria-label="Refresh metrics"
+    >
+      <i class="bi bi-arrow-clockwise"></i>
+    </button>
+
+  </div>
+
+  <!-- Expand button: reveals/hides utility tray -->
+  <button id="ladyExpandBtn" class="lady-expand-btn" type="button" aria-label="Toggle utilities" title="Utilities">
+    <i class="bi bi-plus"></i>
   </button>
 
-  <button
-    id="ladySpokeMetrics"
-    class="lady-spoke"
-    type="button"
-    style="--spoke-angle: 135deg;"
-    title="Refresh Metrics"
-    aria-label="Refresh metrics"
-    data-action="refresh-metrics"
-  >
-    <i class="bi bi-arrow-clockwise"></i>
-  </button>
-
-  <button
-    id="ladySpokeTheme"
-    class="lady-spoke"
-    type="button"
-    style="--spoke-angle: 180deg;"
-    title="Toggle Theme"
-    aria-label="Toggle theme"
-    data-action="toggle-theme"
-  >
-    <!-- neutral placeholder; corrected on load by syncAllThemeIcons() -->
-    <i class="bi bi-circle-half"></i>
-  </button>
-
-  <button
-    id="ladySpokeFullscreen"
-    class="lady-spoke"
-    type="button"
-    style="--spoke-angle: 225deg;"
-    title="Fullscreen"
-    aria-label="Toggle fullscreen"
-    data-fullscreen
-    data-fullscreen-label="icon"
-  >
-    <i class="bi bi-fullscreen"></i>
-  </button>
-
-  <!-- Hub button — always visible, toggles spokes -->
-  <button id="ladyBtn" class="lady-btn" type="button" aria-label="Lady Linux assistant">
+  <!-- Orb: primary action - opens console panel immediately -->
+  <button id="ladyBtn" class="lady-btn" type="button" aria-label="Open Lady Linux console">
     &#129504;
   </button>
 
 </div>
 
-<!-- ── Floating panel (chat + memory) ── -->
+<!-- -- Floating console panel (unchanged from before) -- -->
 <div id="ladyPanel" class="lady-panel hidden" aria-hidden="true">
 
   <div class="lady-header">
@@ -71,7 +69,7 @@
     </button>
   </div>
 
-  <!-- Response output area -->
+  <!-- Response output area - wired by ladyWidget.js -->
   <div id="lady-response" class="flex-grow-1 overflow-auto"></div>
 
   <!-- Memory panel (collapsible) -->
@@ -80,44 +78,35 @@
       <span class="fw-semibold" style="font-size: 0.8rem; color: var(--text-muted);">
         What Lady Remembers
       </span>
-      <!-- Toggle uses data attribute; wired in chat.js initMemoryPanel() -->
       <button
         type="button"
-        class="lady-memory-toggle"
+        class="lady-close"
         id="ladyMemoryToggle"
+        aria-label="Toggle memory panel"
         aria-expanded="true"
         aria-controls="ladyMemoryBody"
-        title="Collapse"
+        title="Toggle memory"
+        style="font-size: 0.9rem;"
       >
-        <i class="bi bi-chevron-up" id="ladyMemoryChevron"></i>
+        <i class="bi bi-chevron-down" id="ladyMemoryChevron"></i>
       </button>
     </div>
-
     <div id="ladyMemoryBody">
-      <ul class="activity-log" id="ladyMemoryList" style="font-size: 0.8rem;">
-        <li>Asked about firewall rules on the network page</li>
-        <li>Prefers dark mode</li>
-        <li>Restarted ladylinux-api.service during last session</li>
+      <ul class="activity-log" id="ladyMemoryList">
+        <li><em style="color: var(--text-muted); font-size: 0.8rem;">No memories yet.</em></li>
       </ul>
-      <button type="button" class="btn btn-sm btn-outline-light mt-2 w-100" id="ladyMemoryClearBtn">
-        <i class="bi bi-trash"></i> Clear memory
-      </button>
     </div>
   </div>
 
   <!-- Input row -->
-  <div class="lady-input d-flex align-items-center gap-2">
-    <input id="lady-input" type="text" placeholder="Ask Lady..." autocomplete="off" style="flex:1" />
-    <button
-      type="button"
-      class="btn btn-sm btn-outline-secondary"
-      data-mic-btn
-      data-voice-source="widget"
-      title="Start voice input"
-      aria-label="Voice input"
-    >
-      <i class="bi bi-mic"></i>
-    </button>
+  <div class="lady-input">
+    <input
+      id="lady-input"
+      type="text"
+      class="form-control form-control-sm"
+      placeholder="Ask Lady Linux..."
+      autocomplete="off"
+    />
   </div>
 
 </div>

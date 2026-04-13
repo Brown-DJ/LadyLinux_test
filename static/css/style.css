@@ -1259,26 +1259,26 @@ html[data-high-contrast="true"] .response-area {
 }
 
 /* =====================================================
-   LADY LINUX - RADIAL LAUNCHER
+   LADY LINUX - WIDGET (ORB + EXPAND)
+   Replaces old radial launcher. No spoke angles.
+   Fixed to middle-right; orb opens console, expand opens tray.
    ===================================================== */
 
-/* Root container — anchored to middle-right edge */
-.lady-radial-root {
+/* Root container - anchors the whole widget to right-center */
+.lady-widget-root {
   position: fixed;
   top: 50vh;
   right: 22px;
-  bottom: auto;
   transform: translateY(-50%);
-  width: 56px;
-  height: 56px;
+  display: flex;
+  flex-direction: column;        /* stack: tray -> expand btn -> orb */
+  align-items: center;
+  gap: 10px;
   z-index: 9999;
 }
 
-/* Hub button — sits at center of root, always visible */
+/* Orb - primary action button, always visible */
 .lady-btn {
-  position: absolute;
-  bottom: 0;
-  right: 0;
   width: 56px;
   height: 56px;
   border-radius: 50%;
@@ -1287,67 +1287,112 @@ html[data-high-contrast="true"] .response-area {
   color: var(--color-on-accent, black);
   font-size: 22px;
   cursor: pointer;
-  z-index: 2;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
-  transition: transform 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-/* Hub rotates 45deg when radial is open — signals close action */
-.lady-btn.is-open {
-  transform: rotate(45deg);
+/* Orb subtle pulse animation when idle */
+@keyframes orbPulse {
+  0%, 100% { box-shadow: 0 8px 20px rgba(0,0,0,0.25), 0 0 0 0 color-mix(in srgb, var(--accent) 40%, transparent); }
+  50%       { box-shadow: 0 8px 20px rgba(0,0,0,0.25), 0 0 0 8px color-mix(in srgb, var(--accent) 0%, transparent); }
 }
 
-/* Spoke base — hidden at hub center by default */
-.lady-spoke {
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 42px;
-  height: 42px;
+.lady-btn {
+  animation: orbPulse 3s ease-in-out infinite;
+}
+
+.lady-btn:hover,
+.lady-btn:focus-visible {
+  transform: scale(1.08);
+  animation: none; /* stop pulse on interaction */
+  outline: none;
+}
+
+/* State classes - hooked by eventBus in global.js if needed */
+.lady-btn.lady-thinking { background: var(--accent-hover); }
+.lady-btn.lady-listening { background: #86efac; color: #111; } /* green tint */
+.lady-btn.lady-idle {} /* default, no override needed */
+
+/* Expand button - secondary, sits above orb */
+.lady-expand-btn {
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   border: 1px solid var(--border-color);
   background: var(--bg-surface);
   color: var(--text-main);
-  font-size: 1rem;
+  font-size: 1.1rem;
   cursor: pointer;
-  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: transform 0.2s ease, background 0.15s ease;
+}
 
-  /* Start collapsed at hub center */
-  transform: translate(0, 0) scale(0);
+.lady-expand-btn:hover,
+.lady-expand-btn:focus-visible {
+  background: var(--accent);
+  color: var(--color-on-accent, black);
+  outline: none;
+}
+
+/* Expand button rotates + when tray is open -> signals close */
+.lady-expand-btn.is-open {
+  transform: rotate(45deg);
+}
+
+/* Utility tray - slides in above expand button */
+.lady-utility-tray {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+
+  /* Collapsed state */
   opacity: 0;
-  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
-              opacity 0.2s ease;
+  transform: translateY(10px) scale(0.95);
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-/* Spoke expanded state — fan out along --spoke-angle */
-.lady-radial-root.is-open .lady-spoke {
-  transform: var(--spoke-translate) scale(1);
+/* Tray open state - toggled by .is-open class */
+.lady-utility-tray.is-open {
   opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
 }
 
-/* Per-spoke translate values — arc fans LEFT from hub (no off-screen right) */
-#ladySpokePanel      { --spoke-translate: translate(-7px,  -75px); }  /* up        */
-#ladySpokeMetrics    { --spoke-translate: translate(-65px, -45px); }  /* up-left   */
-#ladySpokeTheme      { --spoke-translate: translate(-75px,  -7px); }  /* left      */
-#ladySpokeFullscreen { --spoke-translate: translate(-65px,  42px); }  /* down-left */
+/* Individual utility buttons inside tray */
+.lady-util-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface);
+  color: var(--text-main);
+  font-size: 0.95rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease;
+}
 
-/* Stagger the animation so spokes fan out sequentially */
-#ladySpokePanel      { transition-delay: 0ms;   }
-#ladySpokeMetrics    { transition-delay: 40ms;  }
-#ladySpokeTheme      { transition-delay: 80ms;  }
-#ladySpokeFullscreen { transition-delay: 120ms; }
-
-/* Spoke hover state */
-.lady-spoke:hover,
-.lady-spoke:focus-visible {
+.lady-util-btn:hover,
+.lady-util-btn:focus-visible {
   background: var(--accent);
   color: var(--color-on-accent, black);
   border-color: var(--accent);
   outline: none;
 }
 
-/* Remove old .lady-actions grid — replaced by radial */
+/* Stagger tray button entrances */
+.lady-utility-tray.is-open .lady-util-btn:nth-child(1) { transition-delay: 0ms;  }
+.lady-utility-tray.is-open .lady-util-btn:nth-child(2) { transition-delay: 40ms; }
+.lady-utility-tray.is-open .lady-util-btn:nth-child(3) { transition-delay: 80ms; }
+
+/* Suppress old grid layout (no longer used) */
 .lady-actions { display: none; }

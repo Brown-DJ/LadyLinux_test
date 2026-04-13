@@ -10,9 +10,9 @@ This runs BEFORE RAG or LLM logic.
 """
 
 import re
-import shutil
 
 from core.command.semantic_classifier import classify_semantic
+from core.tools.app_registry import build_web_url, get_binary, get_process_name, is_web_service
 
 COLOR_MAP = {
     "red": "#ff3b3b",
@@ -78,6 +78,24 @@ def _is_resolved_arg(args: dict) -> bool:
     return name not in _UNRESOLVED_NAMES and len(name) > 1
 
 
+def _clean_friendly_name(name: str) -> str:
+    return re.sub(r"^the\s+", "", str(name or "").strip())
+
+
+def _resolve_name_arg(tool: str, args: dict) -> dict:
+    resolved = dict(args or {})
+    name = resolved.get("name")
+    if not name:
+        return resolved
+
+    if tool == "launch_app":
+        resolved["name"] = get_binary(name) or name
+    elif tool in {"kill_process", "check_process"}:
+        resolved["name"] = get_process_name(name) or name
+
+    return resolved
+
+
 def evaluate_prompt(text: str):
     text = text.lower().strip()
     parts = text.split()
@@ -127,7 +145,7 @@ def evaluate_prompt(text: str):
             return {
                 "type": "tool",
                 "tool": tool,
-                "args": {"name": parts[1]},
+                "args": _resolve_name_arg(tool, {"name": parts[1]}),
             }
 
         if tool == "audio_volume_set":
@@ -254,15 +272,28 @@ def evaluate_prompt(text: str):
         return {"type": "tool", "tool": "xdg_open", "args": {"target": target}}
 
     launch_match = re.search(
-        r"^(launch|open|run|start)\s+(?:app\s+)?([a-z0-9._-]+)$",
+        r"^(launch|open|run|start)\s+(?:app\s+)?(.+)$",
         text,
     )
     if launch_match:
-        app_name = launch_match.group(2).strip()
+        app_name = _clean_friendly_name(launch_match.group(2))
+        if re.match(r"^https?://", app_name):
+            return {
+                "type": "tool",
+                "tool": "xdg_open",
+                "args": {"target": app_name},
+            }
+        if is_web_service(app_name):
+            return {
+                "type": "tool",
+                "tool": "xdg_open",
+                "args": {"target": build_web_url(app_name)},
+            }
+        binary_name = get_binary(app_name)
         return {
             "type": "tool",
             "tool": "launch_app",
-            "args": {"name": app_name},
+            "args": {"name": binary_name or app_name},
         }
 
     restart_match = re.search(r"restart(?:\s+service)?\s+([a-z0-9._-]+)", text)
@@ -282,7 +313,7 @@ def evaluate_prompt(text: str):
         return {
             "type": "tool",
             "tool": "kill_process",
-            "args": {"name": proc_name},
+            "args": {"name": get_process_name(proc_name) or proc_name},
         }
 
     check_match = re.search(
@@ -294,7 +325,7 @@ def evaluate_prompt(text: str):
         return {
             "type": "tool",
             "tool": "check_process",
-            "args": {"name": proc_name},
+            "args": {"name": get_process_name(proc_name) or proc_name},
         }
 
     # ------------------------------------------------
@@ -394,20 +425,44 @@ def evaluate_prompt(text: str):
     # ------------------------------------------------
     semantic = classify_semantic(text)
     if semantic.get("tool") in VALID_TOOLS and semantic.get("args"):
-        if _is_resolved_arg(semantic["args"]):
+        tool = semantic["tool"]
+        args = semantic.get("args") or {}
+        if tool == "xdg_open" and args.get("target"):
             return {
                 "type": "tool",
-                "tool": semantic["tool"],
-                "args": semantic.get("args") or {},
+                "tool": "xdg_open",
+                "args": {"target": args["target"]},
+            }
+        if _is_resolved_arg(args):
+            if tool == "launch_app":
+                name = _clean_friendly_name(args.get("name"))
+                args = {**args, "name": name}
+                if re.match(r"^https?://", name):
+                    return {
+                        "type": "tool",
+                        "tool": "xdg_open",
+                        "args": {"target": name},
+                    }
+                if is_web_service(name):
+                    return {
+                        "type": "tool",
+                        "tool": "xdg_open",
+                        "args": {"target": build_web_url(name)},
+                    }
+            return {
+                "type": "tool",
+                "tool": tool,
+                "args": _resolve_name_arg(tool, args),
             }
 
     if len(parts) == 1 and parts[0].isalpha():
         candidate = parts[0]
-        if shutil.which(candidate) or shutil.which(candidate.replace("_", "-")):
+        binary_name = get_binary(candidate)
+        if binary_name:
             return {
                 "type": "tool",
                 "tool": "launch_app",
-                "args": {"name": candidate},
+                "args": {"name": binary_name},
             }
 
     if semantic.get("tool") in VALID_TOOLS and not semantic.get("args"):

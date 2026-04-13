@@ -200,7 +200,7 @@ def check_process(name: str) -> dict:
 
 def kill_process(name: str) -> dict:
     sudo_bin = shutil.which("sudo") or "/usr/bin/sudo"
-    result = run_command([sudo_bin, "pkill", "-x", name[:15]])
+    result = run_command([sudo_bin, "pkill", "-f", name])
     return {"ok": result.returncode == 0}
 
 

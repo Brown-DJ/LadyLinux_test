@@ -74,7 +74,7 @@
     },
     {
       "name": "kill_process",
-      "description": "Kill a running process by name using pkill. Use for GUI apps and non-systemd executables. Do NOT use for systemd services — use system_service_stop for those.",
+      "description": "Kill a running process by friendly app name or process name using pkill. Use for GUI apps and non-systemd executables, for example calculator, firefox, vlc, or python. Do NOT use for systemd services — use system_service_stop for those.",
       "method": "POST",
       "endpoint": "/api/system/process/{name}/kill",
       "parameters": {
@@ -83,7 +83,7 @@
     },
     {
       "name": "launch_app",
-      "description": "Launch a GUI application or executable by name. Use for desktop apps like gnome-calculator, firefox, nemo, vlc. Do NOT use for systemd services — use system_service_start for those.",
+      "description": "Launch a GUI application by friendly name or executable name. Use for desktop apps like calculator, firefox, files, terminal, spotify, or vlc. Web-only services such as youtube are resolved upstream to xdg_open. Do NOT use for systemd services — use system_service_start for those.",
       "method": "POST",
       "endpoint": "/api/system/app/{name}/launch",
       "parameters": {
