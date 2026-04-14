@@ -848,6 +848,11 @@ def logs_page(request: Request):
     return templates.TemplateResponse("logs.html", {"request": request})
 
 
+@app.get("/music")
+def music_page(request: Request):
+    return templates.TemplateResponse("music.html", {"request": request})
+
+
 # Legacy: previously targeted phi3, now routes to mistral via Ollama.
 @app.post("/ask_llm")
 async def ask_phi3_post(req: PromptRequest):

@@ -94,7 +94,13 @@
           </ul>
         </li>
 
-        <!-- ── Settings gear (unchanged) ── -->
+        <!-- ── Music and settings ── -->
+        <li class="nav-item">
+          <a href="/music" class="nav-link {% if request.url.path == '/music' %}active{% endif %}">
+            <i class="bi bi-music-note-beamed me-1"></i>Music
+          </a>
+        </li>
+
         <li class="nav-item">
           <a href="/os" class="nav-link ll-nav-icon-btn" aria-label="System Settings">
             <i class="bi bi-gear"></i>

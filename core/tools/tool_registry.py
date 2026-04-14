@@ -33,6 +33,11 @@ from api_layer.services.service_manager import (
     start_service,
     stop_service,
 )
+from api_layer.services.spotify_service import (
+    spotify_now_playing,
+    spotify_play_uri,
+    spotify_search,
+)
 from api_layer.services.system_info_service import get_datetime, get_uptime
 from api_layer.services.system_service import get_status
 from api_layer.services.theme_service import apply_theme
@@ -298,6 +303,27 @@ TOOL_REGISTRY = {
         "risk": "safe",
         "aliases": ["search files", "find files", "fd search"],
         "description": "Search for files by name within allowed roots.",
+    },
+    "spotify_search": {
+        "handler": spotify_search,
+        "schema": {"query": str},
+        "risk": "safe",
+        "aliases": ["search spotify", "find song", "spotify search"],
+        "description": "Search Spotify for a track, artist, album, or playlist.",
+    },
+    "spotify_play_uri": {
+        "handler": spotify_play_uri,
+        "schema": {"uri": str},
+        "risk": "medium",
+        "aliases": ["play spotify uri", "spotify play"],
+        "description": "Play a specific Spotify URI.",
+    },
+    "spotify_now_playing": {
+        "handler": spotify_now_playing,
+        "schema": EMPTY_SCHEMA,
+        "risk": "safe",
+        "aliases": ["spotify now playing", "what's on spotify"],
+        "description": "Get currently playing track from Spotify Web API.",
     },
 }
 

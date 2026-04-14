@@ -343,6 +343,9 @@ class ToolRouter:
             "xdg_open",
             "search_content",
             "search_files",
+            "spotify_search",
+            "spotify_play_uri",
+            "spotify_now_playing",
             "update_obsidian_note",
             "append_obsidian_note",
         ):
