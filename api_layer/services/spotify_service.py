@@ -131,8 +131,17 @@ def spotify_search(query: str, search_type: str = "track") -> dict[str, Any]:
 
     items = data.get(f"{search_type}s", {}).get("items", [])
     results = [
-        {"name": item.get("name"), "uri": item.get("uri"), "id": item.get("id")}
+        {
+            "name": item.get("name"),
+            "uri": item.get("uri"),
+            "id": item.get("id"),
+            "thumb": (
+                (item.get("album", {}).get("images") or item.get("images") or [{}])[-1]
+                .get("url", "")
+            ),
+        }
         for item in items
+        if item
     ]
     return {"ok": True, "results": results}
 
@@ -269,6 +278,18 @@ def spotify_now_playing() -> dict[str, Any]:
     except ValueError:
         return {"ok": False, "message": "Invalid Spotify response"}
     track = data.get("item") or {}
+    album_data = track.get("album", {})
+    images = album_data.get("images", [])
+
+    def _pick_image(target_height: int) -> str:
+        """Return the URL of the image closest to target_height, or empty."""
+        if not images:
+            return ""
+        for image in images:
+            if image.get("height", 0) >= target_height:
+                return image.get("url", "")
+        return images[-1].get("url", "")
+
     device = data.get("device", {})
     return {
         "ok": True,
@@ -277,8 +298,11 @@ def spotify_now_playing() -> dict[str, Any]:
         "artist": ", ".join(
             artist.get("name", "") for artist in track.get("artists", [])
         ),
-        "album": track.get("album", {}).get("name"),
+        "album": album_data.get("name"),
         "uri": track.get("uri"),
+        "art_large": _pick_image(640),
+        "art_medium": _pick_image(300),
+        "art_thumb": _pick_image(64),
         "device_name": device.get("name", ""),
         "device_id": device.get("id", ""),
         "device_type": device.get("type", ""),

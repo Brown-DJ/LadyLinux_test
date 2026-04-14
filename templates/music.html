@@ -391,6 +391,26 @@
           deviceNameEl.textContent = data.device_name;
           activeDeviceId = data.device_id;
         }
+
+        if (data.art_large) {
+          const artworkEl = document.getElementById("musicArtwork");
+          const bgBlurEl = document.getElementById("musicBgBlur");
+
+          if (artworkEl && artworkEl.src !== data.art_large) {
+            artworkEl.style.opacity = "0";
+            artworkEl.style.transition = "opacity 0.4s ease";
+            window.setTimeout(() => {
+              artworkEl.src = data.art_large;
+              artworkEl.style.opacity = "1";
+            }, 400);
+          }
+
+          if (bgBlurEl) {
+            bgBlurEl.style.backgroundImage = `url("${data.art_large}")`;
+            bgBlurEl.style.opacity = "1";
+          }
+        }
+
         if (data.ok && data.uri) {
           currentTrackUri = data.uri;
         }
@@ -485,7 +505,10 @@
 
       searchResults.innerHTML = results.map((result) => `
         <li class="music-lib-item" data-uri="${escapeHtml(result.uri)}">
-          <i class="bi bi-music-note-beamed"></i>
+          ${result.thumb
+            ? `<img class="music-lib-thumb" src="${escapeHtml(result.thumb)}" alt="" loading="lazy">`
+            : '<i class="bi bi-music-note-beamed"></i>'
+          }
           <span class="music-lib-item-name">${escapeHtml(result.name)}</span>
           <button class="music-lib-play-btn" title="Play">
             <i class="bi bi-play-fill"></i>

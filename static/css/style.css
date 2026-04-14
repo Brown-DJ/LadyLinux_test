@@ -1953,6 +1953,15 @@ body[data-page="music"] main.container {
   text-overflow: ellipsis;
 }
 
+/* -- Thumbnail in library list rows --------------------------------------- */
+.music-lib-thumb {
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
 /* -- Per-row play button --------------------------------------------------- */
 .music-lib-play-btn {
   flex-shrink: 0;
