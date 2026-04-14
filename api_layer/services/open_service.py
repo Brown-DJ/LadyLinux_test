@@ -17,9 +17,13 @@ import re
 
 from api_layer.services._desktop_runner import run_as_desktop_user
 
-# Only http/https URLs are accepted — no file:// or other schemes that
-# could expose arbitrary filesystem paths via the browser
+# Only http/https URLs and explicit Spotify app URIs are accepted. No
+# file:// or shell-like schemes are allowed.
 _SAFE_URL_RE = re.compile(r"^https?://", re.IGNORECASE)
+_SAFE_SPOTIFY_RE = re.compile(
+    r"^spotify:(?:$|(?:track|album|playlist|artist):[A-Za-z0-9]+$)",
+    re.IGNORECASE,
+)
 
 # Local paths are restricted to known LadyLinux and user directories.
 # Extend this list deliberately — do not make it a wildcard.
@@ -43,6 +47,9 @@ def _validate_target(target: str) -> str:
 
     if _SAFE_URL_RE.match(t):
         return t  # valid http/https URL
+
+    if _SAFE_SPOTIFY_RE.match(t):
+        return t  # valid Spotify desktop URI
 
     if any(t.startswith(prefix) for prefix in _SAFE_LOCAL_PREFIXES):
         return t  # valid local path

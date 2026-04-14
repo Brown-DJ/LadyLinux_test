@@ -51,6 +51,28 @@
           Open Spotify, VLC, or another MPRIS player.
         </p>
         <p class="text-muted small mb-0 mt-1" id="musicAlbum"></p>
+
+        <!-- Active device strip -->
+        <div class="music-device-strip mt-2 mb-3">
+          <span class="music-device-label">
+            <i class="bi bi-broadcast"></i>
+            Playing on:
+          </span>
+          <!-- Clicking the device name toggles the dropdown -->
+          <button class="btn btn-link btn-sm music-device-name p-0"
+            id="musicDeviceToggle" title="Switch device">
+            <span id="musicDeviceName">-</span>
+            <i class="bi bi-chevron-down ms-1" id="musicDeviceChevron"></i>
+          </button>
+
+          <!-- Device dropdown (hidden by default) -->
+          <div class="music-device-dropdown d-none" id="musicDeviceDropdown">
+            <div class="music-device-loading text-muted small" id="musicDeviceLoading">
+              <i class="bi bi-arrow-repeat spin"></i> Loading devices...
+            </div>
+            <ul class="list-unstyled mb-0" id="musicDeviceList"></ul>
+          </div>
+        </div>
       </div>
 
       <!-- Progress bar + timestamps -->
@@ -119,6 +141,60 @@
       <div class="music-event-log" id="musicEventLog" aria-live="polite"></div>
 
     </div><!-- /music-panel -->
+
+    <!-- Right column: Quick library panel -->
+    <div class="music-library-panel">
+
+      <!-- Search bar -->
+      <div class="music-lib-section mb-3">
+        <div class="music-lib-search-wrap">
+          <i class="bi bi-search music-lib-search-icon"></i>
+          <input
+            type="text"
+            class="music-lib-search-input"
+            id="spotifySearchInput"
+            placeholder="Search songs, artists, playlists..."
+            autocomplete="off"
+            spellcheck="false"
+          >
+          <!-- Type filter pills -->
+          <div class="music-lib-type-pills" id="searchTypePills">
+            <button class="music-pill active" data-type="track">Tracks</button>
+            <button class="music-pill" data-type="artist">Artists</button>
+            <button class="music-pill" data-type="playlist">Playlists</button>
+          </div>
+        </div>
+        <!-- Search results (hidden until query) -->
+        <ul class="music-lib-list d-none" id="spotifySearchResults"></ul>
+      </div>
+
+      <!-- Recently Played -->
+      <div class="music-lib-section mb-3" id="recentSection">
+        <div class="music-lib-header">
+          <i class="bi bi-clock-history"></i> Recently Played
+        </div>
+        <ul class="music-lib-list" id="recentTrackList">
+          <li class="music-lib-item text-muted small">Loading...</li>
+        </ul>
+      </div>
+
+      <!-- Playlist launcher -->
+      <div class="music-lib-section mb-3" id="playlistSection">
+        <div class="music-lib-header">
+          <i class="bi bi-collection-play"></i> Your Playlists
+        </div>
+        <ul class="music-lib-list" id="playlistList">
+          <li class="music-lib-item text-muted small">Loading...</li>
+        </ul>
+      </div>
+
+      <!-- Open in Spotify button -->
+      <button class="btn btn-outline-secondary w-100 music-open-spotify-btn"
+        id="openInSpotifyBtn" title="Open Spotify app">
+        <i class="bi bi-box-arrow-up-right me-2"></i>Open in Spotify
+      </button>
+
+    </div><!-- /music-library-panel -->
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -144,10 +220,25 @@
     const sysOutput = document.getElementById("sysOutput");
     const sysNet = document.getElementById("sysNet");
     const bgBlur = document.getElementById("musicBgBlur");
+    const deviceToggle = document.getElementById("musicDeviceToggle");
+    const deviceDropdown = document.getElementById("musicDeviceDropdown");
+    const deviceList = document.getElementById("musicDeviceList");
+    const deviceLoading = document.getElementById("musicDeviceLoading");
+    const deviceNameEl = document.getElementById("musicDeviceName");
+    const deviceChevron = document.getElementById("musicDeviceChevron");
+    const searchInput = document.getElementById("spotifySearchInput");
+    const searchResults = document.getElementById("spotifySearchResults");
+    const recentList = document.getElementById("recentTrackList");
+    const playlistList = document.getElementById("playlistList");
+    const openSpotifyBtn = document.getElementById("openInSpotifyBtn");
 
     let lastTrackKey = "";
     let volumeEditing = false;
     let volumeTimer = null;
+    let activeDeviceId = null;
+    let searchDebounce = null;
+    let activeSearchType = "track";
+    let currentTrackUri = null;
 
     function addLog(text) {
       if (!eventLog) return;
@@ -222,6 +313,7 @@
 
       if (bgBlur) bgBlur.style.opacity = hasPlayer ? "1" : "0";
       setTrackText(data);
+      if (data.uri) currentTrackUri = data.uri;
     }
 
     async function loadStatus() {
@@ -291,6 +383,204 @@
       }
     }
 
+    async function loadSpotifyNowPlaying() {
+      try {
+        const response = await fetch("/api/spotify/now-playing", { cache: "no-store" });
+        const data = await response.json();
+        if (data.ok && data.device_name) {
+          deviceNameEl.textContent = data.device_name;
+          activeDeviceId = data.device_id;
+        }
+        if (data.ok && data.uri) {
+          currentTrackUri = data.uri;
+        }
+      } catch (error) {
+        // playerctl is the primary status source.
+      }
+    }
+
+    async function loadDevices() {
+      deviceLoading.classList.remove("d-none");
+      deviceList.innerHTML = "";
+
+      try {
+        const response = await fetch("/api/spotify/devices", { cache: "no-store" });
+        const data = await response.json();
+        deviceLoading.classList.add("d-none");
+
+        if (!data.ok || !data.devices?.length) {
+          deviceList.innerHTML = '<li class="music-device-item text-muted small">No devices found</li>';
+          return;
+        }
+
+        data.devices.forEach((device) => {
+          const li = document.createElement("li");
+          li.className = "music-device-item" + (device.active ? " active" : "");
+
+          const iconMap = {
+            Smartphone: "bi-phone",
+            Computer: "bi-pc-display",
+            Speaker: "bi-speaker",
+            TV: "bi-tv",
+          };
+          const icon = iconMap[device.type] || "bi-cast";
+
+          li.innerHTML = `
+            <i class="bi ${icon}"></i>
+            <span>${escapeHtml(device.name)}</span>
+            ${device.active || device.id === activeDeviceId ? '<span class="music-device-active-dot"></span>' : ""}
+          `;
+
+          li.addEventListener("click", () => transferToDevice(device.id, device.name));
+          deviceList.appendChild(li);
+        });
+      } catch (error) {
+        deviceLoading.classList.add("d-none");
+        deviceList.innerHTML = `<li class="music-device-item text-muted small">Error: ${escapeHtml(error.message)}</li>`;
+      }
+    }
+
+    async function transferToDevice(deviceId, deviceName) {
+      deviceDropdown.classList.add("d-none");
+      deviceChevron.className = "bi bi-chevron-down ms-1";
+
+      addLog(`Switching to ${deviceName}...`);
+      try {
+        const response = await fetch("/api/spotify/device/select", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ device_id: deviceId, force_play: true }),
+        });
+        const data = await response.json();
+        addLog(data.message || "Device switched");
+        deviceNameEl.textContent = deviceName;
+        activeDeviceId = deviceId;
+      } catch (error) {
+        addLog(`Transfer failed: ${error.message}`);
+      }
+    }
+
+    async function triggerSearch(query) {
+      searchResults.innerHTML = '<li class="music-lib-item text-muted small"><i class="bi bi-arrow-repeat spin"></i> Searching...</li>';
+      searchResults.classList.remove("d-none");
+
+      try {
+        const response = await fetch("/api/spotify/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query, search_type: activeSearchType }),
+        });
+        const data = await response.json();
+        renderSearchResults(data.results || []);
+      } catch (error) {
+        searchResults.innerHTML = `<li class="music-lib-item text-muted small">Error: ${escapeHtml(error.message)}</li>`;
+      }
+    }
+
+    function renderSearchResults(results) {
+      if (!results.length) {
+        searchResults.innerHTML = '<li class="music-lib-item text-muted small">No results</li>';
+        return;
+      }
+
+      searchResults.innerHTML = results.map((result) => `
+        <li class="music-lib-item" data-uri="${escapeHtml(result.uri)}">
+          <i class="bi bi-music-note-beamed"></i>
+          <span class="music-lib-item-name">${escapeHtml(result.name)}</span>
+          <button class="music-lib-play-btn" title="Play">
+            <i class="bi bi-play-fill"></i>
+          </button>
+        </li>
+      `).join("");
+
+      searchResults.querySelectorAll(".music-lib-item").forEach((li) => {
+        li.querySelector(".music-lib-play-btn")?.addEventListener("click", (event) => {
+          event.stopPropagation();
+          playUri(li.dataset.uri, li.querySelector(".music-lib-item-name")?.textContent);
+        });
+      });
+    }
+
+    async function loadRecentTracks() {
+      try {
+        const response = await fetch("/api/spotify/recently-played", { cache: "no-store" });
+        const data = await response.json();
+        if (!data.ok || !data.tracks?.length) {
+          recentList.innerHTML = '<li class="music-lib-item text-muted small">Nothing recent</li>';
+          return;
+        }
+
+        recentList.innerHTML = data.tracks.map((track) => `
+          <li class="music-lib-item" data-uri="${escapeHtml(track.uri)}">
+            <i class="bi bi-clock-history text-muted"></i>
+            <span class="music-lib-item-name">${escapeHtml(track.title)}</span>
+            <span class="music-lib-item-sub">${escapeHtml(track.artist)}</span>
+            <button class="music-lib-play-btn" title="Play">
+              <i class="bi bi-play-fill"></i>
+            </button>
+          </li>
+        `).join("");
+
+        recentList.querySelectorAll(".music-lib-item").forEach((li) => {
+          li.querySelector(".music-lib-play-btn")?.addEventListener("click", (event) => {
+            event.stopPropagation();
+            playUri(li.dataset.uri, li.querySelector(".music-lib-item-name")?.textContent);
+          });
+        });
+      } catch (error) {
+        recentList.innerHTML = '<li class="music-lib-item text-muted small">Unavailable</li>';
+      }
+    }
+
+    async function loadPlaylists() {
+      try {
+        const response = await fetch("/api/spotify/playlists", { cache: "no-store" });
+        const data = await response.json();
+        if (!data.ok || !data.playlists?.length) {
+          playlistList.innerHTML = '<li class="music-lib-item text-muted small">No playlists found</li>';
+          return;
+        }
+
+        playlistList.innerHTML = data.playlists.map((playlist) => `
+          <li class="music-lib-item" data-uri="${escapeHtml(playlist.uri)}">
+            <i class="bi bi-collection-play text-muted"></i>
+            <span class="music-lib-item-name">${escapeHtml(playlist.name)}</span>
+            <span class="music-lib-item-sub">${Number(playlist.tracks) || 0} tracks</span>
+            <button class="music-lib-play-btn" title="Play">
+              <i class="bi bi-play-fill"></i>
+            </button>
+          </li>
+        `).join("");
+
+        playlistList.querySelectorAll(".music-lib-item").forEach((li) => {
+          li.querySelector(".music-lib-play-btn")?.addEventListener("click", (event) => {
+            event.stopPropagation();
+            playUri(li.dataset.uri, li.querySelector(".music-lib-item-name")?.textContent);
+          });
+        });
+      } catch (error) {
+        playlistList.innerHTML = '<li class="music-lib-item text-muted small">Unavailable</li>';
+      }
+    }
+
+    async function playUri(uri, label) {
+      if (!uri) return;
+      addLog(`Playing: ${label || uri}`);
+      try {
+        const response = await fetch("/api/spotify/play", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ uri }),
+        });
+        const data = await response.json();
+        addLog(data.message || "Playback started");
+        window.setTimeout(loadStatus, 800);
+        window.setTimeout(loadSpotifyNowPlaying, 800);
+      } catch (error) {
+        addLog(`Play failed: ${error.message}`);
+      }
+    }
+
     document.querySelectorAll("[data-media-action]").forEach((button) => {
       button.addEventListener("click", () => runAction(button.dataset.mediaAction));
     });
@@ -302,14 +592,62 @@
       window.clearTimeout(volumeTimer);
       volumeTimer = window.setTimeout(() => setVolume(volumeSlider.value), 220);
     });
+    deviceToggle.addEventListener("click", () => {
+      const isOpen = !deviceDropdown.classList.contains("d-none");
+      if (isOpen) {
+        deviceDropdown.classList.add("d-none");
+        deviceChevron.className = "bi bi-chevron-down ms-1";
+      } else {
+        deviceDropdown.classList.remove("d-none");
+        deviceChevron.className = "bi bi-chevron-up ms-1";
+        loadDevices();
+      }
+    });
+    document.querySelectorAll(".music-pill[data-type]").forEach((pill) => {
+      pill.addEventListener("click", () => {
+        document.querySelectorAll(".music-pill[data-type]").forEach((item) => {
+          item.classList.remove("active");
+        });
+        pill.classList.add("active");
+        activeSearchType = pill.dataset.type;
+        if (searchInput.value.trim()) triggerSearch(searchInput.value.trim());
+      });
+    });
+    searchInput.addEventListener("input", () => {
+      window.clearTimeout(searchDebounce);
+      const query = searchInput.value.trim();
+      if (!query) {
+        searchResults.classList.add("d-none");
+        searchResults.innerHTML = "";
+        return;
+      }
+      searchDebounce = window.setTimeout(() => triggerSearch(query), 400);
+    });
+    openSpotifyBtn.addEventListener("click", () => {
+      const target = currentTrackUri
+        ? `spotify:track:${currentTrackUri.split(":").pop()}`
+        : "spotify:";
+
+      fetch("/api/open", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target }),
+      }).catch(() => {});
+      addLog("Opening Spotify app");
+    });
 
     addLog("Ready");
     loadStatus();
     loadSinks();
     loadSystemContext();
+    loadSpotifyNowPlaying();
+    loadRecentTracks();
+    loadPlaylists();
     window.setInterval(loadStatus, 2000);
     window.setInterval(loadSinks, 15000);
     window.setInterval(loadSystemContext, 5000);
+    window.setInterval(loadSpotifyNowPlaying, 10000);
+    window.setInterval(loadRecentTracks, 30000);
   })();
   </script>
 </body>

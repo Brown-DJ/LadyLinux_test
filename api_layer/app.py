@@ -30,6 +30,7 @@ from api_layer.routes.open import router as open_router
 from api_layer.routes.packages import router as packages_router
 from api_layer.routes.search import router as search_router
 from api_layer.routes.services import router as services_router
+from api_layer.routes.spotify import router as spotify_router
 from api_layer.routes.storage import router as storage_router
 from api_layer.routes.system import router as system_router
 from api_layer.routes.theme import router as theme_router
@@ -87,6 +88,7 @@ app.include_router(media_router)
 app.include_router(open_router)
 app.include_router(search_router)
 app.include_router(memory_router)
+app.include_router(spotify_router)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")

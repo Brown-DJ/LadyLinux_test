@@ -34,9 +34,11 @@ from api_layer.services.service_manager import (
     stop_service,
 )
 from api_layer.services.spotify_service import (
+    spotify_get_devices,
     spotify_now_playing,
     spotify_play_uri,
     spotify_search,
+    spotify_transfer_device,
 )
 from api_layer.services.system_info_service import get_datetime, get_uptime
 from api_layer.services.system_service import get_status
@@ -324,6 +326,29 @@ TOOL_REGISTRY = {
         "risk": "safe",
         "aliases": ["spotify now playing", "what's on spotify"],
         "description": "Get currently playing track from Spotify Web API.",
+    },
+    "spotify_get_devices": {
+        "handler": spotify_get_devices,
+        "schema": EMPTY_SCHEMA,
+        "risk": "safe",
+        "aliases": [
+            "list spotify devices",
+            "spotify devices",
+            "what devices are available",
+        ],
+        "description": "List available Spotify Connect devices (phone, PC, speaker, etc.)",
+    },
+    "spotify_transfer_device": {
+        "handler": spotify_transfer_device,
+        "schema": {"device_id": str},
+        "risk": "medium",
+        "aliases": [
+            "switch spotify device",
+            "transfer playback",
+            "play on phone",
+            "play on speaker",
+        ],
+        "description": "Transfer Spotify playback to a different device by device ID.",
     },
 }
 

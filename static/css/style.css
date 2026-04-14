@@ -1711,3 +1711,271 @@ body[data-page="music"] main.container > .music-bg-blur {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* -- Device strip ---------------------------------------------------------- */
+.music-device-strip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.music-device-label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.music-device-name {
+  font-size: 0.85rem;
+  color: var(--accent);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.music-device-name:hover {
+  opacity: 0.8;
+}
+
+.music-device-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 200;
+  min-width: 200px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  border-radius: var(--ui-radius-small);
+  padding: 0.5rem 0;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.music-device-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 1rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--text-main);
+  transition: background 0.1s ease;
+}
+
+.music-device-item:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.music-device-item.active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.music-device-active-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #1db954;
+  margin-left: auto;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spin {
+  display: inline-block;
+  animation: spin 0.8s linear infinite;
+}
+
+/* -- Three-column music layout extension ---------------------------------- */
+body[data-page="music"] main.container {
+  grid-template-columns: minmax(220px, 0.8fr) minmax(260px, 1fr) minmax(220px, 0.9fr);
+}
+
+@media (max-width: 991.98px) {
+  body[data-page="music"] main.container {
+    grid-template-columns: 1fr;
+  }
+}
+
+.music-player-shell--three-col {
+  grid-template-columns: minmax(220px, 0.8fr) minmax(260px, 1fr) minmax(220px, 0.9fr);
+}
+
+@media (max-width: 991.98px) {
+  .music-player-shell--three-col {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* -- Library panel shell --------------------------------------------------- */
+.music-library-panel {
+  display: flex;
+  flex-direction: column;
+  background: color-mix(in srgb, var(--bg-panel) 90%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-color) 90%, #ffffff 10%);
+  border-radius: var(--ui-radius-small);
+  padding: clamp(1rem, 2vw, 1.5rem);
+  overflow: hidden;
+  backdrop-filter: blur(12px);
+}
+
+/* -- Section block --------------------------------------------------------- */
+.music-lib-section {
+  flex-shrink: 0;
+}
+
+.music-lib-header {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* -- Search input ---------------------------------------------------------- */
+.music-lib-search-wrap {
+  position: relative;
+}
+
+.music-lib-search-icon {
+  position: absolute;
+  left: 0.65rem;
+  top: 0.6rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.music-lib-search-input {
+  width: 100%;
+  background: color-mix(in srgb, var(--bg-surface, var(--bg-panel)) 80%, transparent);
+  border: 1px solid var(--border-color);
+  border-radius: var(--ui-radius-small);
+  color: var(--text-main);
+  font-size: 0.85rem;
+  padding: 0.45rem 0.75rem 0.45rem 2rem;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.music-lib-search-input:focus {
+  border-color: var(--accent);
+}
+
+.music-lib-search-input::placeholder {
+  color: var(--text-muted);
+}
+
+/* -- Type filter pills ----------------------------------------------------- */
+.music-lib-type-pills {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.music-pill {
+  font-size: 0.72rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 99px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.music-pill:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.music-pill.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #000;
+  font-weight: 600;
+}
+
+/* -- Scrollable list ------------------------------------------------------- */
+.music-lib-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 160px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color) transparent;
+}
+
+/* -- List item row --------------------------------------------------------- */
+.music-lib-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.25rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 40%, transparent);
+  font-size: 0.82rem;
+  color: var(--text-main);
+  cursor: default;
+  transition: background 0.1s ease;
+}
+
+.music-lib-item:hover {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.music-lib-item:last-child {
+  border-bottom: none;
+}
+
+.music-lib-item-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.music-lib-item-sub {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  max-width: 70px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* -- Per-row play button --------------------------------------------------- */
+.music-lib-play-btn {
+  flex-shrink: 0;
+  width: 1.6rem;
+  height: 1.6rem;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+
+.music-lib-play-btn:hover {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+/* -- Open in Spotify button ------------------------------------------------ */
+.music-open-spotify-btn {
+  margin-top: auto;
+  font-size: 0.82rem;
+}

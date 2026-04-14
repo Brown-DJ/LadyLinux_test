@@ -141,10 +141,11 @@ def spotify_play_uri(uri: str) -> dict[str, Any]:
     """
     Start playback of a Spotify URI.
 
-    URI format: spotify:track:<id> | spotify:album:<id> | spotify:playlist:<id>
+    URI format: spotify:track:<id> | spotify:album:<id> |
+                spotify:playlist:<id> | spotify:artist:<id>
     """
     if not uri or not uri.startswith(
-        ("spotify:track:", "spotify:album:", "spotify:playlist:")
+        ("spotify:track:", "spotify:album:", "spotify:playlist:", "spotify:artist:")
     ):
         return {"ok": False, "message": "Unsupported Spotify URI"}
 
@@ -192,10 +193,55 @@ def spotify_get_devices() -> dict[str, Any]:
         return {"ok": False, "message": _error_message(response)}
 
     devices = [
-        {"name": device["name"], "id": device["id"], "active": device["is_active"]}
+        {
+            "name": device["name"],
+            "id": device["id"],
+            "active": device["is_active"],
+            "type": device.get("type", ""),
+        }
         for device in response.json().get("devices", [])
     ]
     return {"ok": True, "devices": devices}
+
+
+def spotify_transfer_device(device_id: str, force_play: bool = True) -> dict[str, Any]:
+    """
+    Transfer Spotify playback to a different Connect device.
+
+    device_id  : Spotify device ID string from spotify_get_devices
+    force_play : if True, immediately resume playback on target device
+                 False transfers but keeps current pause state
+
+    Spotify returns 204 No Content on success.
+    """
+    if not device_id or not device_id.strip():
+        return {"ok": False, "message": "device_id is required"}
+
+    token = _get_access_token()
+    if not token:
+        return {"ok": False, "message": "Spotify not configured"}
+
+    try:
+        response = requests.put(
+            f"{SPOTIFY_API_BASE}/me/player",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "device_ids": [device_id],
+                "play": force_play,
+            },
+            timeout=10,
+        )
+    except requests.RequestException as exc:
+        return {"ok": False, "message": str(exc)}
+
+    return {
+        "ok": response.status_code in (200, 204),
+        "message": (
+            "Playback transferred"
+            if response.status_code in (200, 204)
+            else _error_message(response)
+        ),
+    }
 
 
 def spotify_now_playing() -> dict[str, Any]:
@@ -206,7 +252,7 @@ def spotify_now_playing() -> dict[str, Any]:
 
     try:
         response = requests.get(
-            f"{SPOTIFY_API_BASE}/me/player/currently-playing",
+            f"{SPOTIFY_API_BASE}/me/player",
             headers={"Authorization": f"Bearer {token}"},
             timeout=10,
         )
@@ -222,12 +268,105 @@ def spotify_now_playing() -> dict[str, Any]:
         data = response.json()
     except ValueError:
         return {"ok": False, "message": "Invalid Spotify response"}
-    track = data.get("item", {})
+    track = data.get("item") or {}
+    device = data.get("device", {})
     return {
         "ok": True,
         "playing": data.get("is_playing", False),
         "title": track.get("name"),
-        "artist": ", ".join(artist["name"] for artist in track.get("artists", [])),
+        "artist": ", ".join(
+            artist.get("name", "") for artist in track.get("artists", [])
+        ),
         "album": track.get("album", {}).get("name"),
         "uri": track.get("uri"),
+        "device_name": device.get("name", ""),
+        "device_id": device.get("id", ""),
+        "device_type": device.get("type", ""),
     }
+
+
+def spotify_get_playlists(limit: int = 10) -> dict[str, Any]:
+    """
+    Fetch the authenticated user's playlists.
+
+    Returns name, uri, and track count for each. limit is capped at
+    Spotify's max page size of 50.
+    """
+    token = _get_access_token()
+    if not token:
+        return {"ok": False, "playlists": [], "message": "Spotify not configured"}
+
+    try:
+        response = requests.get(
+            f"{SPOTIFY_API_BASE}/me/playlists",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"limit": min(limit, 50)},
+            timeout=10,
+        )
+    except requests.RequestException as exc:
+        return {"ok": False, "playlists": [], "message": str(exc)}
+
+    if not response.ok:
+        return {"ok": False, "playlists": [], "message": _error_message(response)}
+
+    items = response.json().get("items", [])
+    playlists = [
+        {
+            "name": item.get("name", ""),
+            "uri": item.get("uri", ""),
+            "id": item.get("id", ""),
+            "tracks": item.get("tracks", {}).get("total", 0),
+        }
+        for item in items
+        if item
+    ]
+    return {"ok": True, "playlists": playlists}
+
+
+def spotify_get_recently_played(limit: int = 8) -> dict[str, Any]:
+    """
+    Fetch recently played tracks from Spotify.
+
+    Uses /me/player/recently-played and deduplicates by track URI.
+    limit is capped at Spotify's max page size of 50.
+    """
+    token = _get_access_token()
+    if not token:
+        return {"ok": False, "tracks": [], "message": "Spotify not configured"}
+
+    try:
+        response = requests.get(
+            f"{SPOTIFY_API_BASE}/me/player/recently-played",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"limit": min(limit, 50)},
+            timeout=10,
+        )
+    except requests.RequestException as exc:
+        return {"ok": False, "tracks": [], "message": str(exc)}
+
+    if not response.ok:
+        return {"ok": False, "tracks": [], "message": _error_message(response)}
+
+    items = response.json().get("items", [])
+    seen = set()
+    tracks = []
+
+    for item in items:
+        if not item:
+            continue
+        track = item.get("track", {})
+        uri = track.get("uri", "")
+        if not uri or uri in seen:
+            continue
+        seen.add(uri)
+        tracks.append(
+            {
+                "title": track.get("name", ""),
+                "artist": ", ".join(
+                    artist.get("name", "") for artist in track.get("artists", [])
+                ),
+                "uri": uri,
+            }
+        )
+
+    return {"ok": True, "tracks": tracks}
