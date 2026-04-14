@@ -1570,3 +1570,144 @@ html[data-high-contrast="true"] .response-area {
     font-size: 2.2rem;
   }
 }
+
+/* -- Music page: replacement layout --------------------------------------- */
+body[data-page="music"] main.container {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.9fr) minmax(280px, 1.1fr);
+  gap: 1.5rem;
+  align-items: stretch;
+}
+
+body[data-page="music"] main.container > .top-context-nav-wrapper,
+body[data-page="music"] main.container > .music-bg-blur {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 767.98px) {
+  body[data-page="music"] main.container {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* -- Music page: blurred background layer --------------------------------- */
+.music-bg-blur {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: url("https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=1600&q=60") center / cover no-repeat;
+  filter: blur(48px) brightness(0.25) saturate(1.6);
+  opacity: 0;
+  transition: opacity 1.2s ease;
+  pointer-events: none;
+}
+
+/* -- Progress bar ---------------------------------------------------------- */
+.music-progress-wrap {
+  padding: 4px 0;
+}
+
+.music-progress-bar-track {
+  height: 4px;
+  background: color-mix(in srgb, var(--border-color) 80%, transparent);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.music-progress-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 99px;
+  transition: width 1s linear;
+}
+
+.music-time-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* -- Volume slider --------------------------------------------------------- */
+.music-volume-slider {
+  flex: 1;
+  accent-color: var(--accent);
+  height: 4px;
+  cursor: pointer;
+}
+
+/* -- Control button micro-interactions ------------------------------------ */
+.music-btn-icon {
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+}
+
+.music-btn-icon:hover {
+  transform: scale(1.12);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.music-btn-icon:active {
+  transform: scale(0.93);
+}
+
+.music-btn-icon.active {
+  background: color-mix(in srgb, var(--accent) 20%, transparent) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+}
+
+/* -- Track title fade-out animation on song change ------------------------ */
+.music-track-fade {
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.music-track-title {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+/* -- Player identity badge ------------------------------------------------- */
+.music-player-badge {
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* -- System context strip -------------------------------------------------- */
+.music-sys-strip {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--ui-radius-small);
+  background: color-mix(in srgb, var(--bg-panel) 60%, transparent);
+  border: 1px solid var(--border-color);
+}
+
+.music-sys-item {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+/* -- Live event log -------------------------------------------------------- */
+.music-event-log {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono, monospace);
+  max-height: 7rem;
+  overflow-y: auto;
+  border-top: 1px solid var(--border-color);
+  padding-top: 0.5rem;
+}
+
+.music-log-line {
+  padding: 2px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 40%, transparent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
