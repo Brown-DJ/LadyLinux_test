@@ -309,12 +309,10 @@ def spotify_now_playing() -> dict[str, Any]:
     }
 
 
-def spotify_get_playlists(limit: int = 10) -> dict[str, Any]:
+def spotify_get_playlists(limit: int = 20) -> dict[str, Any]:
     """
-    Fetch the authenticated user's playlists.
-
-    Returns name, uri, and track count for each. limit is capped at
-    Spotify's max page size of 50.
+    Fetch the current user's playlists.
+    Requires scope: playlist-read-private, playlist-read-collaborative
     """
     token = _get_access_token()
     if not token:
@@ -339,20 +337,18 @@ def spotify_get_playlists(limit: int = 10) -> dict[str, Any]:
             "name": item.get("name", ""),
             "uri": item.get("uri", ""),
             "id": item.get("id", ""),
-            "tracks": item.get("tracks", {}).get("total", 0),
+            "track_count": item.get("tracks", {}).get("total", 0),
         }
         for item in items
-        if item
+        if item  # Spotify can return null items in the list
     ]
     return {"ok": True, "playlists": playlists}
 
 
-def spotify_get_recently_played(limit: int = 8) -> dict[str, Any]:
+def spotify_get_recently_played(limit: int = 10) -> dict[str, Any]:
     """
-    Fetch recently played tracks from Spotify.
-
-    Uses /me/player/recently-played and deduplicates by track URI.
-    limit is capped at Spotify's max page size of 50.
+    Fetch the user's recently played tracks.
+    Requires scope: user-read-recently-played
     """
     token = _get_access_token()
     if not token:
@@ -372,25 +368,15 @@ def spotify_get_recently_played(limit: int = 8) -> dict[str, Any]:
         return {"ok": False, "tracks": [], "message": _error_message(response)}
 
     items = response.json().get("items", [])
-    seen = set()
-    tracks = []
-
-    for item in items:
-        if not item:
-            continue
-        track = item.get("track", {})
-        uri = track.get("uri", "")
-        if not uri or uri in seen:
-            continue
-        seen.add(uri)
-        tracks.append(
-            {
-                "title": track.get("name", ""),
-                "artist": ", ".join(
-                    artist.get("name", "") for artist in track.get("artists", [])
-                ),
-                "uri": uri,
-            }
-        )
+    tracks = [
+        {
+            "title": item["track"]["name"],
+            "artist": ", ".join(a["name"] for a in item["track"]["artists"]),
+            "uri": item["track"]["uri"],
+            "played_at": item["played_at"],
+        }
+        for item in items
+        if item and item.get("track")
+    ]
 
     return {"ok": True, "tracks": tracks}

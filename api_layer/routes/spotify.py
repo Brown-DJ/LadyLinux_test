@@ -18,10 +18,11 @@ class DeviceSelectPayload(BaseModel):
 
 
 class SearchPayload(BaseModel):
-    """POST body: {"query": "Kendrick Lamar", "search_type": "track"}."""
+    """POST body: {"query": "Kendrick Lamar", "type": "track"}."""
 
     query: str
-    search_type: str = "track"
+    type: str = "track"
+    search_type: str | None = None
 
 
 class PlayUriPayload(BaseModel):
@@ -52,15 +53,15 @@ def now_playing() -> dict:
 
 
 @router.get("/playlists")
-def get_playlists() -> dict:
+def get_playlists(limit: int = 20) -> dict:
     """Return the user's Spotify playlists for the launcher panel."""
-    return spotify_service.spotify_get_playlists(limit=20)
+    return spotify_service.spotify_get_playlists(limit=limit)
 
 
 @router.get("/recently-played")
-def recently_played() -> dict:
+def recently_played(limit: int = 10) -> dict:
     """Return recently played tracks for the quick-access panel."""
-    return spotify_service.spotify_get_recently_played(limit=8)
+    return spotify_service.spotify_get_recently_played(limit=limit)
 
 
 @router.post("/search")
@@ -68,7 +69,7 @@ def search(payload: SearchPayload) -> dict:
     """Search Spotify and return top results."""
     return spotify_service.spotify_search(
         query=payload.query,
-        search_type=payload.search_type,
+        search_type=payload.search_type or payload.type,
     )
 
 
