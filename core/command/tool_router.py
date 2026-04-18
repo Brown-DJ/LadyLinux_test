@@ -346,11 +346,18 @@ class ToolRouter:
             "spotify_search",
             "spotify_play_uri",
             "spotify_now_playing",
+            "spotify_play",
+            "spotify_play_on_device",
             "update_obsidian_note",
             "append_obsidian_note",
         ):
             ok = bool(raw_result.get("ok", False)) if isinstance(raw_result, dict) else False
             message = raw_result.get("message", f"{tool_name} executed") if isinstance(raw_result, dict) else f"{tool_name} executed"
+            matched = raw_result.get("matched", "") if isinstance(raw_result, dict) else ""
+            if tool_name == "spotify_play" and matched and ok:
+                message = f"Now playing: {matched}"
+            if tool_name == "spotify_play_on_device" and matched and ok:
+                message = f"Playing on: {matched}"
             return {
                 "ok": ok,
                 "message": message,

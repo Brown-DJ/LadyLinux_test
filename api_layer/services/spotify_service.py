@@ -183,6 +183,64 @@ def spotify_play_uri(uri: str) -> dict[str, Any]:
     }
 
 
+def spotify_play(query: str, search_type: str = "auto") -> dict[str, Any]:
+    """
+    Search Spotify for a query and immediately play the top result.
+
+    search_type="auto" infers a search priority from the query phrasing.
+    Explicit search_type values are tried first, then track and artist.
+    """
+    if not query or not query.strip():
+        return {"ok": False, "message": "Query cannot be empty"}
+
+    token = _get_access_token()
+    if not token:
+        return {"ok": False, "message": "Spotify not configured"}
+
+    if search_type == "auto":
+        order = _infer_search_order(query)
+    else:
+        order = list(dict.fromkeys([search_type, "track", "artist"]))
+
+    for s_type in order:
+        result = spotify_search(query, search_type=s_type)
+        if not result.get("ok") or not result.get("results"):
+            continue
+
+        top = result["results"][0]
+        uri = top.get("uri")
+        name = top.get("name", query)
+        if not uri:
+            continue
+
+        play_result = spotify_play_uri(uri)
+        play_result["matched"] = name
+        play_result["search_type"] = s_type
+        return play_result
+
+    return {"ok": False, "message": f"No Spotify results found for: {query}"}
+
+
+def _infer_search_order(query: str) -> list[str]:
+    """Infer Spotify search type priority from query phrasing."""
+    q = query.lower().strip()
+    words = q.split()
+
+    if "playlist" in words:
+        return ["playlist", "album", "track", "artist"]
+
+    if "album" in words:
+        return ["album", "artist", "track"]
+
+    if " by " in q:
+        return ["track", "album", "artist"]
+
+    if len(words) <= 2:
+        return ["artist", "track", "album"]
+
+    return ["track", "artist", "album"]
+
+
 def spotify_player_action(action: str) -> dict[str, Any]:
     """
     Send a playback control command to Spotify.
@@ -288,6 +346,39 @@ def spotify_transfer_device(device_id: str, force_play: bool = True) -> dict[str
             else _error_message(response)
         ),
     }
+
+
+def spotify_play_on_device(device_name: str) -> dict[str, Any]:
+    """
+    Find a Spotify Connect device by partial name match and transfer playback.
+
+    Matching is case-insensitive, so "phone" can match "Dj's iPhone".
+    """
+    devices_result = spotify_get_devices()
+    if not devices_result.get("ok"):
+        return {"ok": False, "message": "Could not retrieve Spotify devices"}
+
+    devices = devices_result.get("devices", [])
+    if not devices:
+        return {"ok": False, "message": "No Spotify Connect devices available"}
+
+    query = device_name.lower().strip()
+    matched = next(
+        (device for device in devices if query in device["name"].lower()),
+        None,
+    )
+
+    if not matched:
+        available = ", ".join(device["name"] for device in devices)
+        return {
+            "ok": False,
+            "message": f"No device matching '{device_name}'. Available: {available}",
+        }
+
+    result = spotify_transfer_device(device_id=matched["id"], force_play=True)
+    if result.get("ok"):
+        result["matched"] = matched["name"]
+    return result
 
 
 def spotify_now_playing() -> dict[str, Any]:

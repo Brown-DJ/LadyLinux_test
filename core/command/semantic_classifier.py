@@ -37,6 +37,11 @@ _VALID_TOOLS = {
     "wifi_enable",
     "wifi_disable",
     "xdg_open",
+    "spotify_search",
+    "spotify_play_uri",
+    "spotify_play",
+    "spotify_play_on_device",
+    "spotify_now_playing",
     "update_obsidian_note",
 }
 
@@ -60,9 +65,14 @@ Rules:
 - route: "system" if they want an action done, "rag" if asking a question, "chat" if conversational
 - tool: one of: launch_app, kill_process, check_process, system_service_start,
   system_service_stop, system_service_restart, firewall_status, firewall_reload,
-  wifi_status, wifi_enable, wifi_disable, xdg_open, update_obsidian_note — or null if no direct tool applies
+  wifi_status, wifi_enable, wifi_disable, xdg_open, spotify_search, spotify_play_uri,
+  spotify_play, spotify_play_on_device, spotify_now_playing, update_obsidian_note — or null if no direct tool applies
 - args: for launch_app/kill_process/check_process use {{"name": "<app>"}},
   for xdg_open use {{"target": "<url-or-path>"}},
+  for spotify_play use {{"query": "<artist-track-album-or-playlist>"}},
+  for spotify_play_on_device use {{"device_name": "<device name or type>"}},
+  for spotify_play_uri use {{"uri": "<spotify-uri>"}},
+  for spotify_search use {{"query": "<search text>"}},
   for update_obsidian_note use {{"name": "<note>", "content": "<text>"}},
   for service tools use {{"name": "<service>"}}, else null
 - Examples:
@@ -71,6 +81,11 @@ Rules:
   "can you open spotify" -> tool: "launch_app", args: {{"name": "spotify"}}
   "open the calculator" -> tool: "launch_app", args: {{"name": "calculator"}}
   "open youtube" -> tool: "launch_app", args: {{"name": "youtube"}}
+  "play juice wrld" -> tool: "spotify_play", args: {{"query": "juice wrld"}}
+  "put on some music" -> tool: "spotify_play", args: {{"query": "music"}}
+  "play on my phone" -> tool: "spotify_play_on_device", args: {{"device_name": "phone"}}
+  "switch spotify to kitchen speaker" -> tool: "spotify_play_on_device", args: {{"device_name": "kitchen speaker"}}
+  "what is playing on spotify" -> tool: "spotify_now_playing", args: null
   "kill firefox" -> tool: "kill_process", args: {{"name": "firefox"}}
   "is nginx running" -> tool: "check_process", args: {{"name": "nginx"}}
   "stop apache2" -> tool: "system_service_stop", args: {{"name": "apache2"}}

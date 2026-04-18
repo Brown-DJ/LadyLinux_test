@@ -36,6 +36,8 @@ from api_layer.services.service_manager import (
 from api_layer.services.spotify_service import (
     spotify_get_devices,
     spotify_now_playing,
+    spotify_play,
+    spotify_play_on_device,
     spotify_play_uri,
     spotify_search,
     spotify_transfer_device,
@@ -313,6 +315,22 @@ TOOL_REGISTRY = {
         "aliases": ["search spotify", "find song", "spotify search"],
         "description": "Search Spotify for a track, artist, album, or playlist.",
     },
+    "spotify_play": {
+        "handler": spotify_play,
+        "schema": {"query": str, "search_type": str},
+        "risk": "medium",
+        "aliases": [
+            "play artist",
+            "play song",
+            "play music",
+            "play album",
+            "play playlist",
+            "play juice wrld",
+            "play drake",
+            "put on some music",
+        ],
+        "description": "Search Spotify for an artist, track, album, or playlist and immediately play the top result.",
+    },
     "spotify_play_uri": {
         "handler": spotify_play_uri,
         "schema": {"uri": str},
@@ -337,6 +355,20 @@ TOOL_REGISTRY = {
             "what devices are available",
         ],
         "description": "List available Spotify Connect devices (phone, PC, speaker, etc.)",
+    },
+    "spotify_play_on_device": {
+        "handler": spotify_play_on_device,
+        "schema": {"device_name": str},
+        "risk": "medium",
+        "aliases": [
+            "play on device",
+            "switch to device",
+            "transfer playback",
+            "play on speaker",
+            "play on phone",
+            "switch spotify to",
+        ],
+        "description": "Transfer Spotify playback to a named Connect device by partial name match.",
     },
     "spotify_transfer_device": {
         "handler": spotify_transfer_device,
