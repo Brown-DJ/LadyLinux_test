@@ -183,6 +183,43 @@ def spotify_play_uri(uri: str) -> dict[str, Any]:
     }
 
 
+def spotify_player_action(action: str) -> dict[str, Any]:
+    """
+    Send a playback control command to Spotify.
+
+    action: "play" | "pause" | "next" | "previous"
+    """
+    token = _get_access_token()
+    if not token:
+        return {"ok": False, "message": "Spotify not configured"}
+
+    method_map = {
+        "play": ("PUT", f"{SPOTIFY_API_BASE}/me/player/play"),
+        "pause": ("PUT", f"{SPOTIFY_API_BASE}/me/player/pause"),
+        "next": ("POST", f"{SPOTIFY_API_BASE}/me/player/next"),
+        "previous": ("POST", f"{SPOTIFY_API_BASE}/me/player/previous"),
+    }
+
+    if action not in method_map:
+        return {"ok": False, "message": f"Unknown action: {action}"}
+
+    method, url = method_map[action]
+    try:
+        response = requests.request(
+            method,
+            url,
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=10,
+        )
+    except requests.RequestException as exc:
+        return {"ok": False, "message": str(exc)}
+
+    return {
+        "ok": response.status_code in (200, 204),
+        "message": "ok" if response.status_code in (200, 204) else _error_message(response),
+    }
+
+
 def spotify_get_devices() -> dict[str, Any]:
     """List available Spotify Connect devices."""
     token = _get_access_token()

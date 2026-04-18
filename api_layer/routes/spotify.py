@@ -79,9 +79,29 @@ def search(payload: SearchPayload) -> dict:
 
 
 @router.post("/play")
-def play_uri(payload: PlayUriPayload) -> dict:
-    """Start playback of a Spotify URI."""
+def play_uri(payload: PlayUriPayload | None = None) -> dict:
+    """Start playback of a Spotify URI, or resume playback with an empty body."""
+    if payload is None:
+        return spotify_service.spotify_player_action("play")
     return spotify_service.spotify_play_uri(uri=payload.uri)
+
+
+@router.post("/pause")
+def pause_playback() -> dict:
+    """Pause playback on the active device."""
+    return spotify_service.spotify_player_action("pause")
+
+
+@router.post("/next")
+def skip_next() -> dict:
+    """Skip to the next track."""
+    return spotify_service.spotify_player_action("next")
+
+
+@router.post("/previous")
+def skip_previous() -> dict:
+    """Skip to the previous track."""
+    return spotify_service.spotify_player_action("previous")
 
 
 @router.get("/callback")
