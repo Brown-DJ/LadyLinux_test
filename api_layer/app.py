@@ -19,6 +19,7 @@ from pydantic import BaseModel
 
 from logging_filters import IgnoreMetricsFilter
 from api_layer.routes.audio import router as audio_router
+from api_layer.routes.context import router as context_router
 from core.tools import os_core
 from core.tools.firewall_core import get_firewall_status_json
 from api_layer.routes.firewall import router as firewall_router
@@ -53,6 +54,7 @@ from core.rag.retriever import build_context_block, retrieve
 from core.rag.seed import seed
 from core.rag.system_provider import SystemProvider
 from core.rag.vector_store import COLLECTION_NAME, client, ensure_collection
+from core.startup.weather_init import init_weather
 from llm_runtime import ensure_model
 from core.command.command_kernel import evaluate_prompt
 from core.command.tool_router import ToolRouter, ToolRouterError
@@ -89,6 +91,7 @@ app.include_router(open_router)
 app.include_router(search_router)
 app.include_router(memory_router)
 app.include_router(spotify_router)
+app.include_router(context_router)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
@@ -792,6 +795,7 @@ _seed_running = False
 @app.on_event("startup")
 def init_rag() -> None:
     ensure_collection()
+    init_weather()
 
     def _seed_all():
         global _seed_running
