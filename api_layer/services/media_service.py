@@ -72,72 +72,97 @@ def media_stop() -> dict:
 
 def media_status() -> dict:
     """
-    Return current playback state + extended metadata.
+    Return current playback state and full track metadata.
 
-    Added fields vs. original:
-      - position_sec  : current playback position in seconds (float)
-      - duration_sec  : total track duration in seconds (float)
-      - volume        : player volume 0.0-1.0 (float)
-      - player_name   : active MPRIS player identity (e.g. 'spotify', 'vlc')
-      - shuffle       : shuffle state bool (if supported by player)
-      - loop_status   : 'None' | 'Track' | 'Playlist'
-
-    playerctl returns seconds for position and microseconds for length.
-    Returns ok=True even with no player; numeric fields default to 0/None.
+    Uses one formatted metadata call plus status and position, avoiding the
+    older per-field subprocess calls.
     """
-    # Core transport fields
     status_result = run_as_desktop_user(["playerctl", "status"])
-    title_result = run_as_desktop_user(["playerctl", "metadata", "title"])
-    artist_result = run_as_desktop_user(["playerctl", "metadata", "artist"])
-    album_result = run_as_desktop_user(["playerctl", "metadata", "album"])
+    if not status_result["ok"]:
+        return {
+            "ok": True,
+            "playing": False,
+            "status": "No player",
+            "title": "",
+            "artist": "",
+            "album": "",
+            "position_sec": 0.0,
+            "duration_sec": 0.0,
+            "volume": None,
+            "player_name": "",
+            "shuffle": False,
+            "loop_status": "None",
+            "message": "No media player active",
+        }
 
-    # Extended metadata fields fail silently; not all players expose these.
-    position_result = run_as_desktop_user(["playerctl", "position"])
-    length_result = run_as_desktop_user(["playerctl", "metadata", "mpris:length"])
-    volume_result = run_as_desktop_user(["playerctl", "volume"])
-    player_result = run_as_desktop_user(
-        ["playerctl", "metadata", "--format", "{{playerName}}"]
+    fmt = "\t".join(
+        [
+            "{{title}}",
+            "{{artist}}",
+            "{{album}}",
+            "{{mpris:length}}",
+            "{{volume}}",
+            "{{playerName}}",
+            "{{shuffle}}",
+            "{{loopStatus}}",
+        ]
     )
-    shuffle_result = run_as_desktop_user(["playerctl", "shuffle"])
-    loop_result = run_as_desktop_user(["playerctl", "loop"])
+    meta_result = run_as_desktop_user(["playerctl", "metadata", "--format", fmt])
+    position_result = run_as_desktop_user(["playerctl", "position"])
 
-    no_player = not status_result["ok"]
+    title = artist = album = player_name = loop_status = ""
+    duration_sec = 0.0
+    volume: float | None = None
+    shuffle = False
 
-    position_sec: float = 0.0
+    if meta_result["ok"] and meta_result["stdout"]:
+        parts = meta_result["stdout"].split("\t")
+
+        def _get(idx: int) -> str:
+            return parts[idx].strip() if idx < len(parts) else ""
+
+        title = _get(0)
+        artist = _get(1)
+        album = _get(2)
+
+        try:
+            duration_sec = int(_get(3)) / 1_000_000
+        except ValueError:
+            duration_sec = 0.0
+
+        try:
+            volume = round(float(_get(4)), 2)
+        except ValueError:
+            volume = None
+
+        player_name = _get(5)
+        shuffle = _get(6).lower() == "on"
+        loop_status = _get(7) or "None"
+
+    position_sec = 0.0
     if position_result["ok"]:
         try:
-            position_sec = float(position_result["stdout"])
+            position_sec = float(position_result["stdout"].strip())
         except ValueError:
             pass
 
-    duration_sec: float = 0.0
-    if length_result["ok"]:
-        try:
-            duration_sec = int(length_result["stdout"]) / 1_000_000
-        except ValueError:
-            pass
-
-    volume: float | None = None
-    if volume_result["ok"]:
-        try:
-            volume = round(float(volume_result["stdout"]), 2)
-        except ValueError:
-            pass
+    status = status_result["stdout"].strip()
+    playing = status.lower() == "playing"
 
     return {
-        "ok": True,  # "no player" is valid state, not an error
-        "playing": status_result["stdout"].lower() == "playing" if status_result["ok"] else False,
-        "status": status_result["stdout"] if status_result["ok"] else "No player",
-        "title": title_result["stdout"] if title_result["ok"] else "",
-        "artist": artist_result["stdout"] if artist_result["ok"] else "",
-        "album": album_result["stdout"] if album_result["ok"] else "",
+        "ok": True,
+        "playing": playing,
+        "status": status,
+        "title": title,
+        "artist": artist,
+        "album": album,
         "position_sec": position_sec,
         "duration_sec": duration_sec,
         "volume": volume,
-        "player_name": player_result["stdout"] if player_result["ok"] else "",
-        "shuffle": shuffle_result["stdout"].lower() == "on" if shuffle_result["ok"] else False,
-        "loop_status": loop_result["stdout"] if loop_result["ok"] else "None",
-        "message": status_result["stdout"] if not no_player else "No media player active",
+        "player_name": player_name,
+        "shuffle": shuffle,
+        "loop_status": loop_status,
+        "message": f"{title} - {artist}" if title else status,
     }
 
 
