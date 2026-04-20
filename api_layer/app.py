@@ -40,6 +40,7 @@ from api_layer.routes.ws import router as ws_router
 from api_layer.routes.voice_ws import router as voice_ws_router
 from api_layer.routes import users as users_router
 from api_layer.routers.google_auth_router import router as google_auth_router
+from api_layer.routers.google_calendar_router import router as google_calendar_router
 from api_layer.routers.google_fit_router import router as google_fit_router
 from api_layer.routers.google_gmail_router import router as google_gmail_router
 from api_layer.services.system_service import get_status
@@ -97,6 +98,7 @@ app.include_router(memory_router)
 app.include_router(spotify_router)
 app.include_router(context_router)
 app.include_router(google_auth_router)
+app.include_router(google_calendar_router)
 app.include_router(google_fit_router)
 app.include_router(google_gmail_router)
 
