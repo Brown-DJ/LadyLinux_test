@@ -1,14 +1,16 @@
 """
-Fetch Google Fit daily aggregate activity data.
+Fetch health and activity data from Google Health API v4.
 
-Uses the Fitness REST API aggregate endpoint. Data is limited to daily
-aggregates; no granular session data is injected into prompts.
+Replaces the deprecated Google Fit REST API. Data is fetched per data type using
+list endpoints with civil_start_time filters, then cached for one hour through
+google_cache.py.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta
 
 import httpx
 
@@ -17,142 +19,197 @@ from api_layer.services.google_cache import get_cached, set_cached
 
 log = logging.getLogger("ladylinux.google_fit")
 
-_BASE_URL = "https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate"
+_BASE_URL = "https://health.googleapis.com/v4/users/me"
 _TOPIC = "fit"
 
-_DATASOURCES = {
-    "steps": "derived:com.google.step_count.delta:com.google.android.gms:estimated_steps",
-    "calories": "derived:com.google.calories.expended:com.google.android.gms:merge_calories_expended",
-    "active": "derived:com.google.active_minutes:com.google.android.gms:merge_active_minutes",
-    "sleep": "derived:com.google.sleep.segment:com.google.android.gms:merge_sleep_segments",
-    "heart": "derived:com.google.heart_rate.bpm:com.google.android.gms:merge_heart_rate_bpm",
-}
+
+def _today_str() -> str:
+    """Return today's date as ISO string for civil_start_time filters."""
+    return f"{date.today().isoformat()}T00:00:00"
 
 
-def _today_epoch_ms() -> tuple[int, int]:
-    """
-    Return start of today and current time as UTC epoch milliseconds.
-
-    Google Fit aggregate requests can fail when endTimeMillis is in the future,
-    so the end of the range is capped at now instead of end-of-day.
-    """
-    now = datetime.now(timezone.utc)
-    start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    return int(start.timestamp() * 1000), int(now.timestamp() * 1000)
-
-
-def _build_aggregate_body(start_ms: int, end_ms: int) -> dict:
-    """
-    Build the Fit aggregate endpoint request body.
-    """
+def _auth_headers(token: str) -> dict:
+    """Return standard auth headers for Google Health API requests."""
     return {
-        "aggregateBy": [
-            {"dataTypeName": "com.google.step_count.delta"},
-            {"dataTypeName": "com.google.calories.expended"},
-            {"dataTypeName": "com.google.active_minutes"},
-            {"dataTypeName": "com.google.sleep.segment"},
-            {"dataTypeName": "com.google.heart_rate.bpm"},
-        ],
-        "bucketByTime": {"durationMillis": 86400000},
-        "startTimeMillis": start_ms,
-        "endTimeMillis": end_ms,
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/json",
     }
 
 
-def _parse_bucket(bucket: dict) -> dict:
+async def _fetch_steps(client: httpx.AsyncClient, token: str) -> int:
     """
-    Extract daily aggregate metrics from one Fit bucket.
+    Fetch today's total step count.
     """
-    result = {
-        "steps": 0,
-        "calories": 0.0,
-        "active_minutes": 0,
-        "sleep_minutes": 0,
-        "heart_rate_avg": 0.0,
-    }
-    heart_values: list[float] = []
-
-    for dataset in bucket.get("dataset", []):
-        points = dataset.get("point", [])
-        if not points:
-            continue
-
-        stream_id = dataset.get("dataSourceId", "")
-
-        for point in points:
-            values = point.get("value", [])
-            if not values:
-                continue
-
-            try:
-                if "step_count" in stream_id:
-                    result["steps"] += values[0].get("intVal", 0)
-                elif "calories" in stream_id:
-                    result["calories"] += values[0].get("fpVal", 0.0)
-                elif "active_minutes" in stream_id:
-                    result["active_minutes"] += values[0].get("intVal", 0)
-                elif "sleep" in stream_id:
-                    start_ns = int(point.get("startTimeNanos", 0))
-                    end_ns = int(point.get("endTimeNanos", 0))
-                    duration_min = (end_ns - start_ns) / 60_000_000_000
-                    if duration_min > 0:
-                        result["sleep_minutes"] += int(duration_min)
-                elif "heart_rate" in stream_id:
-                    fp_val = values[0].get("fpVal", 0.0)
-                    if fp_val > 0:
-                        heart_values.append(fp_val)
-            except (KeyError, IndexError, TypeError, ValueError) as exc:
-                log.debug("Point parse error in %s: %s", stream_id, exc)
-
-    result["calories"] = round(result["calories"], 1)
-    if heart_values:
-        result["heart_rate_avg"] = round(sum(heart_values) / len(heart_values), 1)
-
-    return result
-
-
-async def _fetch_fit_data() -> dict:
-    """
-    Fetch today's Google Fit aggregate data.
-    """
-    token = await get_valid_token()
-    start_ms, end_ms = _today_epoch_ms()
-    body = _build_aggregate_body(start_ms, end_ms)
-
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            _BASE_URL,
-            json=body,
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json",
-            },
+    try:
+        response = await client.get(
+            f"{_BASE_URL}/dataTypes/steps/dataPoints",
+            params={"filter": f'steps.interval.civil_start_time >= "{_today_str()}"'},
+            headers=_auth_headers(token),
             timeout=15,
         )
         response.raise_for_status()
-        data = response.json()
+        points = response.json().get("dataPoints", [])
 
-    buckets = data.get("bucket", [])
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        total = 0
+        for point in points:
+            count = point.get("steps", {}).get("count")
+            if count:
+                total += int(count)
+        return total
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Steps fetch failed: %s", exc)
+        return 0
 
-    if not buckets:
-        return {
-            "steps": 0,
-            "calories": 0.0,
-            "active_minutes": 0,
-            "sleep_minutes": 0,
-            "heart_rate_avg": 0.0,
-            "date": today,
-        }
 
-    metrics = _parse_bucket(buckets[0])
-    metrics["date"] = today
-    return metrics
+async def _fetch_calories(client: httpx.AsyncClient, token: str) -> float:
+    """
+    Fetch today's total calories burned.
+    """
+    try:
+        response = await client.get(
+            f"{_BASE_URL}/dataTypes/total-calories/dataPoints",
+            params={"filter": f'totalCalories.interval.civil_start_time >= "{_today_str()}"'},
+            headers=_auth_headers(token),
+            timeout=15,
+        )
+        response.raise_for_status()
+        points = response.json().get("dataPoints", [])
+
+        total = 0.0
+        for point in points:
+            value = point.get("totalCalories", {}).get("value")
+            if value:
+                total += float(value)
+        return round(total, 1)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Calories fetch failed: %s", exc)
+        return 0.0
+
+
+async def _fetch_active_minutes(client: httpx.AsyncClient, token: str) -> int:
+    """
+    Fetch today's active zone minutes.
+    """
+    try:
+        response = await client.get(
+            f"{_BASE_URL}/dataTypes/active-zone-minutes/dataPoints",
+            params={"filter": f'activeZoneMinutes.interval.civil_start_time >= "{_today_str()}"'},
+            headers=_auth_headers(token),
+            timeout=15,
+        )
+        response.raise_for_status()
+        points = response.json().get("dataPoints", [])
+
+        total = 0
+        for point in points:
+            active_zone_minutes = point.get("activeZoneMinutes", {})
+            total += int(active_zone_minutes.get("fatBurnActiveZoneMinutes", 0) or 0)
+            total += int(active_zone_minutes.get("cardioActiveZoneMinutes", 0) or 0)
+            total += int(active_zone_minutes.get("peakActiveZoneMinutes", 0) or 0)
+        return total
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Active minutes fetch failed: %s", exc)
+        return 0
+
+
+async def _fetch_sleep(client: httpx.AsyncClient, token: str) -> int:
+    """
+    Fetch last night's sleep duration in minutes.
+    """
+    try:
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        response = await client.get(
+            f"{_BASE_URL}/dataTypes/sleep/dataPoints",
+            params={"filter": f'sleep.interval.civil_start_time >= "{yesterday}T00:00:00"'},
+            headers=_auth_headers(token),
+            timeout=15,
+        )
+        response.raise_for_status()
+        points = response.json().get("dataPoints", [])
+
+        if not points:
+            return 0
+
+        sleep_data = points[-1].get("sleep", {})
+        duration_sec = sleep_data.get("duration")
+        if duration_sec:
+            return int(int(duration_sec) / 60)
+
+        interval = sleep_data.get("interval", {})
+        start = interval.get("startTime")
+        end = interval.get("endTime")
+        if start and end:
+            try:
+                started_at = datetime.fromisoformat(start.replace("Z", "+00:00"))
+                ended_at = datetime.fromisoformat(end.replace("Z", "+00:00"))
+                return int((ended_at - started_at).total_seconds() / 60)
+            except ValueError:
+                pass
+
+        return 0
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Sleep fetch failed: %s", exc)
+        return 0
+
+
+async def _fetch_heart_rate(client: httpx.AsyncClient, token: str) -> float:
+    """
+    Fetch today's resting heart rate.
+    """
+    try:
+        response = await client.get(
+            f"{_BASE_URL}/dataTypes/daily-resting-heart-rate/dataPoints",
+            params={
+                "filter": (
+                    "dailyRestingHeartRate.sampleTime.civil_time.date >= "
+                    f'"{date.today().isoformat()}"'
+                )
+            },
+            headers=_auth_headers(token),
+            timeout=15,
+        )
+        response.raise_for_status()
+        points = response.json().get("dataPoints", [])
+
+        if not points:
+            return 0.0
+
+        bpm = points[-1].get("dailyRestingHeartRate", {}).get("beatsPerMinute")
+        return round(float(bpm), 1) if bpm else 0.0
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Heart rate fetch failed: %s", exc)
+        return 0.0
+
+
+async def _fetch_health_data() -> dict:
+    """
+    Fetch all health metrics concurrently.
+    """
+    token = await get_valid_token()
+
+    async with httpx.AsyncClient() as client:
+        steps, calories, active_minutes, sleep_minutes, heart_rate_avg = await asyncio.gather(
+            _fetch_steps(client, token),
+            _fetch_calories(client, token),
+            _fetch_active_minutes(client, token),
+            _fetch_sleep(client, token),
+            _fetch_heart_rate(client, token),
+        )
+
+    return {
+        "steps": steps,
+        "calories": calories,
+        "active_minutes": active_minutes,
+        "sleep_minutes": sleep_minutes,
+        "heart_rate_avg": heart_rate_avg,
+        "date": date.today().isoformat(),
+        "source": "google_health_api_v4",
+    }
 
 
 async def get_fit_data() -> dict:
     """
-    Return today's fitness data, serving from cache if fresh.
+    Return today's health data, serving from cache if fresh.
     """
     if not is_authorized():
         return {
@@ -168,17 +225,17 @@ async def get_fit_data() -> dict:
         return cached
 
     try:
-        data = await _fetch_fit_data()
+        data = await _fetch_health_data()
         set_cached(_TOPIC, data)
         log.info(
-            "Fit fetched: %d steps, %d active min, %.1f cal",
+            "Health data fetched: %d steps, %d active min, %.1f cal",
             data["steps"],
             data["active_minutes"],
             data["calories"],
         )
         return data
     except Exception as exc:  # noqa: BLE001
-        log.error("Fit fetch failed: %s", exc)
+        log.error("Health data fetch failed: %s", exc)
         return {
             "steps": 0,
             "calories": 0.0,
@@ -191,14 +248,14 @@ async def get_fit_data() -> dict:
 
 async def get_fit_summary() -> str:
     """
-    Build a terse fitness summary for prompt injection.
+    Build a concise health summary for prompt injection.
     """
     data = await get_fit_data()
 
-    if not data.get("steps") and not data.get("active_minutes"):
-        return "Google Fit: no activity data recorded today."
+    if not any([data.get("steps"), data.get("active_minutes"), data.get("sleep_minutes")]):
+        return "Health data: no activity recorded today."
 
-    lines = ["Today's fitness summary:"]
+    lines = ["Today's health summary:"]
 
     if data["steps"]:
         lines.append(f"  Steps:           {data['steps']:,}")
@@ -211,6 +268,6 @@ async def get_fit_summary() -> str:
         minutes = data["sleep_minutes"] % 60
         lines.append(f"  Sleep:           {hours}h {minutes}m")
     if data["heart_rate_avg"]:
-        lines.append(f"  Avg heart rate:  {data['heart_rate_avg']:.0f} bpm")
+        lines.append(f"  Resting HR:      {data['heart_rate_avg']:.0f} bpm")
 
     return "\n".join(lines)
