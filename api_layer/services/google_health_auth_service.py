@@ -18,7 +18,12 @@ log = logging.getLogger("ladylinux.google_health_auth")
 
 _AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 _TOKEN_URL = "https://oauth2.googleapis.com/token"
-_SCOPE = "https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly"
+_SCOPE = " ".join(
+    [
+        "https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly",
+        "https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly",
+    ]
+)
 _ENV_FILE = "/etc/ladylinux/ladylinux.env"
 
 
