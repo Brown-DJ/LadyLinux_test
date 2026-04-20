@@ -31,12 +31,14 @@ _DATASOURCES = {
 
 def _today_epoch_ms() -> tuple[int, int]:
     """
-    Return start and end of today as UTC epoch milliseconds.
+    Return start of today and current time as UTC epoch milliseconds.
+
+    Google Fit aggregate requests can fail when endTimeMillis is in the future,
+    so the end of the range is capped at now instead of end-of-day.
     """
     now = datetime.now(timezone.utc)
     start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    end = now.replace(hour=23, minute=59, second=59, microsecond=0)
-    return int(start.timestamp() * 1000), int(end.timestamp() * 1000)
+    return int(start.timestamp() * 1000), int(now.timestamp() * 1000)
 
 
 def _build_aggregate_body(start_ms: int, end_ms: int) -> dict:
