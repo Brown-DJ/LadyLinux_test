@@ -82,6 +82,20 @@ class SystemProvider:
     def get_gmail(self) -> str:
         return self._run_async_summary(get_gmail_summary, "Gmail")
 
+    async def snapshot_calendar(self) -> str:
+        """
+        Return calendar summary for prompt injection.
+        """
+        try:
+            from api_layer.services.google_calendar_service import get_calendar_summary
+
+            return await get_calendar_summary()
+        except Exception as exc:  # noqa: BLE001
+            return f"Calendar data unavailable: {exc}"
+
+    def get_calendar(self) -> str:
+        return self._run_async_summary(self.snapshot_calendar, "Calendar")
+
     async def snapshot_fit(self) -> str:
         """
         Return fitness summary for prompt injection.
@@ -143,6 +157,8 @@ class SystemProvider:
                 data["memory"] = self.get_memory()
             elif topic == "gmail":
                 data["gmail"] = self.get_gmail()
+            elif topic == "calendar":
+                data["calendar"] = self.get_calendar()
             elif topic == "fit":
                 data["fit"] = self.get_fit()
             elif topic == "logs":
