@@ -24,8 +24,7 @@ _SCOPES = " ".join(
     [
         "https://www.googleapis.com/auth/calendar.readonly",
         "https://www.googleapis.com/auth/gmail.readonly",
-        "https://www.googleapis.com/auth/fitness.activity.read",
-        "https://www.googleapis.com/auth/fitness.sleep.read",
+        "https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly",
     ]
 )
 
