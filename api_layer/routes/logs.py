@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -7,6 +8,8 @@ from fastapi import APIRouter, HTTPException, Query
 from api_layer.services import log_service
 
 router = APIRouter(prefix="/api/logs", tags=["logs"])
+
+_FAILED_INGEST_DIR = "/var/lib/ladylinux/rag_ingest/_failed"
 
 
 @router.get("/recent")
@@ -54,3 +57,63 @@ def get_log_file(
 @router.get("/ladylinux")
 def get_ladylinux_logs(lines: int = Query(default=200, ge=1, le=500)) -> dict:
     return log_service.ladylinux_logs(lines=lines)
+
+
+@router.get("/failed-ingest")
+def get_failed_ingest_log(lines: int = Query(default=200, ge=1, le=500)) -> dict:
+    """
+    Return a combined tail of all files in the failed ingest directory.
+    """
+    safe_lines = max(1, min(lines, 500))
+
+    try:
+        failed_files = sorted(
+            fname
+            for fname in os.listdir(_FAILED_INGEST_DIR)
+            if os.path.isfile(os.path.join(_FAILED_INGEST_DIR, fname))
+        )
+    except FileNotFoundError:
+        return {
+            "ok": True,
+            "lines": ["[No failed ingest files found]"],
+            "stdout": "",
+            "stderr": "",
+            "returncode": 0,
+        }
+    except PermissionError as exc:
+        return {
+            "ok": False,
+            "lines": [],
+            "stdout": "",
+            "stderr": str(exc),
+            "returncode": 1,
+        }
+
+    if not failed_files:
+        return {
+            "ok": True,
+            "lines": ["[_failed directory is empty - no ingestion failures]"],
+            "stdout": "",
+            "stderr": "",
+            "returncode": 0,
+        }
+
+    combined: list[str] = []
+    for fname in failed_files:
+        path = os.path.join(_FAILED_INGEST_DIR, fname)
+        combined.append(f"-- {fname} --")
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as fh:
+                combined.extend(fh.read().splitlines()[-safe_lines:])
+        except OSError as exc:
+            combined.append(f"[Could not read {fname}: {exc}]")
+        combined.append("")
+
+    return {
+        "ok": True,
+        "lines": combined,
+        "stdout": "",
+        "stderr": "",
+        "returncode": 0,
+        "file_count": len(failed_files),
+    }

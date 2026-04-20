@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 import json
 import logging
@@ -38,6 +39,9 @@ from api_layer.routes.theme import router as theme_router
 from api_layer.routes.ws import router as ws_router
 from api_layer.routes.voice_ws import router as voice_ws_router
 from api_layer.routes import users as users_router
+from api_layer.routers.google_auth_router import router as google_auth_router
+from api_layer.routers.google_fit_router import router as google_fit_router
+from api_layer.routers.google_gmail_router import router as google_gmail_router
 from api_layer.services.system_service import get_status
 from api_layer.utils.command_runner import run_command
 from api_layer.utils.validators import validate_service_name
@@ -92,6 +96,9 @@ app.include_router(search_router)
 app.include_router(memory_router)
 app.include_router(spotify_router)
 app.include_router(context_router)
+app.include_router(google_auth_router)
+app.include_router(google_fit_router)
+app.include_router(google_gmail_router)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
@@ -385,7 +392,7 @@ _PAGE_DESCRIPTIONS = {
 _PAGE_DEFAULT_TOPICS = {
     "system-monitor":  ["processes", "services", "memory", "disk"],
     "network-manager": ["network"],
-    "dashboard":       ["services", "memory"],
+    "dashboard":       ["services", "memory", "calendar", "gmail", "fit"],
     "user-manager":    [],
     "log-viewer":      [],
 }
@@ -792,8 +799,45 @@ async def unhandled_exception_handler(_: Request, exc: Exception) -> JSONRespons
 
 _seed_running = False
 
+
+async def _warm_google_caches() -> None:
+    """
+    Pre-populate Google API caches at startup without blocking uvicorn boot.
+    """
+    from api_layer.services.google_auth_service import is_authorized
+    from api_layer.services.google_fit_service import get_fit_data
+    from api_layer.services.google_gmail_service import get_gmail_data
+
+    if not is_authorized():
+        logger.info("[GOOGLE] OAuth not authorized - skipping cache warm")
+        return
+
+    warmers = []
+    try:
+        from api_layer.services.google_calendar_service import get_todays_events
+
+        warmers.append(("calendar", get_todays_events))
+    except ImportError:
+        logger.info("[GOOGLE] Calendar service unavailable - skipping cache warm")
+
+    warmers.extend(
+        [
+            ("gmail", get_gmail_data),
+            ("fit", get_fit_data),
+        ]
+    )
+
+    for label, fn in warmers:
+        try:
+            await fn()
+            logger.info("[GOOGLE] Cache warmed: %s", label)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[GOOGLE] Cache warm failed for %s: %s", label, exc)
+        await asyncio.sleep(2)
+
+
 @app.on_event("startup")
-def init_rag() -> None:
+async def init_rag() -> None:
     ensure_collection()
     init_weather()
 
@@ -816,6 +860,7 @@ def init_rag() -> None:
         time.sleep(30)
         ensure_model()
     threading.Thread(target=preload, daemon=True).start()
+    asyncio.create_task(_warm_google_caches())
 
 @app.get("/api/rag/status")
 def rag_status():

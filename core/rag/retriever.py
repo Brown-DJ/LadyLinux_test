@@ -7,6 +7,7 @@ Description: Query-time orchestrator that embeds the user question, routes it
 """
 
 import logging
+from datetime import datetime, timedelta, timezone
 
 from core.rag.config import RAG_DOMAINS, TOP_K, allowed_for_rag, domain_for_path
 from core.rag.embedder import embed_query
@@ -61,6 +62,7 @@ def retrieve(
         filtered = [
             r for r in results
             if _matches_domain(r, target_domain) and r.get("score", 0) >= score_floor
+            and not _is_stale(r)
         ]
         final_results.extend(filtered)
     # Preserve order and de-duplicate by file/span.
@@ -150,3 +152,32 @@ def _matches_domain(item: dict, expected_domain: str) -> bool:
         return True
     # Backward compatibility for older indexed payloads with legacy domain tags.
     return domain_for_path(path) == expected_domain
+
+
+def _is_stale(item: dict) -> bool:
+    """Return True for API-ingested chunks whose timestamp exceeds ttl_hours."""
+    ttl_hours = item.get("ttl_hours")
+    if ttl_hours in (None, "", 0, "0"):
+        return False
+
+    try:
+        ttl = int(ttl_hours)
+    except (TypeError, ValueError):
+        return False
+
+    if ttl <= 0:
+        return False
+
+    timestamp = item.get("timestamp")
+    if not timestamp:
+        return False
+
+    try:
+        created_at = datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
+    except ValueError:
+        return False
+
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=timezone.utc)
+
+    return datetime.now(timezone.utc) > created_at + timedelta(hours=ttl)

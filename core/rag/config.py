@@ -46,10 +46,12 @@ MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE", str(1 * 1024 * 1024)))  # 1 MB
 # We intentionally exclude core OS directories from indexing because they
 # produce noisy, generic Linux context that degrades Lady Linux answers.
 OBSIDIAN_USER_RAG_PATH = os.environ.get("OBSIDIAN_USER_PATH", "/var/lib/ladylinux/obsidian_user")
+API_INGEST_RAG_PATH = os.environ.get("API_INGEST_PATH", "/var/lib/ladylinux/rag_ingest")
 
 ALLOWED_RAG_PATHS: list[str] = [
     "/opt/ladylinux",
     OBSIDIAN_USER_RAG_PATH,
+    API_INGEST_RAG_PATH,
     "/runtime/firewall",
     "obsidian_docs",
     "templates",

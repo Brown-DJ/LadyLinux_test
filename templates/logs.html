@@ -552,6 +552,19 @@
           <i class="bi bi-cpu"></i>LadyLinux Actions
         </button>
 
+        <!-- Ingest group - failed ephemeral ingestion artifacts -->
+        <div class="src-header">Ingest</div>
+
+        <button
+          class="source-item"
+          data-source="failed_ingest"
+          data-param=""
+          data-label="Failed Ingest"
+          type="button"
+        >
+          <i class="bi bi-exclamation-triangle"></i>Failed Ingest
+        </button>
+
         <!-- Log files group — id="fileList" populated dynamically by loadFileList() -->
         <div class="src-header">Log Files</div>
         <div id="fileList">
@@ -705,6 +718,10 @@
         } else if (currentSource.type === "ladylinux") {
           /* LadyLinux action log endpoint */
           url = `/api/logs/ladylinux?lines=${lines}`;
+
+        } else if (currentSource.type === "failed_ingest") {
+          /* Failed ephemeral ingest artifacts endpoint */
+          url = `/api/logs/failed-ingest?lines=${lines}`;
 
         } else {
           /* Arbitrary file read — path passed as query param */

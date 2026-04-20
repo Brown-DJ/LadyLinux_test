@@ -137,6 +137,9 @@ def upsert_chunks(chunks: list[dict], vectors: list[list[float]]) -> int:
                     "line_end": chunk.get("line_end", 0),
                     "timestamp": chunk.get("timestamp", ""),
                     "domain": chunk.get("domain", "general"),
+                    "source": chunk.get("source", ""),
+                    "label": chunk.get("label", ""),
+                    "ttl_hours": chunk.get("ttl_hours", ""),
                 },
             )
         )
@@ -197,6 +200,9 @@ def search(
                 "line_end": payload.get("line_end", 0),
                 "timestamp": payload.get("timestamp", ""),
                 "domain": payload.get("domain", "general"),
+                "source": payload.get("source", ""),
+                "label": payload.get("label", ""),
+                "ttl_hours": payload.get("ttl_hours"),
                 "score": hit.score,
             }
         )
