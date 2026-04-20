@@ -42,6 +42,16 @@ async function isGoogleAuthorized() {
   return _authStatusCache;
 }
 
+async function isHealthAuthorized() {
+  try {
+    const res = await fetch("/api/google/health/oauth/status", { cache: "no-store" });
+    const data = await res.json();
+    return data.authorized === true;
+  } catch {
+    return false;
+  }
+}
+
 function showLoading(topic) {
   document.getElementById(`${topic}-loading`)?.classList.remove("d-none");
   document.getElementById(`${topic}-auth-prompt`)?.classList.add("d-none");
@@ -183,7 +193,7 @@ async function loadFitCard() {
   const fitData = document.getElementById("fit-data");
   if (!fitData) return;
 
-  const authed = await isGoogleAuthorized();
+  const authed = await isHealthAuthorized();
   if (!authed) {
     showAuthPrompt("fit");
     return;

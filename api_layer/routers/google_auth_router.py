@@ -57,7 +57,7 @@ async def oauth_callback(code: str | None = None, error: str | None = None):
         return HTMLResponse(
             content="""
             <h2>LadyLinux authorized</h2>
-            <p>Google Calendar, Gmail, and Fit access granted.</p>
+            <p>Google Calendar and Gmail access granted.</p>
             <p>You can close this tab and return to LadyLinux.</p>
         """
         )

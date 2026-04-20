@@ -43,6 +43,7 @@ from api_layer.routers.google_auth_router import router as google_auth_router
 from api_layer.routers.google_calendar_router import router as google_calendar_router
 from api_layer.routers.google_fit_router import router as google_fit_router
 from api_layer.routers.google_gmail_router import router as google_gmail_router
+from api_layer.routers.google_health_auth_router import router as google_health_auth_router
 from api_layer.services.system_service import get_status
 from api_layer.utils.command_runner import run_command
 from api_layer.utils.validators import validate_service_name
@@ -101,6 +102,7 @@ app.include_router(google_auth_router)
 app.include_router(google_calendar_router)
 app.include_router(google_fit_router)
 app.include_router(google_gmail_router)
+app.include_router(google_health_auth_router)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
@@ -809,25 +811,27 @@ async def _warm_google_caches() -> None:
     from api_layer.services.google_auth_service import is_authorized
     from api_layer.services.google_fit_service import get_fit_data
     from api_layer.services.google_gmail_service import get_gmail_data
+    from api_layer.services.google_health_auth_service import is_health_authorized
 
-    if not is_authorized():
+    google_authorized = is_authorized()
+    health_authorized = is_health_authorized()
+
+    if not google_authorized and not health_authorized:
         logger.info("[GOOGLE] OAuth not authorized - skipping cache warm")
         return
 
     warmers = []
-    try:
-        from api_layer.services.google_calendar_service import get_todays_events
+    if google_authorized:
+        try:
+            from api_layer.services.google_calendar_service import get_todays_events
 
-        warmers.append(("calendar", get_todays_events))
-    except ImportError:
-        logger.info("[GOOGLE] Calendar service unavailable - skipping cache warm")
+            warmers.append(("calendar", get_todays_events))
+        except ImportError:
+            logger.info("[GOOGLE] Calendar service unavailable - skipping cache warm")
+        warmers.append(("gmail", get_gmail_data))
 
-    warmers.extend(
-        [
-            ("gmail", get_gmail_data),
-            ("fit", get_fit_data),
-        ]
-    )
+    if health_authorized:
+        warmers.append(("fit", get_fit_data))
 
     for label, fn in warmers:
         try:

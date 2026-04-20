@@ -1,8 +1,8 @@
 """
-Shared OAuth2 auth layer for Google API integrations.
+Separate OAuth2 auth layer for Google Health API.
 
-Handles consent URL generation, token exchange, token refresh, and env-file
-persistence. Google service modules should import get_valid_token() from here.
+Uses health-specific client credentials and token env vars, isolated from the
+Calendar/Gmail OAuth flow in google_auth_service.py.
 """
 
 from __future__ import annotations
@@ -14,19 +14,11 @@ import urllib.parse
 
 import httpx
 
-log = logging.getLogger("ladylinux.google_auth")
+log = logging.getLogger("ladylinux.google_health_auth")
 
 _AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 _TOKEN_URL = "https://oauth2.googleapis.com/token"
-_REVOKE_URL = "https://oauth2.googleapis.com/revoke"
-
-_SCOPES = " ".join(
-    [
-        "https://www.googleapis.com/auth/calendar.readonly",
-        "https://www.googleapis.com/auth/gmail.readonly",
-    ]
-)
-
+_SCOPE = "https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly"
 _ENV_FILE = "/etc/ladylinux/ladylinux.env"
 
 
@@ -38,9 +30,6 @@ def _get_env(key: str) -> str:
 def _write_env_value(key: str, value: str) -> None:
     """
     Update a single key=value line in the live env file.
-
-    Preserves comments and ordering where possible. Appends the key when it does
-    not already exist.
     """
     safe_value = str(value).replace("\r", "").replace("\n", "")
 
@@ -64,29 +53,27 @@ def _write_env_value(key: str, value: str) -> None:
             fh.writelines(new_lines)
 
         log.info("Wrote %s to env file", key)
-
     except OSError as exc:
         log.error("Failed to write %s to env file: %s", key, exc)
 
 
-def build_consent_url() -> str:
+def build_health_consent_url() -> str:
     """
-    Generate the Google OAuth2 consent URL.
+    Generate the Google OAuth2 consent URL for Health API access.
     """
-    client_id = _get_env("GOOGLE_CLIENT_ID")
-    redirect_uri = _get_env("GOOGLE_REDIRECT_URI")
+    client_id = _get_env("GOOGLE_HEALTH_CLIENT_ID")
+    redirect_uri = _get_env("GOOGLE_HEALTH_REDIRECT_URI")
 
     if not client_id or client_id == "REPLACE_ME":
-        raise ValueError("GOOGLE_CLIENT_ID not set in ladylinux.env")
-
+        raise ValueError("GOOGLE_HEALTH_CLIENT_ID not set in ladylinux.env")
     if not redirect_uri or redirect_uri == "REPLACE_ME":
-        raise ValueError("GOOGLE_REDIRECT_URI not set in ladylinux.env")
+        raise ValueError("GOOGLE_HEALTH_REDIRECT_URI not set in ladylinux.env")
 
     params = {
         "client_id": client_id,
         "redirect_uri": redirect_uri,
         "response_type": "code",
-        "scope": _SCOPES,
+        "scope": _SCOPE,
         "access_type": "offline",
         "prompt": "consent",
     }
@@ -94,13 +81,13 @@ def build_consent_url() -> str:
     return f"{_AUTH_URL}?{urllib.parse.urlencode(params)}"
 
 
-async def exchange_code_for_tokens(code: str) -> dict:
+async def exchange_health_code_for_tokens(code: str) -> dict:
     """
-    Exchange an authorization code for access and refresh tokens.
+    Exchange a Health OAuth authorization code for tokens.
     """
-    client_id = _get_env("GOOGLE_CLIENT_ID")
-    client_secret = _get_env("GOOGLE_CLIENT_SECRET")
-    redirect_uri = _get_env("GOOGLE_REDIRECT_URI")
+    client_id = _get_env("GOOGLE_HEALTH_CLIENT_ID")
+    client_secret = _get_env("GOOGLE_HEALTH_CLIENT_SECRET")
+    redirect_uri = _get_env("GOOGLE_HEALTH_REDIRECT_URI")
 
     payload = {
         "code": code,
@@ -117,31 +104,31 @@ async def exchange_code_for_tokens(code: str) -> dict:
 
     expiry = str(int(time.time()) + tokens.get("expires_in", 3600))
 
-    _write_env_value("GOOGLE_ACCESS_TOKEN", tokens["access_token"])
-    _write_env_value("GOOGLE_TOKEN_EXPIRY", expiry)
+    _write_env_value("GOOGLE_HEALTH_ACCESS_TOKEN", tokens["access_token"])
+    _write_env_value("GOOGLE_HEALTH_TOKEN_EXPIRY", expiry)
 
     if tokens.get("refresh_token"):
-        _write_env_value("GOOGLE_REFRESH_TOKEN", tokens["refresh_token"])
+        _write_env_value("GOOGLE_HEALTH_REFRESH_TOKEN", tokens["refresh_token"])
 
-    os.environ["GOOGLE_ACCESS_TOKEN"] = tokens["access_token"]
-    os.environ["GOOGLE_TOKEN_EXPIRY"] = expiry
+    os.environ["GOOGLE_HEALTH_ACCESS_TOKEN"] = tokens["access_token"]
+    os.environ["GOOGLE_HEALTH_TOKEN_EXPIRY"] = expiry
     if tokens.get("refresh_token"):
-        os.environ["GOOGLE_REFRESH_TOKEN"] = tokens["refresh_token"]
+        os.environ["GOOGLE_HEALTH_REFRESH_TOKEN"] = tokens["refresh_token"]
 
-    log.info("Google tokens exchanged and written to env file")
+    log.info("Google Health tokens exchanged and written to env file")
     return tokens
 
 
-async def _refresh_access_token() -> str:
+async def _refresh_health_token() -> str:
     """
-    Use the stored refresh token to get a new access token.
+    Refresh the stored Google Health access token.
     """
-    client_id = _get_env("GOOGLE_CLIENT_ID")
-    client_secret = _get_env("GOOGLE_CLIENT_SECRET")
-    refresh_token = _get_env("GOOGLE_REFRESH_TOKEN")
+    client_id = _get_env("GOOGLE_HEALTH_CLIENT_ID")
+    client_secret = _get_env("GOOGLE_HEALTH_CLIENT_SECRET")
+    refresh_token = _get_env("GOOGLE_HEALTH_REFRESH_TOKEN")
 
     if not refresh_token or refresh_token == "REPLACE_ME":
-        raise ValueError("GOOGLE_REFRESH_TOKEN not set; OAuth consent flow required")
+        raise ValueError("GOOGLE_HEALTH_REFRESH_TOKEN not set; health OAuth flow required")
 
     payload = {
         "client_id": client_id,
@@ -158,37 +145,37 @@ async def _refresh_access_token() -> str:
     new_token = tokens["access_token"]
     new_expiry = str(int(time.time()) + tokens.get("expires_in", 3600))
 
-    _write_env_value("GOOGLE_ACCESS_TOKEN", new_token)
-    _write_env_value("GOOGLE_TOKEN_EXPIRY", new_expiry)
-    os.environ["GOOGLE_ACCESS_TOKEN"] = new_token
-    os.environ["GOOGLE_TOKEN_EXPIRY"] = new_expiry
+    _write_env_value("GOOGLE_HEALTH_ACCESS_TOKEN", new_token)
+    _write_env_value("GOOGLE_HEALTH_TOKEN_EXPIRY", new_expiry)
+    os.environ["GOOGLE_HEALTH_ACCESS_TOKEN"] = new_token
+    os.environ["GOOGLE_HEALTH_TOKEN_EXPIRY"] = new_expiry
 
-    log.info("Google access token refreshed")
+    log.info("Google Health access token refreshed")
     return new_token
 
 
-async def get_valid_token() -> str:
+async def get_health_token() -> str:
     """
-    Return a valid Google access token, refreshing when expiry is near.
+    Return a valid Health access token, refreshing near expiry.
     """
-    access_token = _get_env("GOOGLE_ACCESS_TOKEN")
-    expiry_str = _get_env("GOOGLE_TOKEN_EXPIRY")
+    access_token = _get_env("GOOGLE_HEALTH_ACCESS_TOKEN")
+    expiry_str = _get_env("GOOGLE_HEALTH_TOKEN_EXPIRY")
 
     if not access_token or access_token == "REPLACE_ME":
-        raise ValueError("Google OAuth not authorized; visit /api/google/oauth/start")
+        raise ValueError("Google Health not authorized; visit /api/google/health/oauth/start")
 
     try:
         expiry = int(expiry_str)
         if time.time() >= expiry - 300:
-            log.info("Access token expiring soon; refreshing")
-            return await _refresh_access_token()
+            log.info("Health token expiring soon; refreshing")
+            return await _refresh_health_token()
     except (ValueError, TypeError):
-        return await _refresh_access_token()
+        return await _refresh_health_token()
 
     return access_token
 
 
-def is_authorized() -> bool:
-    """Return whether Google OAuth has been completed."""
-    token = _get_env("GOOGLE_ACCESS_TOKEN")
+def is_health_authorized() -> bool:
+    """Return whether Google Health OAuth has been completed."""
+    token = _get_env("GOOGLE_HEALTH_ACCESS_TOKEN")
     return bool(token and token != "REPLACE_ME")

@@ -14,8 +14,11 @@ from datetime import date, datetime, timedelta
 
 import httpx
 
-from api_layer.services.google_auth_service import get_valid_token, is_authorized
 from api_layer.services.google_cache import get_cached, set_cached
+from api_layer.services.google_health_auth_service import (
+    get_health_token as get_valid_token,
+    is_health_authorized as is_authorized,
+)
 
 log = logging.getLogger("ladylinux.google_fit")
 
