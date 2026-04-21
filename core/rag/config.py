@@ -37,22 +37,38 @@ if gpu_available():
 else:
     CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "256"))
     CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "32"))
-    TOP_K = int(os.getenv("TOP_K", "3"))
+    TOP_K = int(os.getenv("TOP_K", "5"))
 
 # File safety limits
-MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE", str(1 * 1024 * 1024)))  # 1 MB
+MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE", str(10 * 1024 * 1024)))  # 10 MB
 
 # Project-focused RAG scope:
 # We intentionally exclude core OS directories from indexing because they
 # produce noisy, generic Linux context that degrades Lady Linux answers.
 OBSIDIAN_USER_RAG_PATH = os.environ.get("OBSIDIAN_USER_PATH", "/var/lib/ladylinux/obsidian_user")
 API_INGEST_RAG_PATH = os.environ.get("API_INGEST_PATH", "/var/lib/ladylinux/rag_ingest")
+USER_RAG_ROOT = os.environ.get("USER_RAG_ROOT", OBSIDIAN_USER_RAG_PATH)
+USER_RAG_MAX_FILE_SIZE = int(os.getenv("USER_RAG_MAX_FILE_SIZE", str(2 * 1024 * 1024)))
+USER_RAG_ALLOWED_EXTENSIONS = tuple(
+    ext.strip().lower()
+    for ext in os.getenv("USER_RAG_ALLOWED_EXTENSIONS", ".md,.txt,.json,.yaml,.yml").split(",")
+    if ext.strip()
+)
 
 ALLOWED_RAG_PATHS: list[str] = [
     "/opt/ladylinux",
     OBSIDIAN_USER_RAG_PATH,
     API_INGEST_RAG_PATH,
     "/runtime/firewall",
+    "/etc/ssh",
+    "/etc/ufw",
+    "/etc/netplan",
+    "/etc/systemd/system",
+    "/etc/hostname",
+    "/etc/hosts",
+    "/etc/network",
+    "/etc/os-release",
+    "/etc/fstab",
     "obsidian_docs",
     "templates",
     "static",
@@ -70,10 +86,83 @@ EXCLUDED_RAG_PATHS: list[str] = [
     "/dev",
     "/sys",
     "/proc",
+    "/etc/shadow",
+    "/etc/gshadow",
+    "/etc/ssl/private",
+    "/etc/ssh/ssh_host_",
 ]
 
+SENSITIVE_RAG_PATHS: tuple[str, ...] = (
+    "/etc/shadow",
+    "/etc/gshadow",
+    "/etc/ssl/private",
+    "/etc/ssh/ssh_host_",
+)
+
 RAG_DOMAIN = "lady_linux"
-RAG_DOMAINS = ("docs", "code", "system-help", "firewall", "user")
+RAG_DOMAINS = (
+    "docs",
+    "code",
+    "system-help",
+    "firewall",
+    "network",
+    "ssh",
+    "os",
+    "systemd",
+    "filesystem",
+    "users",
+    "logs",
+    "user",
+)
+
+DOMAIN_MAP: dict[str, str] = {
+    "/runtime/firewall": "firewall",
+    "/etc/ufw": "firewall",
+    "/etc/iptables": "firewall",
+    "/etc/nftables": "firewall",
+    "/etc/netplan": "network",
+    "/etc/network": "network",
+    "/etc/NetworkManager": "network",
+    "/etc/hosts": "network",
+    "/etc/resolv.conf": "network",
+    "/etc/ssh": "ssh",
+    "/etc/systemd/system": "systemd",
+    "/etc/systemd/user": "systemd",
+    "/etc/hostname": "os",
+    "/etc/os-release": "os",
+    "/etc/fstab": "filesystem",
+    "/etc/mtab": "filesystem",
+    "/etc/passwd": "users",
+    "/etc/group": "users",
+    "/var/log": "logs",
+    "/proc": "os",
+    "/sys": "os",
+    OBSIDIAN_USER_RAG_PATH: "user",
+    USER_RAG_ROOT: "user",
+    API_INGEST_RAG_PATH: "system-help",
+    "/opt/ladylinux/app/obsidian_docs/user": "user",
+    "/opt/ladylinux/app/obsidian_docs/system": "system-help",
+    "/opt/ladylinux/app/obsidian_docs/project": "docs",
+    "/opt/ladylinux/app/obsidian_docs": "docs",
+    "/opt/ladylinux/app/api_layer": "code",
+    "/opt/ladylinux/app/core": "code",
+    "/opt/ladylinux/app/rag_layer": "code",
+    "/opt/ladylinux/app/app": "code",
+    "/opt/ladylinux/app/static/js": "code",
+    "obsidian_docs/user": "user",
+    "obsidian_docs/system": "system-help",
+    "obsidian_docs/project": "docs",
+    "obsidian_docs": "docs",
+    "api_layer": "code",
+    "core": "code",
+    "rag_layer": "code",
+    "app": "code",
+    "static/js": "code",
+    "templates": "docs",
+    "static": "docs",
+    "config": "system-help",
+    "scripts": "system-help",
+}
 
 
 def _normalize(path: str) -> str:
@@ -93,6 +182,13 @@ def allowed_for_rag(path: str) -> bool:
     """
     normalized = _normalize(path)
     lower = normalized.lower()
+
+    for blocked in SENSITIVE_RAG_PATHS:
+        blocked_norm = _normalize(blocked).lower()
+        if lower == blocked_norm or lower.startswith(f"{blocked_norm}{os.sep}") or lower.startswith(f"{blocked_norm}/"):
+            return False
+        if blocked_norm.endswith("_") and lower.startswith(blocked_norm):
+            return False
 
     for allowed in ALLOWED_RAG_PATHS:
         allowed_norm = _normalize(allowed).lower()
@@ -114,16 +210,22 @@ def is_path_allowed(path: str) -> bool:
     return allowed_for_rag(path)
 
 
-def domain_for_path(path: str) -> str:
+def get_domain_for_path(path: str) -> str:
     """Return the payload domain tag for a given file path.
 
     Resolution order:
-    1) fixed Lady Linux domain for project-scoped chunks
-    2) fallback keyword router when callers explicitly request it
+    1) explicit prefix/domain map
+    2) project-scoped extension/path heuristics
+    3) fallback keyword router
     """
     normalized = _normalize(path).lower()
+    for prefix, domain in sorted(DOMAIN_MAP.items(), key=lambda item: len(item[0]), reverse=True):
+        prefix_norm = _normalize(prefix).lower()
+        if normalized == prefix_norm or normalized.startswith(f"{prefix_norm}{os.sep}") or normalized.startswith(f"{prefix_norm}/"):
+            return domain
+
     if allowed_for_rag(path):
-        user_vault_norm = _normalize(OBSIDIAN_USER_RAG_PATH).lower()
+        user_vault_norm = _normalize(USER_RAG_ROOT).lower()
         # Tag obsidian user docs with their own domain so retrieval can target
         # them directly without competing with system/code chunks.
         if (
@@ -148,6 +250,31 @@ def domain_for_path(path: str) -> str:
             return "code"
         return "system-help"
     return detect_domain_from_path(path)
+
+
+def domain_for_path(path: str) -> str:
+    """Backward-compatible alias for existing callers."""
+    return get_domain_for_path(path)
+
+
+def user_file_allowed(path: str) -> bool:
+    """Return True when a user-vault file is safe to ingest."""
+    normalized = _normalize(path)
+    user_root = _normalize(USER_RAG_ROOT)
+    lower = normalized.lower()
+    user_root_lower = user_root.lower()
+
+    if not (lower == user_root_lower or lower.startswith(f"{user_root_lower}{os.sep}") or lower.startswith(f"{user_root_lower}/")):
+        return False
+
+    ext = Path(normalized).suffix.lower()
+    if ext not in USER_RAG_ALLOWED_EXTENSIONS:
+        return False
+
+    try:
+        return os.path.isfile(normalized) and os.path.getsize(normalized) <= USER_RAG_MAX_FILE_SIZE
+    except OSError:
+        return False
 
 
 # Backward-compatible alias used by existing seed.py.

@@ -132,7 +132,8 @@ def seed_obsidian_docs(docs_path: str | None = None) -> dict:
             for chunk in raw_chunks:
                 chunk["source"]    = "obsidian"
                 chunk["title"]     = title
-                chunk["file_path"] = rel_path
+                chunk["source_path"] = chunk.get("source_path") or rel_path
+                chunk["file_path"] = chunk["source_path"]
                 chunk["tags"]      = []
                 chunk["section"]   = chunk.get("section", "")
                 chunk.setdefault("domain", "docs")

@@ -24,7 +24,7 @@ def retrieve(
     """Retrieve the most relevant chunks for a natural-language *query*.
 
     Domain-aware behavior:
-    - Allowed domains are: docs, code, system-help, firewall, user.
+    - Allowed domains are configured in core.rag.config.RAG_DOMAINS.
     - If no domain is provided, retrieval defaults to docs.
     - For system-help, search order is system-help -> docs -> code.
       This prevents system-live questions from pulling code chunks first.
@@ -126,20 +126,34 @@ def retrieve_context(query: str, domain: str = "docs", top_k: int | None = None)
 def _domain_search_order(domain: str) -> list[str]:
     """Return domain search priority. 'user' facts appended to every path."""
     if domain == "firewall":
-        base = ["firewall", "system-help", "docs", "code"]
+        base = ["firewall", "network", "ssh", "systemd", "os", "system-help", "docs", "code"]
+    elif domain == "network":
+        base = ["network", "firewall", "ssh", "systemd", "os", "system-help", "docs", "code"]
+    elif domain == "ssh":
+        base = ["ssh", "network", "firewall", "systemd", "os", "system-help", "docs", "code"]
+    elif domain == "os":
+        base = ["os", "systemd", "filesystem", "users", "logs", "network", "system-help", "docs", "code"]
+    elif domain == "systemd":
+        base = ["systemd", "os", "logs", "system-help", "docs", "code"]
+    elif domain == "filesystem":
+        base = ["filesystem", "os", "system-help", "docs", "code"]
+    elif domain == "users":
+        base = ["users", "os", "system-help", "docs", "code"]
+    elif domain == "logs":
+        base = ["logs", "systemd", "os", "system-help", "docs", "code"]
     elif domain == "system-help":
-        base = ["system-help", "docs", "code"]
+        base = ["system-help", "os", "systemd", "network", "ssh", "firewall", "filesystem", "users", "logs", "docs", "code"]
     elif domain == "code":
-        base = ["code", "docs", "system-help"]
+        base = ["code", "docs", "system-help", "os", "systemd", "network", "ssh", "firewall"]
     elif domain == "user":
         base = ["user", "docs"]
     else:
-        base = ["docs", "system-help", "code"]
+        base = ["docs", "system-help", "code", "os", "systemd", "network", "ssh", "firewall", "filesystem", "users", "logs"]
 
     if "user" not in base:
         base.append("user")
 
-    return base
+    return [candidate for candidate in base if candidate in RAG_DOMAINS]
 
 
 def _matches_domain(item: dict, expected_domain: str) -> bool:

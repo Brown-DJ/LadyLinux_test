@@ -16,6 +16,7 @@ import sys
 
 from core.rag.chunker import chunk_file
 from core.rag.embedder import embed_texts
+from core.rag.file_tracker import FileTracker
 from core.rag.vector_store import ensure_collection, upsert_chunks
 
 logging.basicConfig(
@@ -34,6 +35,8 @@ ALLOWED_SEED_ROOTS: tuple[str, ...] = (
     "/etc/hostname",
     "/etc/hosts",
     "/etc/network",
+    "/etc/os-release",
+    "/etc/fstab",
 )
 
 EXCLUDED_SEED_PATHS: tuple[str, ...] = (
@@ -69,7 +72,9 @@ def _normalize(path: str) -> str:
 def _is_same_or_child(path: str, parent: str) -> bool:
     path_norm = _normalize(path)
     parent_norm = _normalize(parent)
-    return path_norm == parent_norm or path_norm.startswith(f"{parent_norm}{os.sep}")
+    if path_norm == parent_norm or path_norm.startswith(f"{parent_norm}{os.sep}"):
+        return True
+    return parent_norm.endswith("_") and path_norm.startswith(parent_norm)
 
 
 def _is_excluded(path: str) -> bool:
@@ -129,11 +134,23 @@ def seed() -> dict:
 
     files = _expand_paths()
     log.info("Seed: found %d candidate file(s)", len(files))
+    tracker = FileTracker()
 
-    stats = {"files_found": len(files), "files_ingested": 0, "chunks_stored": 0, "errors": []}
+    stats = {
+        "files_found": len(files),
+        "files_ingested": 0,
+        "files_skipped_tracked": 0,
+        "chunks_stored": 0,
+        "errors": [],
+    }
 
     for path in files:
         try:
+            if tracker.is_tracked(path):
+                stats["files_skipped_tracked"] += 1
+                log.debug("Skipping unchanged tracked file %s", path)
+                continue
+
             # --- safety: size check ---
             size = os.path.getsize(path)
             if size > MAX_SEED_FILE_SIZE:
@@ -144,7 +161,7 @@ def seed() -> dict:
                 continue
 
             # --- chunk ---
-            chunks = chunk_file(path)
+            chunks = chunk_file(path, skip_allowlist_check=True)
             if not chunks:
                 continue
 
@@ -154,6 +171,7 @@ def seed() -> dict:
 
             # --- store ---
             upsert_chunks(chunks, vectors)
+            tracker.mark_tracked(path)
 
             stats["files_ingested"] += 1
             stats["chunks_stored"] += len(chunks)
@@ -169,9 +187,10 @@ def seed() -> dict:
             stats["errors"].append(msg)
 
     log.info(
-        "Seed complete - %d/%d files ingested, %d chunks stored, %d error(s)",
+        "Seed complete - %d/%d files ingested, %d unchanged, %d chunks stored, %d error(s)",
         stats["files_ingested"],
         stats["files_found"],
+        stats["files_skipped_tracked"],
         stats["chunks_stored"],
         len(stats["errors"]),
     )

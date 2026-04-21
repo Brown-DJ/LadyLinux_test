@@ -20,6 +20,10 @@ def classify_domain(prompt: str) -> str:
     if any(k in p for k in ["user", "uid", "login", "account", "group"]):
         return "users"
 
+    # SSH
+    if any(k in p for k in ["ssh", "sshd", "authorized_keys", "known_hosts"]):
+        return "ssh"
+
     # Networking
     if any(k in p for k in ["network", "ip", "dns", "host", "interface"]):
         return "network"
@@ -35,6 +39,14 @@ def classify_domain(prompt: str) -> str:
     # Filesystem
     if any(k in p for k in ["disk", "filesystem", "storage", "mount"]):
         return "filesystem"
+
+    # Logs
+    if any(k in p for k in ["log", "logs", "journal", "journalctl", "syslog"]):
+        return "logs"
+
+    # OS
+    if any(k in p for k in ["os", "kernel", "hostname", "release", "version"]):
+        return "os"
 
     # fallback
     return "any"
@@ -52,6 +64,9 @@ def detect_domain_from_path(path: str) -> str:
     if "passwd" in p or "/group" in p or "auth.log" in p:
         return "users"
 
+    if "/ssh" in p or "sshd" in p or "authorized_keys" in p or "known_hosts" in p:
+        return "ssh"
+
     if (
         "/network" in p
         or "/netplan" in p
@@ -66,5 +81,11 @@ def detect_domain_from_path(path: str) -> str:
 
     if "ufw" in p or "nft" in p or "iptables" in p or "firewall" in p:
         return "firewall"
+
+    if "/var/log" in p or p.endswith(".log") or "journal" in p or "syslog" in p:
+        return "logs"
+
+    if "os-release" in p or "hostname" in p or "/proc" in p or "/sys" in p:
+        return "os"
 
     return "filesystem"

@@ -37,7 +37,7 @@ def _line_range_for_span(text: str, start: int, end: int) -> tuple[int, int]:
 
 # ── Public API ───────────────────────────────────────────────────────
 
-def chunk_file(path: str) -> list[dict]:
+def chunk_file(path: str, skip_allowlist_check: bool = False) -> list[dict]:
     """
     Read *path* and split its contents into overlapping text chunks.
 
@@ -50,7 +50,7 @@ def chunk_file(path: str) -> list[dict]:
         domain       – domain tag from config.DOMAIN_MAP
     """
     # ── Guard: allowlist / denylist ──
-    if not is_path_allowed(path):
+    if not skip_allowlist_check and not is_path_allowed(path):
         log.debug("Skipping denied/unlisted path: %s", path)
         return []
 

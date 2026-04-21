@@ -7,14 +7,10 @@ demand so prompts can include current processes, services, and other telemetry.
 
 from __future__ import annotations
 
-import asyncio
 import shutil
 import subprocess
-import threading
 
 import psutil
-
-from api_layer.services.google_gmail_service import get_gmail_summary
 
 
 class SystemProvider:
@@ -79,56 +75,6 @@ class SystemProvider:
             f"{swap.percent:>6.1f}%"
         )
 
-    def get_gmail(self) -> str:
-        return self._run_async_summary(get_gmail_summary, "Gmail")
-
-    async def snapshot_calendar(self) -> str:
-        """
-        Return calendar summary for prompt injection.
-        """
-        try:
-            from api_layer.services.google_calendar_service import get_calendar_summary
-
-            return await get_calendar_summary()
-        except Exception as exc:  # noqa: BLE001
-            return f"Calendar data unavailable: {exc}"
-
-    def get_calendar(self) -> str:
-        return self._run_async_summary(self.snapshot_calendar, "Calendar")
-
-    async def snapshot_fit(self) -> str:
-        """
-        Return fitness summary for prompt injection.
-        """
-        try:
-            from api_layer.services.google_fit_service import get_fit_summary
-
-            return await get_fit_summary()
-        except Exception as exc:  # noqa: BLE001
-            return f"Fit data unavailable: {exc}"
-
-    def get_fit(self) -> str:
-        return self._run_async_summary(self.snapshot_fit, "Fit")
-
-    def _run_async_summary(self, summary_func, label: str) -> str:
-        try:
-            asyncio.get_running_loop()
-        except RuntimeError:
-            return asyncio.run(summary_func())
-
-        result: dict[str, str] = {}
-
-        def run_in_thread() -> None:
-            try:
-                result["value"] = asyncio.run(summary_func())
-            except Exception as exc:  # noqa: BLE001
-                result["value"] = f"{label} summary unavailable: {exc}"
-
-        thread = threading.Thread(target=run_in_thread, daemon=True)
-        thread.start()
-        thread.join(timeout=15)
-        return result.get("value", f"{label} summary timed out.")
-
     def _tail(self, path: str, lines: int = 50) -> str:
         try:
             result = subprocess.run(
@@ -155,12 +101,6 @@ class SystemProvider:
                 data["disk"] = self.get_disk()
             elif topic == "memory":
                 data["memory"] = self.get_memory()
-            elif topic == "gmail":
-                data["gmail"] = self.get_gmail()
-            elif topic == "calendar":
-                data["calendar"] = self.get_calendar()
-            elif topic == "fit":
-                data["fit"] = self.get_fit()
             elif topic == "logs":
                 data["logs"] = self._tail("/var/log/syslog", lines=50)
             elif topic == "auth":
