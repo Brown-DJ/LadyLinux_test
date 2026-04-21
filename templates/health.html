@@ -318,9 +318,10 @@
 
     async function loadToday() {
       try {
-        const res = await fetch("/api/google/fit/today", { cache: "no-store" });
+        const res = await fetch("/api/google/fit/week", { cache: "no-store" });
         const data = await res.json();
-        const d = data.data || {};
+        const days = data.days || [];
+        const d = days[days.length - 1] || {};
 
         const steps = d.steps || 0;
         const goalPct = Math.min(Math.round((steps / 10000) * 100), 100);
@@ -329,7 +330,7 @@
         document.getElementById("h-steps-goal").textContent = `${steps.toLocaleString()} / 10,000 goal`;
 
         document.getElementById("h-active").textContent =
-          d.active_minutes ? `${d.active_minutes}m` : "--";
+          d.active_minutes != null ? `${d.active_minutes}m` : "--";
 
         if (d.sleep_minutes) {
           const h = Math.floor(d.sleep_minutes / 60);
@@ -343,13 +344,7 @@
         document.getElementById("h-hr").textContent =
           d.heart_rate_avg ? `${Math.round(d.heart_rate_avg)}` : "--";
 
-        if (data.cache_age !== undefined) {
-          const age = data.cache_age;
-          document.getElementById("healthCacheAge").textContent =
-            age < 60 ? "Updated just now" :
-            age < 3600 ? `Updated ${Math.floor(age / 60)} min ago` :
-            `Updated ${Math.floor(age / 3600)} hr ago`;
-        }
+        document.getElementById("healthCacheAge").textContent = "";
       } catch (err) {
         console.error("Health today fetch failed:", err);
       }
