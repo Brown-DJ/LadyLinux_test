@@ -1,16 +1,15 @@
 """
 Fetch health and activity data from Google Health API v4.
 
-Replaces the deprecated Google Fit REST API. Data is fetched per data type using
-list endpoints with civil_start_time filters, then cached for one hour through
-google_cache.py.
+The v4 API filter syntax is inconsistent across data types, so this module uses
+simple list endpoints and filters data points client-side by civil date.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date
 
 import httpx
 
@@ -22,13 +21,18 @@ from api_layer.services.google_health_auth_service import (
 
 log = logging.getLogger("ladylinux.google_fit")
 
-_BASE_URL = "https://health.googleapis.com/v4/users/me"
+_BASE_URL = "https://www.googleapis.com/fitness/v1/users/me"
 _TOPIC = "fit"
 
 
-def _today_str() -> str:
-    """Return today's date as ISO string for civil_start_time filters."""
-    return f"{date.today().isoformat()}T00:00:00"
+def _today_date() -> str:
+    """Return today's civil date as an ISO string."""
+    return date.today().isoformat()
+
+
+def _point_date(point: dict) -> str:
+    """Extract the civil start date from a Google Health API data point."""
+    return point.get("interval", {}).get("civilStartTime", {}).get("date", "")
 
 
 def _auth_headers(token: str) -> dict:
@@ -46,15 +50,17 @@ async def _fetch_steps(client: httpx.AsyncClient, token: str) -> int:
     try:
         response = await client.get(
             f"{_BASE_URL}/dataTypes/steps/dataPoints",
-            params={"filter": f'steps.interval.civil_start_time >= "{_today_str()}"'},
             headers=_auth_headers(token),
             timeout=15,
         )
         response.raise_for_status()
         points = response.json().get("dataPoints", [])
+        today = _today_date()
 
         total = 0
         for point in points:
+            if _point_date(point) != today:
+                continue
             count = point.get("steps", {}).get("count")
             if count:
                 total += int(count)
@@ -70,17 +76,19 @@ async def _fetch_calories(client: httpx.AsyncClient, token: str) -> float:
     """
     try:
         response = await client.get(
-            f"{_BASE_URL}/dataTypes/total-calories/dataPoints",
-            params={"filter": f'totalCalories.interval.civil_start_time >= "{_today_str()}"'},
+            f"{_BASE_URL}/dataTypes/calories-expended/dataPoints",
             headers=_auth_headers(token),
             timeout=15,
         )
         response.raise_for_status()
         points = response.json().get("dataPoints", [])
+        today = _today_date()
 
         total = 0.0
         for point in points:
-            value = point.get("totalCalories", {}).get("value")
+            if _point_date(point) != today:
+                continue
+            value = point.get("calories", {}).get("value")
             if value:
                 total += float(value)
         return round(total, 1)
@@ -91,24 +99,25 @@ async def _fetch_calories(client: httpx.AsyncClient, token: str) -> float:
 
 async def _fetch_active_minutes(client: httpx.AsyncClient, token: str) -> int:
     """
-    Fetch today's active zone minutes.
+    Fetch today's active minutes.
     """
     try:
         response = await client.get(
-            f"{_BASE_URL}/dataTypes/active-zone-minutes/dataPoints",
-            params={"filter": f'activeZoneMinutes.interval.civil_start_time >= "{_today_str()}"'},
+            f"{_BASE_URL}/dataTypes/move-minutes/dataPoints",
             headers=_auth_headers(token),
             timeout=15,
         )
         response.raise_for_status()
         points = response.json().get("dataPoints", [])
+        today = _today_date()
 
         total = 0
         for point in points:
-            active_zone_minutes = point.get("activeZoneMinutes", {})
-            total += int(active_zone_minutes.get("fatBurnActiveZoneMinutes", 0) or 0)
-            total += int(active_zone_minutes.get("cardioActiveZoneMinutes", 0) or 0)
-            total += int(active_zone_minutes.get("peakActiveZoneMinutes", 0) or 0)
+            if _point_date(point) != today:
+                continue
+            value = point.get("moveMinutes", {}).get("count")
+            if value:
+                total += int(value)
         return total
     except Exception as exc:  # noqa: BLE001
         log.warning("Active minutes fetch failed: %s", exc)
@@ -117,68 +126,35 @@ async def _fetch_active_minutes(client: httpx.AsyncClient, token: str) -> int:
 
 async def _fetch_sleep(client: httpx.AsyncClient, token: str) -> int:
     """
-    Fetch last night's sleep duration in minutes.
+    Sleep requires a scope that is not currently authorized.
     """
-    try:
-        yesterday = (date.today() - timedelta(days=1)).isoformat()
-        response = await client.get(
-            f"{_BASE_URL}/dataTypes/sleep/dataPoints",
-            params={"filter": f'sleep.interval.civil_start_time >= "{yesterday}T00:00:00"'},
-            headers=_auth_headers(token),
-            timeout=15,
-        )
-        response.raise_for_status()
-        points = response.json().get("dataPoints", [])
-
-        if not points:
-            return 0
-
-        sleep_data = points[-1].get("sleep", {})
-        duration_sec = sleep_data.get("duration")
-        if duration_sec:
-            return int(int(duration_sec) / 60)
-
-        interval = sleep_data.get("interval", {})
-        start = interval.get("startTime")
-        end = interval.get("endTime")
-        if start and end:
-            try:
-                started_at = datetime.fromisoformat(start.replace("Z", "+00:00"))
-                ended_at = datetime.fromisoformat(end.replace("Z", "+00:00"))
-                return int((ended_at - started_at).total_seconds() / 60)
-            except ValueError:
-                pass
-
-        return 0
-    except Exception as exc:  # noqa: BLE001
-        log.warning("Sleep fetch failed: %s", exc)
-        return 0
+    del client, token
+    log.debug("Sleep fetch skipped: googlehealth.sleep.readonly scope not authorized")
+    return 0
 
 
 async def _fetch_heart_rate(client: httpx.AsyncClient, token: str) -> float:
     """
-    Fetch today's resting heart rate.
+    Fetch today's heart rate average.
     """
     try:
         response = await client.get(
-            f"{_BASE_URL}/dataTypes/daily-resting-heart-rate/dataPoints",
-            params={
-                "filter": (
-                    "dailyRestingHeartRate.sampleTime.civil_time.date >= "
-                    f'"{date.today().isoformat()}"'
-                )
-            },
+            f"{_BASE_URL}/dataTypes/heart-rate/dataPoints",
             headers=_auth_headers(token),
             timeout=15,
         )
         response.raise_for_status()
         points = response.json().get("dataPoints", [])
+        today = _today_date()
 
-        if not points:
-            return 0.0
-
-        bpm = points[-1].get("dailyRestingHeartRate", {}).get("beatsPerMinute")
-        return round(float(bpm), 1) if bpm else 0.0
+        values: list[float] = []
+        for point in points:
+            if _point_date(point) != today:
+                continue
+            bpm = point.get("heartRate", {}).get("bpm")
+            if bpm:
+                values.append(float(bpm))
+        return round(sum(values) / len(values), 1) if values else 0.0
     except Exception as exc:  # noqa: BLE001
         log.warning("Heart rate fetch failed: %s", exc)
         return 0.0
