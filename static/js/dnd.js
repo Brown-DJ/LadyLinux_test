@@ -43,6 +43,42 @@
   });
 })();
 
+/* ── Google Card Order (index.html > Google data row) ────── */
+(function initGoogleCardsDnD() {
+  const STORAGE_KEY = "lady-google-cards-order";
+  const row = document.getElementById("google-cards-row");
+  if (!row || typeof Sortable === "undefined") return;
+
+  function restoreOrder() {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (!saved) return;
+    try {
+      const order = JSON.parse(saved);
+      order.forEach((cardId) => {
+        const el = row.querySelector(`[data-card-id="${cardId}"]`);
+        if (el) row.appendChild(el);
+      });
+    } catch (e) {
+      console.warn("DnD: could not restore Google card order", e);
+    }
+  }
+
+  restoreOrder();
+
+  Sortable.create(row, {
+    animation: 180,
+    handle: ".ll-google-card-handle",
+    ghostClass: "ll-drag-ghost",
+    chosenClass: "ll-drag-chosen",
+    dragClass: "ll-dragging",
+    onEnd() {
+      const order = [...row.querySelectorAll("[data-card-id]")]
+        .map((el) => el.getAttribute("data-card-id"));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(order));
+    },
+  });
+})();
+
 /* ── System Tab Order (os.html) ───────────────────────── */
 (function initSystemTabsDnD() {
   const STORAGE_KEY = "lady-system-tabs-order";

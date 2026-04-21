@@ -335,21 +335,26 @@
         </div>
 
         <div class="row g-3" id="google-cards-row">
-          <div class="col-12 col-md-4">
+          <div class="col-12 col-md-4" data-card-id="calendar">
             <div class="card ll-dashboard-card h-100" id="google-calendar-card">
               <div class="card-body d-flex flex-column">
                 <div class="d-flex align-items-center justify-content-between mb-2">
                   <h2 class="h6 mb-0">
                     <i class="bi bi-calendar3 me-2 text-accent"></i>Calendar
                   </h2>
-                  <button
-                    class="btn btn-sm btn-outline-secondary ll-google-refresh"
-                    data-google-topic="calendar"
-                    title="Refresh calendar"
-                    type="button"
-                  >
-                    <i class="bi bi-arrow-clockwise"></i>
-                  </button>
+                  <div class="d-flex align-items-center gap-2">
+                    <button
+                      class="btn btn-sm btn-outline-secondary ll-google-refresh"
+                      data-google-topic="calendar"
+                      title="Refresh"
+                      type="button"
+                    >
+                      <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                    <span class="ll-google-card-handle ll-drag-handle" title="Drag to reorder">
+                      <i class="bi bi-grip-vertical"></i>
+                    </span>
+                  </div>
                 </div>
 
                 <div class="ll-google-auth-prompt d-none text-center text-muted small py-3" id="calendar-auth-prompt">
@@ -371,8 +376,8 @@
             </div>
           </div>
 
-          <div class="col-12 col-md-4">
-            <div class="card ll-dashboard-card h-100" id="google-gmail-card">
+          <div class="col-12 col-md-4" data-card-id="gmail">
+            <div class="card ll-dashboard-card h-100" id="gmail-card">
               <div class="card-body d-flex flex-column">
                 <div class="d-flex align-items-center justify-content-between mb-2">
                   <h2 class="h6 mb-0">
@@ -383,14 +388,19 @@
                       style="background:var(--accent);color:#000;font-size:0.65rem"
                     ></span>
                   </h2>
-                  <button
-                    class="btn btn-sm btn-outline-secondary ll-google-refresh"
-                    data-google-topic="gmail"
-                    title="Refresh Gmail"
-                    type="button"
-                  >
-                    <i class="bi bi-arrow-clockwise"></i>
-                  </button>
+                  <div class="d-flex align-items-center gap-2">
+                    <button
+                      class="btn btn-sm btn-outline-secondary ll-google-refresh"
+                      data-google-topic="gmail"
+                      title="Refresh"
+                      type="button"
+                    >
+                      <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                    <span class="ll-google-card-handle ll-drag-handle" title="Drag to reorder">
+                      <i class="bi bi-grip-vertical"></i>
+                    </span>
+                  </div>
                 </div>
 
                 <div class="ll-google-auth-prompt d-none text-center text-muted small py-3" id="gmail-auth-prompt">
@@ -412,21 +422,33 @@
             </div>
           </div>
 
-          <div class="col-12 col-md-4">
+          <div class="col-12 col-md-4" data-card-id="fit">
             <div class="card ll-dashboard-card h-100" id="google-fit-card">
               <div class="card-body d-flex flex-column">
-                <div class="d-flex align-items-center justify-content-between mb-3">
+                <div class="d-flex align-items-center justify-content-between mb-2">
                   <h2 class="h6 mb-0">
                     <i class="bi bi-heart-pulse me-2 text-accent"></i>Google Fit
                   </h2>
-                  <button
-                    class="btn btn-sm btn-outline-secondary ll-google-refresh"
-                    data-google-topic="fit"
-                    title="Refresh Fit data"
-                    type="button"
-                  >
-                    <i class="bi bi-arrow-clockwise"></i>
-                  </button>
+                  <div class="d-flex align-items-center gap-2">
+                    <button
+                      class="btn btn-sm btn-outline-secondary ll-google-refresh"
+                      data-google-topic="fit"
+                      title="Refresh"
+                      type="button"
+                    >
+                      <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                    <a
+                      href="/health"
+                      class="btn btn-sm btn-outline-secondary"
+                      title="Open health dashboard"
+                    >
+                      <i class="bi bi-box-arrow-up-right"></i>
+                    </a>
+                    <span class="ll-google-card-handle ll-drag-handle" title="Drag to reorder">
+                      <i class="bi bi-grip-vertical"></i>
+                    </span>
+                  </div>
                 </div>
 
                 <div class="ll-google-auth-prompt d-none text-center text-muted small py-3" id="fit-auth-prompt">

@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lady Linux - Health</title>
+  <script>
+    document.documentElement.setAttribute("data-ui-ready", "false");
+  </script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    body[data-page="health"] main.container {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .health-hero {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+    }
+
+    @media (max-width: 991px) {
+      .health-hero { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 575px) {
+      .health-hero { grid-template-columns: 1fr; }
+    }
+
+    .health-tile {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: var(--ui-radius-large);
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      transition: border-color var(--transition-speed), box-shadow var(--transition-speed);
+    }
+
+    .health-tile:hover {
+      border-color: var(--accent);
+      box-shadow: var(--effect-glow);
+    }
+
+    .health-tile__icon {
+      font-size: 1.4rem;
+      color: var(--accent);
+    }
+
+    .health-tile__label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .health-tile__value {
+      font-size: 2rem;
+      font-weight: 700;
+      line-height: 1;
+      color: var(--text-main);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .health-tile__sub {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    .health-steps-bar {
+      height: 6px;
+      background: var(--border-color);
+      border-radius: 99px;
+      overflow: hidden;
+      margin-top: 0.25rem;
+    }
+
+    .health-steps-bar__fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 99px;
+      transition: width 0.6s ease;
+    }
+
+    .health-charts {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+    }
+
+    @media (max-width: 767px) {
+      .health-charts { grid-template-columns: 1fr; }
+    }
+
+    .health-chart-card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: var(--ui-radius-large);
+      padding: 1.25rem;
+    }
+
+    .health-chart-card__title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+
+    .health-skeleton {
+      background: color-mix(in srgb, var(--border-color) 60%, transparent);
+      border-radius: 4px;
+      animation: skeleton-pulse 1.4s ease-in-out infinite;
+    }
+
+    @keyframes skeleton-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .health-auth-prompt {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: var(--text-muted);
+    }
+
+    .health-auth-prompt i {
+      font-size: 2.5rem;
+      display: block;
+      margin-bottom: 1rem;
+      color: var(--accent);
+    }
+  </style>
+</head>
+<body data-page="health">
+  {% include "nav.html" %}
+  {% include "controls.html" %}
+  {% include "lady_panel.html" %}
+
+  <main class="container py-4 pb-5">
+    {% include "context_nav.html" %}
+
+    <div class="d-flex align-items-center justify-content-between mb-2">
+      <div>
+        <h1 class="h3 mb-1"><i class="bi bi-heart-pulse me-2 text-accent"></i>Health</h1>
+        <p class="text-muted mb-0" style="font-size:0.85rem">Google Fitness · Today's activity + 7-day trends</p>
+      </div>
+      <button class="btn btn-sm btn-outline-secondary" id="healthRefreshBtn" type="button" title="Refresh">
+        <i class="bi bi-arrow-clockwise" id="healthRefreshIcon"></i>
+      </button>
+    </div>
+
+    <div id="healthAuthPrompt" class="health-auth-prompt d-none">
+      <i class="bi bi-lock"></i>
+      <p class="mb-3">Connect Google Fitness to view your health data.</p>
+      <a href="/api/google/health/oauth/start" class="btn btn-primary" target="_blank">
+        <i class="bi bi-google me-2"></i>Connect Google Fitness
+      </a>
+    </div>
+
+    <div id="healthContent">
+      <div class="health-hero" id="healthHero">
+        <div class="health-tile">
+          <div class="d-flex align-items-center justify-content-between">
+            <span class="health-tile__label">Steps</span>
+            <i class="health-tile__icon bi bi-lightning-charge"></i>
+          </div>
+          <div class="health-tile__value" id="h-steps">--</div>
+          <div class="health-steps-bar">
+            <div class="health-steps-bar__fill" id="h-steps-bar" style="width:0%"></div>
+          </div>
+          <div class="health-tile__sub" id="h-steps-goal">-- / 10,000 goal</div>
+        </div>
+
+        <div class="health-tile">
+          <div class="d-flex align-items-center justify-content-between">
+            <span class="health-tile__label">Active Minutes</span>
+            <i class="health-tile__icon bi bi-person-walking"></i>
+          </div>
+          <div class="health-tile__value" id="h-active">--</div>
+          <div class="health-tile__sub">Daily movement</div>
+        </div>
+
+        <div class="health-tile">
+          <div class="d-flex align-items-center justify-content-between">
+            <span class="health-tile__label">Sleep</span>
+            <i class="health-tile__icon bi bi-moon-stars"></i>
+          </div>
+          <div class="health-tile__value" id="h-sleep">--</div>
+          <div class="health-tile__sub" id="h-sleep-sub">Last night</div>
+        </div>
+
+        <div class="health-tile">
+          <div class="d-flex align-items-center justify-content-between">
+            <span class="health-tile__label">Heart Rate</span>
+            <i class="health-tile__icon bi bi-heart"></i>
+          </div>
+          <div class="health-tile__value" id="h-hr">--</div>
+          <div class="health-tile__sub">Avg BPM today</div>
+        </div>
+      </div>
+
+      <div class="health-charts">
+        <div class="health-chart-card">
+          <div class="health-chart-card__title">
+            <i class="bi bi-lightning-charge me-1"></i>Steps - Last 7 Days
+          </div>
+          <canvas id="chartSteps" height="160"></canvas>
+        </div>
+
+        <div class="health-chart-card">
+          <div class="health-chart-card__title">
+            <i class="bi bi-person-walking me-1"></i>Active Minutes - Last 7 Days
+          </div>
+          <canvas id="chartActive" height="160"></canvas>
+        </div>
+
+        <div class="health-chart-card">
+          <div class="health-chart-card__title">
+            <i class="bi bi-moon-stars me-1"></i>Sleep - Last 7 Days (hours)
+          </div>
+          <canvas id="chartSleep" height="160"></canvas>
+        </div>
+
+        <div class="health-chart-card">
+          <div class="health-chart-card__title">
+            <i class="bi bi-heart me-1"></i>Heart Rate - Last 7 Days (avg BPM)
+          </div>
+          <canvas id="chartHR" height="160"></canvas>
+        </div>
+      </div>
+
+      <p class="text-muted text-end" style="font-size:0.72rem" id="healthCacheAge"></p>
+    </div>
+  </main>
+
+  <script src="/static/js/theme.js"></script>
+  <script src="/static/js/nav_controls.js"></script>
+  <script src="/static/js/chat.js"></script>
+
+  <script>
+  (function () {
+    "use strict";
+
+    function cssVar(name) {
+      return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    }
+
+    function buildBarChart(canvasId, labels, values, color, unit) {
+      const ctx = document.getElementById(canvasId)?.getContext("2d");
+      if (!ctx) return null;
+
+      return new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [{
+            data: values,
+            backgroundColor: color,
+            borderRadius: 6,
+            borderSkipped: false
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: chartCtx => ` ${chartCtx.parsed.y.toLocaleString()} ${unit}`
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: cssVar("--border-color") },
+              ticks: { color: cssVar("--text-muted"), font: { size: 11 } }
+            },
+            y: {
+              grid: { color: cssVar("--border-color") },
+              ticks: { color: cssVar("--text-muted"), font: { size: 11 } },
+              beginAtZero: true
+            }
+          }
+        }
+      });
+    }
+
+    let charts = {};
+
+    async function loadToday() {
+      try {
+        const res = await fetch("/api/google/fit/today", { cache: "no-store" });
+        const data = await res.json();
+        const d = data.data || {};
+
+        const steps = d.steps || 0;
+        const goalPct = Math.min(Math.round((steps / 10000) * 100), 100);
+        document.getElementById("h-steps").textContent = steps.toLocaleString();
+        document.getElementById("h-steps-bar").style.width = `${goalPct}%`;
+        document.getElementById("h-steps-goal").textContent = `${steps.toLocaleString()} / 10,000 goal`;
+
+        document.getElementById("h-active").textContent =
+          d.active_minutes ? `${d.active_minutes}m` : "--";
+
+        if (d.sleep_minutes) {
+          const h = Math.floor(d.sleep_minutes / 60);
+          const m = d.sleep_minutes % 60;
+          document.getElementById("h-sleep").textContent = `${h}h ${m}m`;
+          document.getElementById("h-sleep-sub").textContent = "Last night";
+        } else {
+          document.getElementById("h-sleep").textContent = "--";
+        }
+
+        document.getElementById("h-hr").textContent =
+          d.heart_rate_avg ? `${Math.round(d.heart_rate_avg)}` : "--";
+
+        if (data.cache_age !== undefined) {
+          const age = data.cache_age;
+          document.getElementById("healthCacheAge").textContent =
+            age < 60 ? "Updated just now" :
+            age < 3600 ? `Updated ${Math.floor(age / 60)} min ago` :
+            `Updated ${Math.floor(age / 3600)} hr ago`;
+        }
+      } catch (err) {
+        console.error("Health today fetch failed:", err);
+      }
+    }
+
+    async function loadWeekCharts() {
+      try {
+        const res = await fetch("/api/google/fit/week", { cache: "no-store" });
+        const data = await res.json();
+        const days = data.days || [];
+
+        const labels = days.map(d => {
+          const dt = new Date(d.date + "T12:00:00");
+          return dt.toLocaleDateString(undefined, { weekday: "short" });
+        });
+
+        const accent = cssVar("--accent") || "#7c3aed";
+
+        Object.values(charts).forEach(c => c?.destroy());
+        charts = {};
+
+        charts.steps = buildBarChart("chartSteps", labels, days.map(d => d.steps), accent, "steps");
+        charts.active = buildBarChart("chartActive", labels, days.map(d => d.active_minutes), "#22d3ee", "min");
+        charts.sleep = buildBarChart(
+          "chartSleep",
+          labels,
+          days.map(d => d.sleep_minutes ? +(d.sleep_minutes / 60).toFixed(1) : 0),
+          "#818cf8",
+          "hrs"
+        );
+        charts.hr = buildBarChart("chartHR", labels, days.map(d => d.heart_rate_avg || 0), "#f472b6", "bpm");
+      } catch (err) {
+        console.error("Health week fetch failed:", err);
+      }
+    }
+
+    async function init() {
+      try {
+        const res = await fetch("/api/google/health/oauth/status", { cache: "no-store" });
+        const data = await res.json();
+
+        if (!data.authorized) {
+          document.getElementById("healthAuthPrompt").classList.remove("d-none");
+          document.getElementById("healthContent").classList.add("d-none");
+          return;
+        }
+      } catch {
+      }
+
+      await Promise.all([loadToday(), loadWeekCharts()]);
+    }
+
+    document.getElementById("healthRefreshBtn")?.addEventListener("click", async () => {
+      const icon = document.getElementById("healthRefreshIcon");
+      icon?.classList.add("spin");
+
+      try {
+        await fetch("/api/google/fit/refresh", { method: "POST" });
+        await Promise.all([loadToday(), loadWeekCharts()]);
+      } finally {
+        icon?.classList.remove("spin");
+      }
+    });
+
+    document.addEventListener("DOMContentLoaded", init);
+  }());
+  </script>
+</body>
+</html>
