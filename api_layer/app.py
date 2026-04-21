@@ -283,6 +283,11 @@ def classify_prompt(message: str, precomputed_route: str | None = None) -> Liter
 def classify_rag_domain(message: str) -> Literal["docs", "code", "system-help", "firewall"]:
     text = (message or "").strip().lower()
 
+    if any(term in text for term in ("weather", "temperature", "forecast", "rain",
+                                     "wind", "humidity", "outside", "°f", "°c",
+                                     "hot", "cold", "cloudy", "sunny", "storm")):
+        return "system-help"
+
     # Firewall check must precede system-help — "firewall" was previously
     # swallowed by system-help, preventing domain=firewall routing and
     # blocking retrieval of live /runtime/firewall Qdrant chunks.

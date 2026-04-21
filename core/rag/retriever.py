@@ -51,8 +51,6 @@ def retrieve(
     # 2) Domain-ordered retrieval with strict project-scope filtering.
     final_results: list[dict] = []
     for target_domain in _domain_search_order(routed_domain):
-        if len(final_results) >= k:
-            break
         # k + 2 gives enough headroom for dedup without flooding the prompt.
         # On a CPU-only VM this directly reduces LLM prompt size and response time.
         results = search(query_vector, top_k=k + 2, domain=target_domain)
