@@ -107,6 +107,8 @@
       border: 1px solid var(--border-color);
       border-radius: var(--ui-radius-large);
       padding: 1.25rem;
+      overflow: hidden;
+      max-height: 260px;
     }
 
     .health-chart-card__title {
@@ -116,6 +118,10 @@
       letter-spacing: 0.07em;
       color: var(--text-muted);
       margin-bottom: 1rem;
+    }
+
+    .health-chart-card canvas {
+      max-height: 180px;
     }
 
     .health-skeleton {
@@ -265,8 +271,10 @@
     }
 
     function buildBarChart(canvasId, labels, values, color, unit) {
-      const ctx = document.getElementById(canvasId)?.getContext("2d");
+      const ctx = document.getElementById(canvasId);
       if (!ctx) return null;
+
+      ctx.style.height = "180px";
 
       return new Chart(ctx, {
         type: "bar",
@@ -274,9 +282,10 @@
           labels,
           datasets: [{
             data: values,
-            backgroundColor: color,
-            borderRadius: 6,
-            borderSkipped: false
+            backgroundColor: color + "88",
+            borderColor: color,
+            borderWidth: 1.5,
+            borderRadius: 4
           }]
         },
         options: {
@@ -286,18 +295,18 @@
             legend: { display: false },
             tooltip: {
               callbacks: {
-                label: chartCtx => ` ${chartCtx.parsed.y.toLocaleString()} ${unit}`
+                label: chartCtx => `${chartCtx.parsed.y} ${unit}`
               }
             }
           },
           scales: {
             x: {
-              grid: { color: cssVar("--border-color") },
-              ticks: { color: cssVar("--text-muted"), font: { size: 11 } }
+              grid: { display: false },
+              ticks: { color: "var(--text-muted)", font: { size: 11 } }
             },
             y: {
               grid: { color: cssVar("--border-color") },
-              ticks: { color: cssVar("--text-muted"), font: { size: 11 } },
+              ticks: { color: "var(--text-muted)", font: { size: 11 } },
               beginAtZero: true
             }
           }
