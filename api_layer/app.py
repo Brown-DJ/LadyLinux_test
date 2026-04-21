@@ -22,7 +22,7 @@ from logging_filters import IgnoreMetricsFilter
 from api_layer.routes.audio import router as audio_router
 from api_layer.routes.context import router as context_router
 from core.tools import os_core
-from core.tools.firewall_core import get_firewall_status_json
+from core.tools.firewall_core import ensure_firewall_snapshot_vectorized, get_firewall_status_json
 from api_layer.routes.firewall import router as firewall_router
 from api_layer.routes.logs import router as logs_router
 from api_layer.routes.media import router as media_router
@@ -861,6 +861,7 @@ async def init_rag() -> None:
     else:
         # Vault content may have changed on git pull — always re-seed it.
         threading.Thread(target=seed_all_vaults, daemon=True).start()
+    threading.Thread(target=ensure_firewall_snapshot_vectorized, daemon=True).start()
 
     def preload() -> None:
         time.sleep(30)
