@@ -280,12 +280,21 @@ def classify_prompt(message: str, precomputed_route: str | None = None) -> Liter
     return "chat"
 
 
-def classify_rag_domain(message: str) -> Literal["docs", "code", "system-help"]:
+def classify_rag_domain(message: str) -> Literal["docs", "code", "system-help", "firewall"]:
     text = (message or "").strip().lower()
 
-    if any(term in text for term in ("api", "endpoint", "route", "function", "class", "module", "script", "code")):
+    # Firewall check must precede system-help — "firewall" was previously
+    # swallowed by system-help, preventing domain=firewall routing and
+    # blocking retrieval of live /runtime/firewall Qdrant chunks.
+    if any(term in text for term in ("firewall", "ufw", "iptables", "nftables",
+                                     "port block", "inbound", "outbound",
+                                     "deny rule", "allow rule", "fw rule")):
+        return "firewall"
+    if any(term in text for term in ("api", "endpoint", "route", "function",
+                                     "class", "module", "script", "code")):
         return "code"
-    if any(term in text for term in ("service", "firewall", "network", "users", "theme", "system", "troubleshoot", "fix")):
+    if any(term in text for term in ("service", "network", "users", "theme",
+                                     "system", "troubleshoot", "fix")):
         return "system-help"
     return "docs"
 
@@ -865,6 +874,18 @@ async def init_rag() -> None:
     else:
         # Vault content may have changed on git pull — always re-seed it.
         threading.Thread(target=seed_all_vaults, daemon=True).start()
+
+    # Firewall state is live data — vectorize on every startup unconditionally.
+    # _seed_all handles it when the collection is empty; this covers the else
+    # branch where the collection already exists but firewall chunks need refresh.
+    def _vectorize_firewall() -> None:
+        try:
+            from api_layer.services.firewall_service import ensure_firewall_snapshot_vectorized
+            ensure_firewall_snapshot_vectorized()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[FIREWALL] startup vectorization failed: %s", exc)
+
+    threading.Thread(target=_vectorize_firewall, daemon=True).start()
 
     def preload() -> None:
         time.sleep(30)
