@@ -92,6 +92,28 @@ def _fetch_and_store() -> dict | None:
 
     _store_current_weather(normalized)
 
+    # Ingest normalized weather into Qdrant so the assistant can answer
+    # weather questions from live data. Uses ingest_ephemeral() so the
+    # temp file is deleted after upsert; Qdrant is the only durable store.
+    # TTL=3h is set in SOURCE_TTL_HOURS so stale chunks are filtered at query time.
+    try:
+        from core.rag.ingest_api_data import ingest_ephemeral
+
+        content = (
+            f"# Current Weather - {normalized.get('city', '')}, {normalized.get('region', '')}\n\n"
+            f"**Conditions:** {normalized.get('conditions', 'Unknown')}\n"
+            f"**Temperature:** {normalized.get('temperature_f')}"
+            f"{normalized.get('temperature_unit', 'F')}\n"
+            f"**Wind:** {normalized.get('wind_speed', '--')} "
+            f"{normalized.get('wind_direction', '')}\n"
+            f"**Period:** {normalized.get('period_name', '')}\n"
+            f"**Detailed:** {normalized.get('detailed', '')}\n"
+            f"**Up next:** {normalized.get('next_period', '')}\n"
+        )
+        ingest_ephemeral(source="weather", content=content, domain="system-help")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[weather] RAG ingest failed (weather still available): %s", exc)
+
     logger.info(
         "[weather] updated: %s %.0f°F",
         normalized.get("conditions"),
