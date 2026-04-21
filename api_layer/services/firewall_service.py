@@ -150,7 +150,9 @@ def get_firewall_status_json() -> dict:
 
     ufw_cmd = available.get("ufw")
     if ufw_cmd:
-        result = run_command([ufw_cmd, "status", "verbose"])
+        # sudo required — ladylinux service user cannot read ufw state directly.
+        # NOPASSWD grant for these exact args is in /etc/sudoers.d/ladylinux-ufw.
+        result = run_command([_SUDO, ufw_cmd, "status", "verbose"])
         if result.stdout:
             snapshot.update(_parse_ufw_output(result.stdout))
             snapshot.update({"backend": "ufw", "raw_output": result.stdout, "command": ufw_cmd})
@@ -162,7 +164,9 @@ def get_firewall_status_json() -> dict:
 
     iptables_cmd = available.get("iptables")
     if iptables_cmd:
-        result = run_command([iptables_cmd, "-L", "-n", "-v"])
+        # sudo required — iptables requires root for read access.
+        # Falls through to this only when ufw is unavailable.
+        result = run_command([_SUDO, iptables_cmd, "-L", "-n", "-v"])
         if result.stdout:
             snapshot.update({"backend": "iptables", "status": "available", "raw_output": result.stdout, "command": iptables_cmd})
             if result.stderr:
@@ -173,7 +177,9 @@ def get_firewall_status_json() -> dict:
 
     nft_cmd = available.get("nftables")
     if nft_cmd:
-        result = run_command([nft_cmd, "list", "ruleset"])
+        # sudo required — nft requires root for ruleset access.
+        # Falls through to this only when ufw and iptables are unavailable.
+        result = run_command([_SUDO, nft_cmd, "list", "ruleset"])
         if result.stdout:
             snapshot.update({"backend": "nftables", "status": "available", "raw_output": result.stdout, "command": nft_cmd})
             if result.stderr:
