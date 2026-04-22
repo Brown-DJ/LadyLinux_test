@@ -61,7 +61,6 @@ async def _fetch_events(time_min: str, time_max: str, max_results: int = 15) -> 
     token = await get_valid_token()
 
     params = {
-        "calendarId": "primary",
         "timeMin": time_min,
         "timeMax": time_max,
         "maxResults": max_results,
