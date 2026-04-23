@@ -16,10 +16,14 @@
   const elPlayPauseIcon = document.getElementById("musicPlayPauseIcon");
   const elPrevBtn = document.getElementById("musicPrevBtn");
   const elNextBtn = document.getElementById("musicNextBtn");
+  const elBgBlur = document.getElementById("musicBgBlur");
+  const elOpenBtn = document.getElementById("musicOpenBtn");
 
   if (!elIdle) return;
 
   let isPlaying = false;
+  let currentArt = "";
+  let bgActive = false;
 
   async function fetchNowPlaying() {
     try {
@@ -36,6 +40,7 @@
         return;
       }
 
+      currentArt = data.art_large || data.art_medium || "";
       showTrack(data);
     } catch (err) {
       console.warn("[music-widget] fetch failed:", err);
@@ -90,6 +95,29 @@
     } catch (err) {
       console.warn("[music-widget] control failed:", endpoint, err);
     }
+  }
+
+  if (elOpenBtn && elBgBlur) {
+    elOpenBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+
+      if (!bgActive && currentArt) {
+        elBgBlur.style.backgroundImage = `url("${currentArt}")`;
+        elBgBlur.style.opacity = "1";
+        bgActive = true;
+        elOpenBtn.classList.add("active");
+      } else if (bgActive) {
+        elBgBlur.style.opacity = "0";
+        bgActive = false;
+        elOpenBtn.classList.remove("active");
+
+        setTimeout(() => {
+          window.location.href = elOpenBtn.href;
+        }, 1200);
+      } else {
+        window.location.href = elOpenBtn.href;
+      }
+    });
   }
 
   elPrevBtn?.addEventListener("click", () => playerAction("previous"));
