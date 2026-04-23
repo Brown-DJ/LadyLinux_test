@@ -318,10 +318,9 @@
 
     async function loadToday() {
       try {
-        const res = await fetch("/api/google/fit/week", { cache: "no-store" });
+        const res = await fetch("/api/google/fit/today", { cache: "no-store" });
         const data = await res.json();
-        const days = data.days || [];
-        const d = days[days.length - 1] || {};
+        const d = data.data || {};
 
         const steps = d.steps || 0;
         const goalPct = Math.min(Math.round((steps / 10000) * 100), 100);
