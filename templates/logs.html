@@ -477,6 +477,13 @@
           <option value="500">500 lines</option>
         </select>
 
+        <!-- Level filter dropdown - id="levelFilter" required by applyFilter() -->
+        <select class="log-select" id="levelFilter" title="Filter by log level">
+          <option value="all">All levels</option>
+          <option value="warn" selected>Errors &amp; Warnings</option>
+          <option value="error">Errors only</option>
+        </select>
+
         <!-- Auto-scroll toggle — id="autoScrollToggle" required by renderLines() -->
         <div class="d-flex align-items-center gap-1">
           <input
@@ -650,7 +657,6 @@
     ────────────────────────────────────────────────────────────────────── */
     function renderLines(lines) {
       const out    = document.getElementById("logOutput");
-      const filter = document.getElementById("logSearch").value.toLowerCase();
 
       /* Reverse: API returns oldest-first, we want newest at top */
       const rows = [...lines].reverse();
@@ -665,16 +671,15 @@
       out.innerHTML = rows.map(line => {
         const cls    = lineClass(line);
         /* Search filter: hide lines that don't match */
-        const hidden = filter && !line.toLowerCase().includes(filter) ? " ll-hidden" : "";
         /* Escape HTML entities to prevent XSS in log content */
         const safe   = line
           .replace(/&/g, "&amp;")
           .replace(/</g, "&lt;")
           .replace(/>/g, "&gt;");
-        return `<div class="log-line${cls ? " " + cls : ""}${hidden}">${safe}</div>`;
+        return `<div class="log-line${cls ? " " + cls : ""}">${safe}</div>`;
       }).join("");
 
-      updateCount();
+      applyFilter();
 
       /* Auto-scroll: newest-first means scroll to top */
       if (document.getElementById("autoScrollToggle").checked) {
@@ -807,14 +812,29 @@
 
     /* ──────────────────────────────────────────────────────────────────────
        applyFilter()
-       Client-side show/hide of lines based on #logSearch value.
-       No re-fetch required.
+       Hides .log-line elements that don't match the search text AND the
+       selected level filter. Called on search input and level change.
     ────────────────────────────────────────────────────────────────────── */
     function applyFilter() {
-      const filter = document.getElementById("logSearch").value.toLowerCase();
-      document.querySelectorAll("#logOutput .log-line").forEach(el => {
-        el.classList.toggle("ll-hidden", !!(filter && !el.textContent.toLowerCase().includes(filter)));
+      const text  = document.getElementById("logSearch").value.toLowerCase();
+      const level = document.getElementById("levelFilter").value;
+
+      document.querySelectorAll("#logOutput .log-line").forEach(line => {
+        const textMatch = !text || line.textContent.toLowerCase().includes(text);
+
+        let levelMatch;
+        if (level === "all") {
+          levelMatch = true;
+        } else if (level === "warn") {
+          levelMatch = line.classList.contains("log-error") ||
+                       line.classList.contains("log-warn");
+        } else if (level === "error") {
+          levelMatch = line.classList.contains("log-error");
+        }
+
+        line.classList.toggle("ll-hidden", !(textMatch && levelMatch));
       });
+
       updateCount();
     }
 
@@ -831,6 +851,7 @@
 
     /* Search: live filter + clear button */
     document.getElementById("logSearch").addEventListener("input", applyFilter);
+    document.getElementById("levelFilter").addEventListener("change", applyFilter);
     document.getElementById("clearSearchBtn").addEventListener("click", () => {
       document.getElementById("logSearch").value = "";
       applyFilter();
