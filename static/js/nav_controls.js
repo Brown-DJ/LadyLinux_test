@@ -22,7 +22,6 @@
   const themeBtn  = document.getElementById("navThemeToggle");
   const themeIcon = document.getElementById("navThemeIcon");
 
-  /**
    * Update the navbar icon to reflect the currently active theme.
    * Moon = currently dark (click to go light); Sun = currently light (click to go dark).
    */
@@ -34,7 +33,6 @@
       : "bi bi-moon-stars-fill";   // light mode active → show moon (switch to dark)
   }
 
-  /**
    * Sync BOTH the navbar icon and the radial spoke icon to reflect active theme.
    * Called on toggle and on page load.
    */
@@ -88,19 +86,89 @@
   const notifBadge     = document.getElementById("navNotifBadge");
   const notifMarkRead  = document.getElementById("navNotifMarkRead");
 
-  /**
-   * Notification item shape:
-   *   { id, icon, text, sub, href, read }
-   *
-   * In future this can be fetched from /api/notifications.
-   * For now, static stubs are used as a UI scaffold.
-   */
-  let notifications = [
-    // Stub entries — replace with a fetch() call when the API is ready
-    { id: 1, icon: "bi-hdd",         text: "Disk usage above 80%",      sub: "2 min ago",  href: "/os",       read: false },
-    { id: 2, icon: "bi-shield-x",    text: "UFW blocked 3 connections",  sub: "14 min ago", href: "/firewall", read: false },
-    { id: 3, icon: "bi-cpu",         text: "CPU spike detected (92%)",   sub: "1 hr ago",   href: "/os",       read: true  },
-  ];
+  let notifications = [];
+
+  const NOTIF_POLL_MS = 60_000;
+  const readIds = new Set();
+  const THRESHOLDS = {
+    cpu:    { warning: 85, critical: 95 },
+    memory: { warning: 85, critical: 95 },
+    disk:   { warning: 80, critical: 90 },
+  };
+
+  function alertId(type) {
+    return `alert-${type}`;
+  }
+
+  function buildNotifications(metrics, services) {
+    const items = [];
+    const now = "just now";
+
+    if (metrics?.cpu_load > THRESHOLDS.cpu.critical) {
+      const id = alertId("cpu-crit");
+      items.push({ id, icon: "bi-cpu-fill", text: `CPU critical - ${Math.round(metrics.cpu_load)}% utilization`, sub: now, href: "/os", read: readIds.has(id) });
+    } else if (metrics?.cpu_load > THRESHOLDS.cpu.warning) {
+      const id = alertId("cpu-warn");
+      items.push({ id, icon: "bi-cpu", text: `CPU high - ${Math.round(metrics.cpu_load)}% utilization`, sub: now, href: "/os", read: readIds.has(id) });
+    }
+
+    if (metrics?.memory_usage > THRESHOLDS.memory.critical) {
+      const id = alertId("mem-crit");
+      items.push({ id, icon: "bi-memory", text: `Memory critical - ${Math.round(metrics.memory_usage)}% used`, sub: now, href: "/os", read: readIds.has(id) });
+    } else if (metrics?.memory_usage > THRESHOLDS.memory.warning) {
+      const id = alertId("mem-warn");
+      items.push({ id, icon: "bi-memory", text: `Memory high - ${Math.round(metrics.memory_usage)}% used`, sub: now, href: "/os", read: readIds.has(id) });
+    }
+
+    if (metrics?.disk_usage > THRESHOLDS.disk.critical) {
+      const id = alertId("disk-crit");
+      items.push({ id, icon: "bi-hdd-fill", text: `Disk critical - ${Math.round(metrics.disk_usage)}% used`, sub: now, href: "/os", read: readIds.has(id) });
+    } else if (metrics?.disk_usage > THRESHOLDS.disk.warning) {
+      const id = alertId("disk-warn");
+      items.push({ id, icon: "bi-hdd", text: `Disk high - ${Math.round(metrics.disk_usage)}% used`, sub: now, href: "/os", read: readIds.has(id) });
+    }
+
+    const relevant = Array.isArray(services)
+      ? services.filter((service) =>
+          typeof window.isRelevantService === "function"
+            ? window.isRelevantService(service)
+            : true
+        )
+      : [];
+    const failed = relevant.filter(
+      (service) => String(service.status || "").toLowerCase() === "failed"
+    );
+
+    if (failed.length === 1) {
+      const id = alertId(`svc-${failed[0].name}`);
+      items.push({ id, icon: "bi-gear-fill", text: `Service ${failed[0].name} has failed`, sub: now, href: "/os", read: readIds.has(id) });
+    } else if (failed.length > 1) {
+      const id = alertId("svc-multi");
+      items.push({ id, icon: "bi-gear-fill", text: `${failed.length} services have failed`, sub: now, href: "/os", read: readIds.has(id) });
+    }
+
+    return items;
+  }
+
+  async function pollNotifications() {
+    try {
+      const [mRes, sRes] = await Promise.all([
+        fetch("/api/system/metrics", { cache: "no-store" }),
+        fetch("/api/system/services", { cache: "no-store" }),
+      ]);
+
+      const metrics = mRes.ok ? await mRes.json() : null;
+      const services = sRes.ok ? await sRes.json() : [];
+      const svcList = Array.isArray(services)
+        ? services
+        : (services?.services ?? []);
+
+      notifications = buildNotifications(metrics, svcList);
+      renderNotifications();
+    } catch (err) {
+      console.warn("[nav_controls] notification poll failed:", err);
+    }
+  }
 
   /** Build and render all notification list items into #navNotifList */
   function renderNotifications() {
@@ -146,6 +214,7 @@
 
       // Mark individual item as read on click
       li.querySelector("a").addEventListener("click", () => {
+        readIds.add(item.id);
         item.read = true;
         renderNotifications();   // re-render badge + items
       });
@@ -158,12 +227,13 @@
   if (notifMarkRead) {
     notifMarkRead.addEventListener("click", (e) => {
       e.preventDefault();
+      notifications.forEach((n) => readIds.add(n.id));
       notifications.forEach((n) => (n.read = true));
       renderNotifications();
     });
   }
 
-  // Initial render
-  renderNotifications();
+  pollNotifications();
+  setInterval(pollNotifications, NOTIF_POLL_MS);
 
 }());
