@@ -14,8 +14,10 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 
 import requests
+from requests.exceptions import Timeout
 
 from core.llm_gpu_probe import gpu_available
 
@@ -95,23 +97,38 @@ Rules:
 
 
 def classify_semantic(prompt: str) -> dict[str, object]:
-    """Full semantic pre-pass on GPU; zero-cost fallback on CPU."""
+    """Full semantic pre-pass on GPU with retry on timeout."""
+    fallback = {"topics": [], "route": "chat", "tool": None, "args": None}
+
     if not gpu_available():
-        return {"topics": [], "route": "chat", "tool": None, "args": None}
+        return fallback
+
+    for attempt in range(2):
+        try:
+            response = requests.post(
+                _OLLAMA_URL,
+                json={
+                    "model": "mistral",
+                    "prompt": _CLASSIFICATION_PROMPT.format(prompt=prompt),
+                    "stream": False,
+                    "options": {"num_predict": 80, "temperature": 0},
+                },
+                timeout=30,
+            )
+            response.raise_for_status()
+            break
+        except Timeout:
+            if attempt == 0:
+                logger.warning("Semantic classifier timeout on attempt 1, retrying in 3s...")
+                time.sleep(3)
+                continue
+            logger.warning("Semantic classifier timed out after retry, using fallback")
+            return fallback
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Semantic classifier failed (%s), using fallback", exc)
+            return fallback
 
     try:
-        response = requests.post(
-            _OLLAMA_URL,
-            json={
-                "model": "mistral",
-                "prompt": _CLASSIFICATION_PROMPT.format(prompt=prompt),
-                "stream": False,
-                "options": {"num_predict": 80, "temperature": 0},
-            },
-            timeout=10,
-        )
-        response.raise_for_status()
-
         raw = response.json().get("response", "")
         clean = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
         parsed = json.loads(clean)
@@ -137,5 +154,5 @@ def classify_semantic(prompt: str) -> dict[str, object]:
         return {"topics": topics, "route": route, "tool": tool, "args": args}
 
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Semantic classifier failed (%s), using fallback", exc)
-        return {"topics": [], "route": "chat", "tool": None, "args": None}
+        logger.warning("Semantic classifier parse failed (%s), using fallback", exc)
+        return fallback

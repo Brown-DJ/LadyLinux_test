@@ -240,6 +240,21 @@ def evaluate_prompt(text: str):
     if text in ("pause music", "pause audio", "pause media"):
         return {"type": "tool", "tool": "media_pause", "args": {}}
 
+    if text in (
+        "next",
+        "next song",
+        "next track",
+        "play next",
+        "play next song",
+        "play next track",
+        "skip",
+        "skip song",
+        "skip track",
+        "skip to next song",
+        "skip to next track",
+    ):
+        return {"type": "tool", "tool": "media_next", "args": {}}
+
     volume_match = re.search(
         r"^(?:set\s+volume(?:\s+to)?|volume(?:\s+to)?)\s+(\d{1,3})(?:\s*%)?$",
         text,
