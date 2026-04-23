@@ -17,7 +17,7 @@
   const elPrevBtn = document.getElementById("musicPrevBtn");
   const elNextBtn = document.getElementById("musicNextBtn");
   const elBgBlur = document.getElementById("musicBgBlur");
-  const elOpenBtn = document.getElementById("musicOpenBtn");
+  const elBgToggleBtn = document.getElementById("musicBgToggleBtn");
 
   if (!elIdle) return;
 
@@ -97,25 +97,17 @@
     }
   }
 
-  if (elOpenBtn && elBgBlur) {
-    elOpenBtn.addEventListener("click", (event) => {
-      event.preventDefault();
-
+  if (elBgToggleBtn && elBgBlur) {
+    elBgToggleBtn.addEventListener("click", () => {
       if (!bgActive && currentArt) {
         elBgBlur.style.backgroundImage = `url("${currentArt}")`;
         elBgBlur.style.opacity = "1";
         bgActive = true;
-        elOpenBtn.classList.add("active");
+        elBgToggleBtn.classList.add("active");
       } else if (bgActive) {
         elBgBlur.style.opacity = "0";
         bgActive = false;
-        elOpenBtn.classList.remove("active");
-
-        setTimeout(() => {
-          window.location.href = elOpenBtn.href;
-        }, 1200);
-      } else {
-        window.location.href = elOpenBtn.href;
+        elBgToggleBtn.classList.remove("active");
       }
     });
   }
