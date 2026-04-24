@@ -22,6 +22,7 @@ from logging_filters import IgnoreMetricsFilter
 from api_layer.routes.audio import router as audio_router
 from api_layer.routes.context import router as context_router
 from core.tools import os_core
+from core.tools.desktop_resolver import build_desktop_index
 from core.tools.firewall_core import get_firewall_status_json
 from api_layer.routes.firewall import router as firewall_router
 from api_layer.routes.logs import router as logs_router
@@ -860,6 +861,7 @@ async def _warm_google_caches() -> None:
 async def init_rag() -> None:
     ensure_collection()
     init_weather()
+    build_desktop_index()
 
     def _seed_all():
         global _seed_running

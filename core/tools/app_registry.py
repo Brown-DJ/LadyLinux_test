@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from core.tools.desktop_resolver import resolve_desktop_binary
+
 
 def _normalize_name(name: str) -> str:
     return str(name or "").strip().lower().replace("_", "-").replace(" ", "-")
@@ -150,8 +152,25 @@ def resolve_app(name: str) -> dict | None:
 
 
 def get_binary(name: str) -> str | None:
-    app = resolve_app(name)
-    return app.get("binary") if app else None
+    """
+    Resolve a friendly app name to its launch binary.
+
+    Resolution order:
+      1. Static `_APP_REGISTRY`
+      2. `_ALIASES` to canonical registry names
+      3. Dynamic `.desktop` index for installed GUI apps
+      4. `None` so downstream code can try raw `shutil.which()`
+    """
+    normalized = _normalize_name(name)
+
+    if normalized in _APP_REGISTRY:
+        return _APP_REGISTRY[normalized]["binary"]
+
+    canonical = _ALIASES.get(normalized)
+    if canonical and canonical in _APP_REGISTRY:
+        return _APP_REGISTRY[canonical]["binary"]
+
+    return resolve_desktop_binary(normalized)
 
 
 def get_process_name(name: str) -> str | None:
