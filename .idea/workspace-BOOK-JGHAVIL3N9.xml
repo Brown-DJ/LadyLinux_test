@@ -1,0 +1,287 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="8a4d06a6-70b5-40d1-ab23-56a329c0a65b" name="Changes" comment="possible seeder fix?" />
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="CopilotPersistence">
+    <persistenceIdMap>
+      <entry key="_C:/Users/Darri/OneDrive/Documents/school/LadyLinux" value="39Y3pcdp8UQgSHhCjkLn8E308uK" />
+      <entry key="_C:/Users/Darri/OneDrive/Documents/school/LadyLinux_test" value="3B8iVXxPlZJM3YntQzNhMDizdcC" />
+    </persistenceIdMap>
+  </component>
+  <component name="EmbeddingIndexingInfo">
+    <option name="cachedIndexableFilesCount" value="203" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$" value="Capstone_Dev_01" />
+      </map>
+    </option>
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+    <option name="UPDATE_TYPE" value="REBASE" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;Brown-DJ&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/Brown-DJ/LadyLinux_test&quot;,
+    &quot;accountId&quot;: &quot;3656f838-bf3e-457c-84d2-ff687bc74115&quot;
+  }
+}</component>
+  <component name="MarkdownSettingsMigration">
+    <option name="stateVersion" value="1" />
+  </component>
+  <component name="McpProjectServerCommands">
+    <commands />
+    <urls />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 8
+}</component>
+  <component name="ProjectId" id="39Y3pcdp8UQgSHhCjkLn8E308uK" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "RunOnceActivity.MCP Project settings loaded": "true",
+    "RunOnceActivity.OpenProjectViewOnStart": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "WebServerToolWindowFactoryState": "false",
+    "ai.playground.ignore.import.keys.banner.in.settings": "true",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
+    "git-widget-placeholder": "main",
+    "junie.onboarding.icon.badge.shown": "true",
+    "last_opened_file_path": "C:/Users/Darri/OneDrive/Documents/school/LadyLinux/static/js",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "ml.llm.LLMConfigurable",
+    "to.speed.mode.migration.done": "true",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="C:\Users\Darri\OneDrive\Documents\school\LadyLinux\static\js" />
+      <recent name="C:\Users\Darri\OneDrive\Documents\school\LadyLinux\templates" />
+      <recent name="C:\Users\Darri\OneDrive\Documents\school\LadyLinux\static" />
+      <recent name="C:\Users\Darri\OneDrive\Documents\school\LadyLinux\static\css" />
+      <recent name="C:\Users\Darri\OneDrive\Documents\school\LadyLinux\docs\capstone\contributor" />
+    </key>
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\Darri\OneDrive\Documents\school\LadyLinux_test\static" />
+    </key>
+  </component>
+  <component name="RunAnythingCache">
+    <option name="myCommands">
+      <command value="https://brown-dj.github.io/LadyLinux_test/templates/nav.html" />
+    </option>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-js-predefined-d6986cc7102b-9b0f141eb926-JavaScript-PY-253.31033.139" />
+        <option value="bundled-python-sdk-2653e85de345-6d6dccd035ac-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-253.31033.139" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="8a4d06a6-70b5-40d1-ab23-56a329c0a65b" name="Changes" comment="" />
+      <created>1770859360459</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1770859360459</updated>
+      <workItem from="1770859362895" duration="564000" />
+      <workItem from="1770862247496" duration="2096000" />
+      <workItem from="1770864700846" duration="104000" />
+      <workItem from="1770864837578" duration="2533000" />
+      <workItem from="1771456046829" duration="295000" />
+      <workItem from="1771468854931" duration="3769000" />
+      <workItem from="1772067051220" duration="3951000" />
+      <workItem from="1772073908424" duration="5952000" />
+      <workItem from="1772143006349" duration="27000" />
+      <workItem from="1773877122501" duration="1285000" />
+      <workItem from="1774480180250" duration="40000" />
+      <workItem from="1774480227363" duration="8914000" />
+    </task>
+    <task id="LOCAL-00001" summary="created contributor file">
+      <created>1770859868951</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1770859868951</updated>
+    </task>
+    <task id="LOCAL-00002" summary="created contributor file">
+      <option name="closed" value="true" />
+      <created>1770862710894</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1770862710894</updated>
+    </task>
+    <task id="LOCAL-00003" summary="Updated UI">
+      <option name="closed" value="true" />
+      <created>1771469037791</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1771469037791</updated>
+    </task>
+    <task id="LOCAL-00004" summary="Updated UI pt 2">
+      <option name="closed" value="true" />
+      <created>1771469592396</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1771469592396</updated>
+    </task>
+    <task id="LOCAL-00005" summary="Updated build number 0.1.0 to 0.1.4">
+      <option name="closed" value="true" />
+      <created>1772071763748</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1772071763748</updated>
+    </task>
+    <task id="LOCAL-00006" summary="Updated index nav style.css and chat.js">
+      <option name="closed" value="true" />
+      <created>1772074129867</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1772074129867</updated>
+    </task>
+    <task id="LOCAL-00007" summary="Updated html pages, themes are now in json, chat now only for responses. chat.js still needs work">
+      <option name="closed" value="true" />
+      <created>1772122427095</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1772122427095</updated>
+    </task>
+    <task id="LOCAL-00008" summary="fixed themes refreshing on each page load&#10;&#10;(loadThemes function)">
+      <option name="closed" value="true" />
+      <created>1772123247332</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1772123247332</updated>
+    </task>
+    <task id="LOCAL-00009" summary="update branch">
+      <option name="closed" value="true" />
+      <created>1772143228155</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1772143228155</updated>
+    </task>
+    <task id="LOCAL-00010" summary="update branch pt 2">
+      <option name="closed" value="true" />
+      <created>1772145215996</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1772145215996</updated>
+    </task>
+    <task id="LOCAL-00011" summary="semi working ui as of 2/26 chat.js and llm code needs fixing">
+      <option name="closed" value="true" />
+      <created>1772149503819</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1772149503819</updated>
+    </task>
+    <task id="LOCAL-00012" summary="connected html to api layer, fixed ui issues">
+      <option name="closed" value="true" />
+      <created>1772206671993</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1772206671993</updated>
+    </task>
+    <task id="LOCAL-00013" summary="added comments to css and js. fixed color stutter,">
+      <option name="closed" value="true" />
+      <created>1772208692573</created>
+      <option name="number" value="00013" />
+      <option name="presentableId" value="LOCAL-00013" />
+      <option name="project" value="LOCAL" />
+      <updated>1772208692573</updated>
+    </task>
+    <task id="LOCAL-00014" summary="trying to streamline download process">
+      <option name="closed" value="true" />
+      <created>1774486744124</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1774486744124</updated>
+    </task>
+    <task id="LOCAL-00015" summary="requirement fix">
+      <option name="closed" value="true" />
+      <created>1774487000051</created>
+      <option name="number" value="00015" />
+      <option name="presentableId" value="LOCAL-00015" />
+      <option name="project" value="LOCAL" />
+      <updated>1774487000051</updated>
+    </task>
+    <task id="LOCAL-00016" summary="possible seeder fix?">
+      <option name="closed" value="true" />
+      <created>1774490397045</created>
+      <option name="number" value="00016" />
+      <option name="presentableId" value="LOCAL-00016" />
+      <option name="project" value="LOCAL" />
+      <updated>1774490397045</updated>
+    </task>
+    <option name="localTasksCounter" value="17" />
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="created contributor file" />
+    <MESSAGE value="Updated UI" />
+    <MESSAGE value="Updated UI pt 2" />
+    <MESSAGE value="Updated build number 0.1.0 to 0.1.4" />
+    <MESSAGE value="Updated index nav style.css and chat.js" />
+    <MESSAGE value="Updated html pages, themes are now in json, chat now only for responses. chat.js still needs work" />
+    <MESSAGE value="fixed themes refreshing on each page load&#10;&#10;(loadThemes function)" />
+    <MESSAGE value="update branch" />
+    <MESSAGE value="update branch pt 2" />
+    <MESSAGE value="semi working ui as of 2/26 chat.js and llm code needs fixing" />
+    <MESSAGE value="connected html to api layer, fixed ui issues" />
+    <MESSAGE value="added comments to css and js. fixed color stutter," />
+    <MESSAGE value="trying to streamline download process" />
+    <MESSAGE value="requirement fix" />
+    <MESSAGE value="possible seeder fix?" />
+    <option name="LAST_COMMIT_MESSAGE" value="possible seeder fix?" />
+  </component>
+  <component name="github-copilot-workspace">
+    <instructionFileLocations>
+      <option value=".github/instructions" />
+    </instructionFileLocations>
+    <promptFileLocations>
+      <option value=".github/prompts" />
+    </promptFileLocations>
+  </component>
+</project>
